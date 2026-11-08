@@ -1,0 +1,21 @@
+{
+  "name": "create-tessel-plugin",
+  "version": "0.1.0",
+  "description": "Scaffold a Tessel plugin with one block and one trigger",
+  "type": "module",
+  "bin": {
+    "create-tessel-plugin": "./index.js"
+  },
+  "exports": "./index.js",
+  "files": [
+    "index.js"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@tessel/core": "workspace:*",
+    "@tessel/plugin-sdk": "workspace:*",
+    "@tessel/desktop": "workspace:*"
+  }
+}

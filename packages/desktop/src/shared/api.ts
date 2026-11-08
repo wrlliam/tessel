@@ -8,6 +8,9 @@ import type {
   Profile,
 } from '@tessel/core'
 import type { PairingCode } from '@tessel/server'
+import type { PluginInfo } from '../main/plugins/manager.ts'
+
+export type { PluginInfo }
 
 export interface LogEntry {
   id: number
@@ -44,6 +47,9 @@ export interface DesktopState {
   /** Tiles in the active profile that currently look different from their settings. */
   liveAppearance: Record<string, Appearance>
   settings: AppSettings
+  plugins: PluginInfo[]
+  /** Changes when plugin blocks are added or removed. */
+  blocksVersion: number
 }
 
 export interface AppSettings {
@@ -88,6 +94,12 @@ export interface TesselApi {
   testRun(profileId: string, tileId: string): Promise<void>
   stopTile(profileId: string, tileId: string): Promise<void>
   onEngineEvent(listener: (event: ProfileEngineEvent) => void): () => void
+  setPluginEnabled(id: string, on: boolean): Promise<SaveResult>
+  restartPlugin(id: string): Promise<void>
+  removePlugin(id: string): Promise<void>
+  /** Opens a picker. kind 'dev' uses the folder in place and reloads it when files change. */
+  addPlugin(kind: 'folder' | 'zip' | 'dev'): Promise<SaveResult | { ok: false; cancelled: true }>
+  updatePluginSettings(id: string, values: Record<string, unknown>): Promise<void>
 }
 
 export type SaveResult = { ok: true } | { ok: false; error: string }
@@ -115,4 +127,9 @@ export const Channel = {
   testRun: 'tile:test-run',
   stopTile: 'tile:stop',
   engineEvent: 'engine:event',
+  setPluginEnabled: 'plugins:enable',
+  restartPlugin: 'plugins:restart',
+  removePlugin: 'plugins:remove',
+  addPlugin: 'plugins:add',
+  updatePluginSettings: 'plugins:settings',
 } as const

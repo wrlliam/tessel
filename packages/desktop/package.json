@@ -18,6 +18,7 @@
     "@tailwindcss/vite": "^4.3.5",
     "@tessel/brand": "workspace:*",
     "@tessel/core": "workspace:*",
+    "@tessel/plugin-sdk": "workspace:*",
     "@tessel/server": "workspace:*",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",

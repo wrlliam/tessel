@@ -63,6 +63,17 @@ export class ProfileRuntime {
     })
   }
 
+  /** For plugins that update a tile's state outside a run. */
+  setTileState(tileId: string, key: string, value: unknown) {
+    this.update((p) => ({
+      ...p,
+      tileState: {
+        ...p.tileState,
+        [tileId]: { ...p.tileState[tileId], [key]: toJsonValue(value) },
+      },
+    }))
+  }
+
   setVariables(values: Record<string, JsonValue>) {
     this.update((p) => ({ ...p, variables: { ...p.variables, ...values } }))
   }

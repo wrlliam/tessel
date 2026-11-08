@@ -1,0 +1,18 @@
+{
+  "name": "@tessel/plugin-voicemeeter",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "koffi": "^3.3.7",
+    "zod": "^4.6.7"
+  },
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --external:koffi --outfile=dist/index.js",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@tessel/plugin-sdk": "workspace:*",
+    "@types/node": "^22.20.5"
+  }
+}

@@ -6,6 +6,7 @@ import type { DesktopState } from '../../shared/api.ts'
 import { Editor } from './editor/Editor.tsx'
 import { cn } from './lib/cn.ts'
 import { PhonesView } from './PhonesView.tsx'
+import { PluginsView } from './PluginsView.tsx'
 import { SettingsView } from './SettingsView.tsx'
 import { Switch } from './Switch.tsx'
 import { useDesktopState } from './useDesktopState.ts'
@@ -40,6 +41,9 @@ export function App() {
           <Tabs.Trigger value="phones" className={tab}>
             Phones
           </Tabs.Trigger>
+          <Tabs.Trigger value="plugins" className={tab}>
+            Plugins
+          </Tabs.Trigger>
           <Tabs.Trigger value="settings" className={tab}>
             Settings
           </Tabs.Trigger>
@@ -69,10 +73,14 @@ export function App() {
           activeProfileId={state.activeProfileId}
           liveAppearance={state.liveAppearance}
           theme={state.settings.theme}
+          blocksVersion={state.blocksVersion}
         />
       </Tabs.Content>
       <Tabs.Content value="phones" className="flex min-h-0 flex-1 flex-col">
         <PhonesView state={state} />
+      </Tabs.Content>
+      <Tabs.Content value="plugins" className="flex min-h-0 flex-1 flex-col">
+        <PluginsView state={state} />
       </Tabs.Content>
       <Tabs.Content value="settings" className="flex min-h-0 flex-1 flex-col">
         <SettingsView state={state} />

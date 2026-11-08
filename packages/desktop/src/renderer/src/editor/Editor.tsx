@@ -17,6 +17,14 @@ const isEditable = (el: EventTarget | null) =>
   el instanceof HTMLElement &&
   (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))
 
+/** Plugins coming or going change the block list; fetch it again. */
+function useBlockReload(version: number) {
+  useEffect(() => {
+    if (version === 0) return
+    void window.tessel.getBlocks().then((blocks) => useEditor.getState().setBlocks(blocks))
+  }, [version])
+}
+
 function useShortcuts(os: OS) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -54,10 +62,19 @@ interface Props {
   activeProfileId: string
   liveAppearance: Record<string, Appearance>
   theme: 'system' | 'dark' | 'light'
+  blocksVersion: number
 }
 
-export function Editor({ os, profiles, activeProfileId, liveAppearance, theme }: Props) {
+export function Editor({
+  os,
+  profiles,
+  activeProfileId,
+  liveAppearance,
+  theme,
+  blocksVersion,
+}: Props) {
   useEditorSync(activeProfileId)
+  useBlockReload(blocksVersion)
   useShortcuts(os)
   const profile = useEditor((s) => s.profile)
   const save = useEditor((s) => s.save)

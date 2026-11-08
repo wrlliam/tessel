@@ -32,6 +32,12 @@ const api: TesselApi = {
   validateGraph: (graph) => ipcRenderer.invoke(Channel.validateGraph, graph),
   testRun: (profileId, tileId) => ipcRenderer.invoke(Channel.testRun, profileId, tileId),
   stopTile: (profileId, tileId) => ipcRenderer.invoke(Channel.stopTile, profileId, tileId),
+  setPluginEnabled: (id, on) => ipcRenderer.invoke(Channel.setPluginEnabled, id, on),
+  restartPlugin: (id) => ipcRenderer.invoke(Channel.restartPlugin, id),
+  removePlugin: (id) => ipcRenderer.invoke(Channel.removePlugin, id),
+  addPlugin: (kind) => ipcRenderer.invoke(Channel.addPlugin, kind),
+  updatePluginSettings: (id, values) =>
+    ipcRenderer.invoke(Channel.updatePluginSettings, id, values),
   onEngineEvent: (listener) => {
     const handler = (_: unknown, event: ProfileEngineEvent) => listener(event)
     ipcRenderer.on(Channel.engineEvent, handler)

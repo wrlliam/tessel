@@ -33,6 +33,7 @@ import QRCode from 'qrcode'
 import type { DesktopState, LogEntry, ProfileEngineEvent, SaveResult } from '../shared/api.ts'
 import { newProfileId, ProfileLibrary } from './profiles.ts'
 import { ProfileRuntime } from './runtime.ts'
+import { PluginManager, type ManagerOptions } from './plugins/manager.ts'
 import { Scheduler } from './scheduler.ts'
 import { Settings, settingsStore } from './settings.ts'
 import { blocksUsed, packProfile, unpackProfile } from './transfer.ts'
@@ -50,6 +51,11 @@ export interface HubOptions {
   platform: Platform
   /** Extra address to offer, e.g. the macOS Bonjour hostname. */
   localHostname?: string
+  /** Plugin processes; leave out to run without plugins. */
+  plugins?: Pick<
+    ManagerOptions,
+    'spawn' | 'builtinDirs' | 'confirmPermissions' | 'watch' | 'restartDelaysMs'
+  >
   /** Inject for tests. */
   addresses?: () => LanAddress[]
   mdns?: boolean
@@ -69,6 +75,9 @@ export class Hub {
   private library: ProfileLibrary
   private runtimes = new Map<string, ProfileRuntime>()
   private registry = createRegistry()
+  readonly plugins?: PluginManager
+  /** Bumped whenever plugin blocks come or go, so the editor reloads its block list. */
+  private blocksVersion = 0
   /** Run-time look changes from Set tile appearance, for the active profile. */
   private overrides = new Map<string, Partial<Appearance>>()
   /** What phones currently show for tiles that differ from their own look. */
@@ -102,6 +111,24 @@ export class Hub {
     this.store = settingsStore(join(opts.dataDir, 'settings.json'))
     this.devices = new DeviceRegistry(join(opts.dataDir, 'devices.json'))
     this.library = new ProfileLibrary(join(opts.dataDir, 'profiles'), (m) => this.logger.warn(m))
+    if (opts.plugins) {
+      this.plugins = new PluginManager({
+        ...opts.plugins,
+        dataDir: opts.dataDir,
+        os: opts.platform.os,
+        registry: this.registry,
+        logger: this.logger,
+        onChange: () => {
+          this.blocksVersion++
+          // Newly started plugins may own triggers already on tiles.
+          if (this.settings) this.subscribePlugins()
+          this.emit()
+        },
+        onEvent: (subscriptionId, values) => this.pluginEvent(subscriptionId, values),
+        onTileState: (tileId, key, value) =>
+          this.runtime(this.library.activeId).setTileState(tileId, key, value),
+      })
+    }
     this.devices.onChange(() => this.emit())
     this.pairing.onChange(() => {
       this.scheduleCodeRotation()
@@ -132,6 +159,7 @@ export class Hub {
     this.settings = await this.store.load()
     await this.devices.load()
     await this.library.load()
+    await this.plugins?.load()
     this.activate()
     this.scheduleCodeRotation()
     this.networkTimer = setInterval(() => void this.refreshNetwork(), NETWORK_POLL_MS)
@@ -158,6 +186,8 @@ export class Hub {
         theme: this.settings.theme,
         logLevel: this.settings.logLevel,
       },
+      plugins: this.plugins?.list() ?? [],
+      blocksVersion: this.blocksVersion,
     }
     if (this.serverError) state.serverError = this.serverError
     return state
@@ -319,6 +349,11 @@ export class Hub {
     return { ok: true }
   }
 
+  plugin(): PluginManager {
+    if (!this.plugins) throw new Error('Plugins are not available')
+    return this.plugins
+  }
+
   async setAllowPhones(on: boolean) {
     this.settings = { ...this.settings, allowPhones: on }
     await this.store.save(this.settings)
@@ -398,6 +433,7 @@ export class Hub {
     clearInterval(this.networkTimer)
     this.scheduler.stop()
     for (const h of this.holds.values()) clearTimeout(h.timer)
+    await this.plugins?.dispose()
     await this.server.dispose()
     await Promise.all([...this.runtimes.values()].map((r) => r.dispose()))
   }
@@ -435,7 +471,42 @@ export class Hub {
     this.server.setProfile(this.library.active())
     this.pushAppearances()
     this.reschedule()
+    this.subscribePlugins()
     this.emit()
+  }
+
+  /** Tells plugins which of their triggers sit on tiles of the active profile. */
+  private subscribePlugins() {
+    if (!this.plugins) return
+    const pluginIds = new Set(this.plugins.list().map((p) => p.id))
+    this.plugins.setSubscriptions(
+      tilesOf(this.library.active()).flatMap((tile) =>
+        tile.graph.nodes
+          .filter(
+            (n) =>
+              pluginIds.has(n.type.split('.')[0] ?? '') &&
+              (this.registry.get(n.type)?.trigger ?? 'plugin') === 'plugin',
+          )
+          .map((n) => ({
+            id: `${tile.id}::${n.id}`,
+            trigger: n.type,
+            tileId: tile.id,
+            params: n.params,
+          })),
+      ),
+    )
+  }
+
+  private pluginEvent(subscriptionId: string, values: Record<string, unknown>) {
+    if (this.paused) return
+    const [tileId = '', nodeId = ''] = subscriptionId.split('::')
+    const tile = this.findTile(this.library.activeId, tileId)
+    if (tile)
+      void this.runtime(this.library.activeId).engine.trigger(tile, {
+        type: 'plugin',
+        nodeId,
+        data: values,
+      })
   }
 
   private reschedule() {
@@ -456,6 +527,7 @@ export class Hub {
     this.server.setProfile(this.library.active())
     this.pushAppearances()
     this.reschedule()
+    this.subscribePlugins()
   }
 
   private changeAppearance(profileId: string, tileId: string, change: AppearanceChange) {

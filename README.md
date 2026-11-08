@@ -4,7 +4,7 @@
 
 The desktop app is the brain. The phone is a remote that only ever says "tile X pressed".
 
-> Status: **Phase 5 (system settings and all built-in blocks).** Plugins (including Voicemeeter) come in phase 6.
+> Status: **Phase 6 (plugins).** Plugin system, SDK and scaffolding CLI, with Voicemeeter and System info as first-party plugins. Packaging, CI and the iOS shell come in phase 7.
 
 ## Requirements
 
@@ -46,7 +46,7 @@ Paired phones are listed in the window. **Remove** disconnects one immediately a
 
 ## Editor
 
-The window has three tabs: **Editor**, **Phones** (pairing and devices) and **Settings** (port, start on login, theme, shell commands, activity log level).
+The window has four tabs: **Editor**, **Phones** (pairing and devices), **Plugins** and **Settings** (port, start on login, theme, shell commands, activity log level).
 
 - **Left:** the profile, its pages and the page as your phone shows it.
   - **Profiles** (e.g. Work, Gaming): create, duplicate, rename, delete, import and export. **Use on phones** picks the one phones see; the tray menu has a Profile submenu too. Each profile has its own variables.
@@ -109,6 +109,24 @@ Every tile is a small graph: a trigger, then blocks joined by wires. Flow wires 
 
 **Safety.** Loops are rejected when a graph is checked, runs stop after 1000 blocks or 30 s, and each tile has a concurrency policy: `queue` (default, up to 5 waiting), `ignore` or `restart`. Pause tiles in the tray stops running tiles.
 
+## Plugins
+
+Plugins add blocks and triggers and run in their own processes; a crashing plugin is restarted with backoff and never takes Tessel down. The **Plugins** tab lists them with their status and permissions, turns them on and off, shows a settings form for each, and installs new ones from a folder or a zip. **Load for development** uses a folder in place and reloads it when files change. Before an installed plugin starts, Tessel shows the permissions it declares and asks; plugins still run with your account's rights, so install only ones you trust. Phones can't install or enable plugins.
+
+Write your own with `pnpm create-plugin my-plugin` (see [docs/plugins.md](docs/plugins.md)).
+
+### Voicemeeter (Windows)
+
+Works with Voicemeeter Basic, Banana and Potato through VB-Audio's Remote API. Tessel finds `VoicemeeterRemote64.dll` from Voicemeeter's installer entry in the registry and loads it with koffi; Voicemeeter itself must be running.
+
+Blocks: Set gain, Mute (mute, unmute or toggle; strips or buses), Solo, Routing (A1–A5, B1–B3, as your version has them), Macro button, Load preset, Get level, Get parameter, Set parameter (any name, such as `Strip[0].Label`). Trigger: **On parameter change**, which polls Voicemeeter's change flag 20 times a second and fires once when the profile loads.
+
+A mute tile that turns red while muted: add **On parameter change** for `Strip[0].Mute` with _Keep as tile state named_ `muted`, wire it to nothing, add a press graph with **Mute** (toggle), and give the tile live appearance `Colour: {{state.muted ? "#F25C6E" : "#212833"}}`. On macOS and Linux its blocks say "Voicemeeter is Windows-only."
+
+### System info
+
+A small example plugin: **System info** (CPU, memory and uptime as values) and **On high CPU** (starts a tile when CPU use goes above a level).
+
 ## Layout
 
 ```
@@ -117,7 +135,12 @@ packages/
   server/    Fastify HTTP + WebSocket, pairing, device registry, atomic JSON store, mDNS
   phone/     React PWA served to phones at /
   desktop/   Electron tray app (electron-vite): main process, OS adapters (src/main/platform), React renderer
-  brand/     Theme tokens, fonts, logo and icon SVGs
+  brand/     Theme tokens, fonts, shared tile icons, logo and icon SVGs
+  plugin-sdk/              Plugin types, manifest schema, runtime, runner and test harness
+  create-tessel-plugin/    Scaffolding CLI
+plugins/
+  voicemeeter/   Voicemeeter Remote API plugin (koffi; mock API for tests)
+  system/        System info example plugin
 docs/protocol.md   Phone ↔ desktop protocol
 ```
 
@@ -129,6 +152,8 @@ Stored as JSON in the OS app-data folder (`~/Library/Application Support/Tessel`
 - `devices.json`: paired devices (SHA-256 of each token, never the token)
 - `profiles/<id>.json`: one per profile, with pages, tiles, graphs and global variables. The editor saves layout and graphs; variables are left as tiles last set them.
 - `profiles/index.json`: profile order and which one phones use.
+- `plugins.json`: which plugins are on, their settings, and permissions you allowed.
+- `plugins/<id>/`: installed plugins. `plugin-data/<id>.json`: each plugin's storage.
 
 Set `TESSEL_DATA_DIR` to use a different folder (handy for testing without touching your tiles).
 

@@ -1,0 +1,23 @@
+{
+  "id": "system",
+  "name": "System info",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "CPU and memory use, and a trigger for when the computer gets busy.",
+  "author": "Tessel",
+  "main": "dist/index.js",
+  "permissions": [],
+  "icon": "monitor",
+  "settingsSchema": {
+    "type": "object",
+    "properties": {
+      "checkSeconds": {
+        "type": "number",
+        "title": "Check CPU every (seconds)",
+        "default": 5,
+        "minimum": 1,
+        "maximum": 60
+      }
+    }
+  }
+}

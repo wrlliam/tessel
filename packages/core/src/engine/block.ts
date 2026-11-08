@@ -136,6 +136,10 @@ export class BlockRegistry {
     this.blocks.set(block.id, block)
   }
 
+  unregister(id: string) {
+    this.blocks.delete(id)
+  }
+
   get(id: string) {
     return this.blocks.get(id)
   }

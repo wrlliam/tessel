@@ -4,6 +4,9 @@ import { Channel, type DesktopState } from '../shared/api.ts'
 import { Hub } from './hub.ts'
 import { phoneDir } from './paths.ts'
 import { createPlatform } from './platform/index.ts'
+import { confirmPermissions, utilitySpawner, watchFolder } from './plugins/electron.ts'
+import { pluginRunner, builtinPluginsDir } from './paths.ts'
+import { addPluginWithDialog } from './plugins/dialogs.ts'
 import { exportWithDialog, importWithDialog } from './transfer-dialogs.ts'
 import { TesselTray } from './tray.ts'
 import { currentWindow, markQuitting, showWindow } from './window.ts'
@@ -28,6 +31,12 @@ async function start() {
     phoneDir: phoneDir(),
     // Read when a shell block runs, after the hub exists.
     platform: createPlatform(() => hub.shellPolicy()),
+    plugins: {
+      spawn: utilitySpawner(pluginRunner()),
+      builtinDirs: [builtinPluginsDir()],
+      confirmPermissions,
+      watch: watchFolder,
+    },
     // macOS answers mDNS for its own hostname, so this URL survives DHCP changes.
     ...(process.platform === 'darwin' && hostname().endsWith('.local')
       ? { localHostname: hostname() }
@@ -113,6 +122,27 @@ async function start() {
       hub.addVariables(profileId, safe)
     }
   })
+  ipcMain.handle(Channel.setPluginEnabled, async (_e, id: unknown, on: unknown) => {
+    if (!str(id)) return { ok: false, error: 'Unknown plugin' }
+    await hub.plugin().setEnabled(id, on === true)
+    return { ok: true }
+  })
+  ipcMain.handle(Channel.restartPlugin, (_e, id: unknown) =>
+    str(id) ? hub.plugin().restart(id) : undefined,
+  )
+  ipcMain.handle(Channel.removePlugin, (_e, id: unknown) =>
+    str(id) ? hub.plugin().remove(id) : undefined,
+  )
+  ipcMain.handle(Channel.addPlugin, (_e, kind: unknown) =>
+    kind === 'folder' || kind === 'zip' || kind === 'dev'
+      ? addPluginWithDialog(hub.plugin(), currentWindow(), kind)
+      : undefined,
+  )
+  ipcMain.handle(Channel.updatePluginSettings, (_e, id: unknown, values: unknown) =>
+    str(id) && values && typeof values === 'object'
+      ? hub.plugin().updateSettings(id, values as Record<string, unknown>)
+      : undefined,
+  )
   ipcMain.handle(Channel.validateGraph, (_e, graph: unknown) => hub.checkGraph(graph))
   ipcMain.handle(Channel.testRun, (_e, profileId: unknown, tileId: unknown) => {
     if (str(profileId) && str(tileId)) return hub.testRun(profileId, tileId)

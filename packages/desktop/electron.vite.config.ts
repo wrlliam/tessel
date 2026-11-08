@@ -1,11 +1,21 @@
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'electron-vite'
+import { resolve } from 'node:path'
 
 export default defineConfig({
   main: {
-    // Workspace packages are TypeScript source, so bundle them; everything else loads from node_modules.
-    build: { externalizeDeps: { exclude: ['@tessel/core', '@tessel/server'] } },
+    build: {
+      // Workspace packages are TypeScript source, so bundle them; everything else loads from node_modules.
+      externalizeDeps: { exclude: ['@tessel/core', '@tessel/server', '@tessel/plugin-sdk'] },
+      rolldownOptions: {
+        input: {
+          index: resolve(import.meta.dirname, 'src/main/index.ts'),
+          // Started in each plugin's own process.
+          'plugin-runner': resolve(import.meta.dirname, '../plugin-sdk/src/runner.ts'),
+        },
+      },
+    },
   },
   preload: {
     // Sandboxed preloads must be CommonJS.

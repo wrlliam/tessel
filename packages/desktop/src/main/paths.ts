@@ -8,3 +8,10 @@ export const resource = (name: string) =>
 /** The built phone client the server hands to phones. */
 export const phoneDir = () =>
   app.isPackaged ? join(process.resourcesPath, 'phone') : join(app.getAppPath(), '../phone/dist')
+
+/** Built JS entry that plugin processes start from (an electron-vite main entry). */
+export const pluginRunner = () => join(import.meta.dirname, 'plugin-runner.js')
+
+/** First-party plugins: the repo's plugins folder in development, bundled resources when packaged. */
+export const builtinPluginsDir = () =>
+  app.isPackaged ? join(process.resourcesPath, 'plugins') : join(app.getAppPath(), '../../plugins')
