@@ -8,6 +8,7 @@ import { launch, run } from './exec.ts'
 import { createInput, type Nut } from './input.ts'
 import { createLinux } from './linux.ts'
 import { createWin32 } from './win32.ts'
+import { createYdotoolInput } from './ydotool.ts'
 
 // Copy every format out of the clipboard now: items read lazily, so they would
 // otherwise return whatever we paste over them.
@@ -42,12 +43,11 @@ function ensureInputAllowed(os: OS) {
       'Tessel needs Accessibility permission to press keys. Turn it on in System Settings › Privacy & Security › Accessibility, then press the tile again.',
     )
   }
-  if (os === 'linux' && process.env['XDG_SESSION_TYPE'] === 'wayland') {
-    throw new UserFacingError(
-      'Typing and shortcuts need an X11 session. Wayland blocks simulated keys; log in with "GNOME on Xorg" or similar.',
-    )
-  }
 }
+
+/** Wayland blocks the X11 input nut-js uses, so keys and mouse go through ydotool there. */
+export const isWayland = () =>
+  process.platform === 'linux' && process.env['XDG_SESSION_TYPE'] === 'wayland'
 
 async function confirmShell(command: string): Promise<boolean> {
   const answer = await dialog.showMessageBox({
@@ -63,12 +63,14 @@ async function confirmShell(command: string): Promise<boolean> {
 
 export function createPlatform(shellPolicy: () => ShellPolicy): Platform {
   const os = process.platform as OS
-  const input = createInput({
-    os,
-    loadNut: () => import('@nut-tree-fork/nut-js') as unknown as Promise<Nut>,
-    clipboard: electronClipboard,
-    ensureAllowed: () => ensureInputAllowed(os),
-  })
+  const input = isWayland()
+    ? createYdotoolInput({ run, clipboard: electronClipboard })
+    : createInput({
+        os,
+        loadNut: () => import('@nut-tree-fork/nut-js') as unknown as Promise<Nut>,
+        clipboard: electronClipboard,
+        ensureAllowed: () => ensureInputAllowed(os),
+      })
   const common = createCommon({
     shellPolicy,
     confirmShell,

@@ -347,12 +347,28 @@ export class TesselServer {
     this.bonjour = new Bonjour(undefined, (err: unknown) =>
       this.opts.logger.warn(`mDNS advertising failed: ${String(err)}`),
     )
+    const names = mdnsNames(hostname())
     this.bonjour.publish({
-      name: `Tessel on ${hostname().replace(/\.local$/, '')}`,
+      name: names.service,
+      // Always a .local name: phones resolve it over multicast DNS, whatever the computer's own hostname is.
+      host: names.host,
       type: 'tessel',
       protocol: 'tcp',
       port,
       txt: { protocol: String(PROTOCOL_VERSION) },
     })
   }
+}
+
+/**
+ * Service and host names for Bonjour. Hostnames like `mac.tailnet.ts.net` or `DESKTOP-1` become
+ * `mac.local` / `DESKTOP-1.local`, which phones can resolve with multicast DNS.
+ */
+export function mdnsNames(hostname: string): { service: string; host: string } {
+  const short =
+    hostname
+      .split('.')[0]
+      ?.replace(/[^A-Za-z0-9-]/g, '-')
+      .replace(/^-+|-+$/g, '') || 'tessel'
+  return { service: `Tessel on ${short}`, host: `${short}.local` }
 }

@@ -1,6 +1,6 @@
 import type { PairResponse } from '@tessel/core'
 import { useState, type FormEvent } from 'react'
-import { guessDeviceName, isStandalone } from './device.ts'
+import { chooseAnotherComputer, guessDeviceName, inNativeApp, isStandalone } from './device.ts'
 import { Wordmark } from './Logo.tsx'
 
 interface Props {
@@ -88,8 +88,13 @@ export function PairScreen({ notice, onPaired }: Props) {
 
       <div className="space-y-2 text-sm text-muted">
         {notice && <p className="text-text">{notice}</p>}
-        {isStandalone() && (
+        {isStandalone() && !inNativeApp() && (
           <p>Home Screen apps keep their own storage on iOS, so this one needs pairing too.</p>
+        )}
+        {inNativeApp() && (
+          <button type="button" className="min-h-11 text-glaze" onClick={chooseAnotherComputer}>
+            Choose another computer
+          </button>
         )}
       </div>
     </main>

@@ -4,22 +4,31 @@
 
 The desktop app is the brain. The phone is a remote that only ever says "tile X pressed".
 
-> Status: **Phase 6 (plugins).** Plugin system, SDK and scaffolding CLI, with Voicemeeter and System info as first-party plugins. Packaging, CI and the iOS shell come in phase 7.
+> Status: all seven phases of the first version are built: pairing, the block engine and editor, pages and profiles, system settings, plugins, packaging and an iPhone app. See [Known limits](#known-limits) for what hasn't been tried on real hardware yet.
 
 ## Requirements
 
 - Node 22.18 or newer
 - pnpm 12 (`corepack enable` will pick up the version pinned in `package.json`)
 - A phone on the same Wi-Fi as the computer
+- For the iPhone app only: a Mac with Xcode and a (free) Apple ID
 
 ## Setup
 
 ```sh
 pnpm install
-pnpm dev        # builds the phone client, then starts the desktop app with hot reload
+pnpm dev        # builds plugins and the phone client, then starts the desktop app with hot reload
 ```
 
 The first `pnpm dev` downloads the Electron binary.
+
+## Build installers
+
+```sh
+pnpm package    # installers for this OS in packages/desktop/release/
+```
+
+macOS gives a universal `.dmg`, Windows an NSIS `.exe`, Linux an `.AppImage` and `.deb`. CI builds all three on a version tag. Signing is stubbed: see [docs/packaging.md](docs/packaging.md) for what each OS needs and how to open unsigned builds.
 
 ## On the phone
 
@@ -34,6 +43,23 @@ Swipe sideways or tap the dots to change page. Folder tiles open their page; Bac
 
 Paired phones are listed in the window. **Remove** disconnects one immediately and invalidates its token.
 
+## iPhone app (optional)
+
+`packages/ios-shell` is a small native app (Capacitor) that finds Tessel on your Wi-Fi, opens the same phone page, and adds what Safari can't: haptics and keeping the screen awake. You build it yourself in Xcode; a free Apple ID is enough.
+
+1. Run `pnpm ios:open`. It builds the start screen, syncs the iOS project and opens it in Xcode.
+2. In Xcode, select the **App** project, then the **App** target, then **Signing & Capabilities**:
+   - **Team**: choose your Apple ID (Xcode › Settings › Accounts › + if it isn't listed). Free accounts show as "(Personal Team)".
+   - **Bundle Identifier**: change `app.tessel.shell` to something unique, like `com.yourname.tessel`.
+3. Connect your iPhone with a cable, unlock it and tap **Trust**. On iOS 16 and later, turn on **Settings › Privacy & Security › Developer Mode** and restart the phone when asked.
+4. Pick your iPhone as the run destination at the top of Xcode and press **Run** (⌘R).
+5. The first launch is blocked: on the iPhone open **Settings › General › VPN & Device Management**, tap your Apple ID under Developer App and **Trust** it. Open Tessel again.
+6. Allow **Local Network** when asked. Tessel lists computers running Tessel; tap yours (or type the address under the QR code), then pair with the 6-digit code.
+
+With a free Apple ID the app stops opening after **7 days**. Plug the phone in and press Run again to renew it; your pairing is kept. Free accounts can have 3 such apps on a device at once. A paid Apple Developer account removes the limit.
+
+In the app, the **⋯** menu has **Choose another computer**.
+
 ## Scripts
 
 | Command                           | What it does                                                                              |
@@ -43,6 +69,8 @@ Paired phones are listed in the window. **Remove** disconnects one immediately a
 | `pnpm build`                      | Build every package                                                                       |
 | `pnpm check`                      | Typecheck, lint and test                                                                  |
 | `pnpm icons`                      | Re-render PNG icons from the SVGs in `packages/brand`                                     |
+| `pnpm package`                    | Build installers for this OS (`pnpm package:dir` for an unpacked app)                     |
+| `pnpm ios:open`                   | Build and sync the iPhone app, then open it in Xcode                                      |
 
 ## Editor
 
@@ -141,7 +169,12 @@ packages/
 plugins/
   voicemeeter/   Voicemeeter Remote API plugin (koffi; mock API for tests)
   system/        System info example plugin
-docs/protocol.md   Phone ↔ desktop protocol
+  ios-shell/     iPhone app (Capacitor): start screen, Bonjour discovery plugin (Swift), Xcode project
+docs/
+  protocol.md    Phone ↔ desktop protocol
+  plugins.md     Writing plugins
+  packaging.md   Installers, signing, CI
+.github/workflows/  CI (all three OSes) and release builds
 ```
 
 ## Data
@@ -180,18 +213,27 @@ Set `TESSEL_DATA_DIR` to use a different folder (handy for testing without touch
 
 **"Couldn't find an app called …"**: use the name as it appears in Applications (macOS), the Start menu (Windows) or your app launcher (Linux), or give the full path.
 
-**Typing does nothing on Linux**: Wayland blocks simulated keys. Use an X11 session for now; a ydotool fallback is planned.
+**Typing does nothing on Linux**: Wayland blocks the usual way of simulating keys, so on Wayland Tessel uses `ydotool` for typing, shortcuts, media keys and the mouse. Install it (for example `sudo apt install ydotool`) and keep the `ydotoold` service running; Settings shows a reminder when you're on Wayland. On X11 nothing extra is needed.
 
 **Dark mode on Linux** uses GNOME's `color-scheme` setting. Other desktops aren't supported yet. On Windows some apps only notice the change after they restart.
 
+**The iPhone app doesn't find the computer**: allow Local Network for Tessel in the iPhone's Settings › Privacy & Security › Local Network, and check both are on the same Wi-Fi. You can always type the address shown under the QR code. Tessel advertises itself as `<computer name>.local`, so VPN or custom hostnames don't get in the way.
+
+**"Untrusted Developer" or the iPhone app won't open after a week**: see steps 5 and the 7-day note under [iPhone app](#iphone-app-optional).
+
 **"Port 4747 is already used by another app"**: another Tessel or app holds the port. Quit it and toggle Allow phones.
 
-**Screen turns off on the phone**: the Wake Lock API needs HTTPS, which plain LAN HTTP isn't. Optional local HTTPS is planned as a later step; until then use the phone's auto-lock setting.
+**Screen turns off on the phone**: in Safari, the Wake Lock API needs HTTPS, which plain LAN HTTP isn't. The iPhone app keeps the screen on; otherwise change the phone's auto-lock setting.
 
 ## Known limits
 
-- Over plain `http://` on the LAN, iOS gives no Wake Lock and no service worker (offline cache). Add to Home Screen and full-screen mode still work.
-- No haptics on iOS Safari (no Vibration API). The native iOS shell in phase 7 adds them.
+- **Tested on macOS only.** The Windows and Linux adapters (apps, volume, brightness, dark mode, lock, sleep, Voicemeeter, ydotool) are covered by tests that mock the OS calls; CI runs the test suite on all three OSes, but the real calls haven't been tried on those systems yet.
+- **Voicemeeter** is tested against a mock of its API, not real Voicemeeter.
+- **The iPhone app** was run in the iOS simulator (discovery, connecting, the phone page and its native bridge), not yet on a physical iPhone.
+- **Plugins** are separate processes with your account's rights; their permissions are shown and confirmed, not sandboxed.
+- Over plain `http://` on the LAN, Safari gives no Wake Lock and no service worker (offline cache). Add to Home Screen and full-screen mode still work. Optional local HTTPS (a stretch goal in the brief) isn't built.
+- No haptics in Safari (no Vibration API); the iPhone app has them.
 - The server runs in Electron's main process. It's small; it moves to a utility process if it ever gets heavy.
 - In landscape, a tall grid swaps rows and columns.
 - Typing non-ASCII text (accents, emoji) goes through the clipboard: Tessel pastes it, then restores what was there before.
+- Windows volume and mute take about a second per change (PowerShell compiles a small Core Audio helper each time).

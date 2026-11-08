@@ -16,7 +16,11 @@
     "icons": "node scripts/build-icons.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "create-plugin": "node packages/create-tessel-plugin/index.js",
-    "build:plugins": "pnpm --filter \"./plugins/*\" build"
+    "build:plugins": "pnpm --filter \"./plugins/*\" build",
+    "stage:plugins": "node scripts/stage-plugins.ts",
+    "package": "pnpm build:plugins && pnpm stage:plugins && pnpm --filter @tessel/phone build && pnpm --filter @tessel/desktop build && pnpm --filter @tessel/desktop exec electron-builder",
+    "package:dir": "pnpm build:plugins && pnpm stage:plugins && pnpm --filter @tessel/phone build && pnpm --filter @tessel/desktop build && pnpm --filter @tessel/desktop exec electron-builder --dir",
+    "ios:open": "pnpm --filter @tessel/ios-shell open"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

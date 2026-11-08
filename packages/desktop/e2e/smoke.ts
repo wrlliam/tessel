@@ -22,7 +22,8 @@ await writeFile(
 )
 
 const app = await electron.launch({
-  args: ['.'],
+  // CI runners on Linux can't use Chromium's setuid sandbox.
+  args: process.env['CI'] && process.platform === 'linux' ? ['.', '--no-sandbox'] : ['.'],
   cwd: appDir,
   env: { ...process.env, TESSEL_DATA_DIR: dataDir },
 })
@@ -156,23 +157,71 @@ try {
   step('built-in plugins run in their own processes')
   await page.getByRole('tab', { name: 'Plugins' }).click()
   const card = (name: string) => page.locator('li', { has: page.getByRole('heading', { name }) })
-  await card('System info').getByText(/Running · 2 blocks/).waitFor({ timeout: 15000 })
-  await card('Voicemeeter').getByText(/Running · 10 blocks/).waitFor({ timeout: 15000 })
-  if (process.platform !== 'win32') await card('Voicemeeter').getByText(/Made for Windows/).waitFor()
+  await card('System info')
+    .getByText(/Running · 2 blocks/)
+    .waitFor({ timeout: 15000 })
+  await card('Voicemeeter')
+    .getByText(/Running · 10 blocks/)
+    .waitFor({ timeout: 15000 })
+  if (process.platform !== 'win32')
+    await card('Voicemeeter')
+      .getByText(/Made for Windows/)
+      .waitFor()
 
   step('a plugin block runs; Voicemeeter answers plainly off Windows')
   const pluginRuns = await page.evaluate(async () => {
     const profile = await window.tessel.getProfile('default')
     if (!profile) throw new Error('no profile')
-    const node = (id: string, type: string, params = {}) => ({ id, type, params, position: { x: 0, y: 0 } })
-    const wire = (from: string, to: string, port = 'in') => ({ id: from + to, from: { nodeId: from, port: from === 'p' ? 'out' : 'out' }, to: { nodeId: to, port } })
+    const node = (id: string, type: string, params = {}) => ({
+      id,
+      type,
+      params,
+      position: { x: 0, y: 0 },
+    })
+    const wire = (from: string, to: string, port = 'in') => ({
+      id: from + to,
+      from: { nodeId: from, port: from === 'p' ? 'out' : 'out' },
+      to: { nodeId: to, port },
+    })
     const page0 = profile.pages[0]!
     page0.tiles = page0.tiles.filter((t) => t.position.row < 4)
     page0.tiles.push(
-      { ...page0.tiles[0]!, id: 'sysinfo', label: 'CPU', position: { col: 0, row: 4 }, span: { w: 1, h: 1 }, kind: 'action', appearanceBindings: [],
-        graph: { nodes: [node('p', 'trigger.press'), node('i', 'system.info'), node('v', 'data.setVariable', { name: 'cpu', value: '' })], edges: [wire('p', 'v'), { id: 'iv', from: { nodeId: 'i', port: 'cpu' }, to: { nodeId: 'v', port: 'value' } }] } },
-      { ...page0.tiles[0]!, id: 'vm', label: 'VM', position: { col: 1, row: 4 }, span: { w: 1, h: 1 }, kind: 'action', appearanceBindings: [],
-        graph: { nodes: [node('p', 'trigger.press'), node('g', 'voicemeeter.setGain', { target: 'strip', index: 1, gain: 0 })], edges: [wire('p', 'g')] } },
+      {
+        ...page0.tiles[0]!,
+        id: 'sysinfo',
+        label: 'CPU',
+        position: { col: 0, row: 4 },
+        span: { w: 1, h: 1 },
+        kind: 'action',
+        appearanceBindings: [],
+        graph: {
+          nodes: [
+            node('p', 'trigger.press'),
+            node('i', 'system.info'),
+            node('v', 'data.setVariable', { name: 'cpu', value: '' }),
+          ],
+          edges: [
+            wire('p', 'v'),
+            { id: 'iv', from: { nodeId: 'i', port: 'cpu' }, to: { nodeId: 'v', port: 'value' } },
+          ],
+        },
+      },
+      {
+        ...page0.tiles[0]!,
+        id: 'vm',
+        label: 'VM',
+        position: { col: 1, row: 4 },
+        span: { w: 1, h: 1 },
+        kind: 'action',
+        appearanceBindings: [],
+        graph: {
+          nodes: [
+            node('p', 'trigger.press'),
+            node('g', 'voicemeeter.setGain', { target: 'strip', index: 1, gain: 0 }),
+          ],
+          edges: [wire('p', 'g')],
+        },
+      },
     )
     const saved = await window.tessel.saveProfile(profile)
     if (!saved.ok) throw new Error(saved.error)
@@ -180,9 +229,11 @@ try {
     await window.tessel.testRun('default', 'vm')
     return (await window.tessel.getProfile('default'))?.variables['cpu']
   })
-  if (typeof pluginRuns !== 'number') throw new Error(`System info gave ${JSON.stringify(pluginRuns)}`)
+  if (typeof pluginRuns !== 'number')
+    throw new Error(`System info gave ${JSON.stringify(pluginRuns)}`)
   await page.getByRole('tab', { name: 'Phones' }).click()
-  if (process.platform !== 'win32') await page.getByText('"VM" › Set gain: Voicemeeter is Windows-only.').waitFor()
+  if (process.platform !== 'win32')
+    await page.getByText('"VM" › Set gain: Voicemeeter is Windows-only.').waitFor()
   if (shots) {
     await page.getByRole('tab', { name: 'Plugins' }).click()
     await page.screenshot({ path: join(shots, 'e2e-plugins.png') })

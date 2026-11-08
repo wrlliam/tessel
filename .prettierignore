@@ -1,3 +1,7 @@
 pnpm-lock.yaml
 dist
 out
+build
+release
+packages/ios-shell/ios
+.github

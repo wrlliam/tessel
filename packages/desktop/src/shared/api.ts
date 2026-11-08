@@ -29,6 +29,8 @@ export interface PhoneDevice {
 
 export interface DesktopState {
   platform: NodeJS.Platform
+  /** Set when key and mouse simulation works differently here, e.g. on Wayland. */
+  inputNote?: string
   allowPhones: boolean
   listening: boolean
   port: number

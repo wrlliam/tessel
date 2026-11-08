@@ -25,3 +25,22 @@ describe('isSameOrigin', () => {
     expect(isSameOrigin('null', '192.168.1.20:4747')).toBe(false)
   })
 })
+
+describe('mdnsNames', () => {
+  it('advertises a .local host whatever the hostname is', async () => {
+    const { mdnsNames } = await import('../src/server.ts')
+    expect(mdnsNames('williams-macbook-air.rufous-darter.ts.net')).toEqual({
+      service: 'Tessel on williams-macbook-air',
+      host: 'williams-macbook-air.local',
+    })
+    expect(mdnsNames('Wills-Mac.local')).toEqual({
+      service: 'Tessel on Wills-Mac',
+      host: 'Wills-Mac.local',
+    })
+    expect(mdnsNames('DESKTOP_1')).toEqual({
+      service: 'Tessel on DESKTOP-1',
+      host: 'DESKTOP-1.local',
+    })
+    expect(mdnsNames('')).toEqual({ service: 'Tessel on tessel', host: 'tessel.local' })
+  })
+})

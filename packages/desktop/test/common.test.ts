@@ -45,15 +45,14 @@ describe('shell policy', () => {
   })
 
   it('runs real commands and reports exit codes', async () => {
-    const { common } = make({ shellPolicy: () => 'on', runCommand: undefined as never })
     const real = createCommon({
       ...make().deps,
       shellPolicy: () => 'on',
       runCommand: undefined as never,
     })
-    void common
     const ok = await real.runShell('echo tessel', signal)
-    expect(ok).toMatchObject({ code: 0, stdout: 'tessel\n' })
+    expect(ok.code).toBe(0)
+    expect(ok.stdout.trim()).toBe('tessel')
     const failed = await real.runShell('exit 3', signal)
     expect(failed.code).toBe(3)
   })

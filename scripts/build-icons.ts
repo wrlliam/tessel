@@ -22,7 +22,18 @@ render('icon.svg', 512, `${phone}/icon-512.png`)
 render('logo-mark.svg', 64, `${phone}/favicon.png`)
 
 const res = 'packages/desktop/resources'
-render('icon-macos.svg', 1024, `${res}/icon.png`)
+// Window icon on Windows and Linux.
+render('icon-square.svg', 256, `${res}/icon.png`)
+
+// Installer icons; electron-builder turns these into .icns and .ico.
+const build = 'packages/desktop/build'
+render('icon-macos.svg', 1024, `${build}/icon.png`)
+render('icon-square.svg', 1024, `${build}/icon-square.png`)
+for (const size of [16, 32, 48, 64, 128, 256, 512])
+  render('icon-square.svg', size, `${build}/icons/${size}x${size}.png`)
+
+// iOS app icon: full-bleed square; iOS rounds the corners itself.
+render('icon.svg', 1024, 'packages/ios-shell/assets/icon.png')
 // macOS template images: black + alpha, the OS recolours them for light/dark menu bars.
 for (const [name, file] of [
   ['trayTemplate', 'tray.svg'],

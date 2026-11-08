@@ -74,6 +74,12 @@ export function SettingsView({ state }: { state: DesktopState }) {
           </Row>
         </section>
 
+        {state.inputNote && (
+          <p role="note" className="rounded-xl border border-cat-trigger/50 px-4 py-3 text-sm">
+            {state.inputNote}
+          </p>
+        )}
+
         <section aria-labelledby="look">
           <h2 id="look" className="font-display text-lg font-semibold">
             Appearance

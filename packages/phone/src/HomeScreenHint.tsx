@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { isIosSafari, isStandalone } from './device.ts'
+import { inNativeApp, isIosSafari, isStandalone } from './device.ts'
 
 const KEY = 'tessel.homeHintDismissed'
 
@@ -12,7 +12,9 @@ function dismissed() {
 }
 
 export function HomeScreenHint() {
-  const [hidden, setHidden] = useState(() => dismissed() || isStandalone() || !isIosSafari())
+  const [hidden, setHidden] = useState(
+    () => dismissed() || isStandalone() || inNativeApp() || !isIosSafari(),
+  )
   if (hidden) return null
   return (
     <div className="mx-3 mb-2 flex items-center gap-3 rounded-xl bg-surface px-4 py-3 text-sm">

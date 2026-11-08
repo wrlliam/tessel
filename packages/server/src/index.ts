@@ -4,6 +4,7 @@ export { lanAddresses, type LanAddress } from './lan.ts'
 export { PairingCodes, type PairingCode } from './pairing.ts'
 export {
   DEFAULT_PORT,
+  mdnsNames,
   TesselServer,
   type ConnectedPhone,
   type Logger,

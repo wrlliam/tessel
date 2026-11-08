@@ -1,5 +1,8 @@
 import { UserFacingError, type OnOff } from '@tessel/core'
-import { basename, join } from 'node:path'
+import { posix } from 'node:path'
+
+// Linux paths, even when tests run on Windows.
+const { basename, join } = posix
 import { isMissingProgram, type Launch, type Run } from './exec.ts'
 
 export interface DesktopEntry {

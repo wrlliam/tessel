@@ -5,7 +5,16 @@ import tseslint from 'typescript-eslint'
 import { defineConfig } from 'eslint/config'
 
 export default defineConfig([
-  { ignores: ['**/dist/**', '**/out/**', '**/node_modules/**'] },
+  {
+    ignores: [
+      '**/dist/**',
+      '**/out/**',
+      '**/node_modules/**',
+      '**/release/**',
+      'build/**',
+      'packages/ios-shell/ios/**',
+    ],
+  },
   js.configs.recommended,
   tseslint.configs.strict,
   {

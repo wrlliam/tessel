@@ -1,0 +1,120 @@
+:root {
+  --bg: #0e1116;
+  --surface: #161b22;
+  --line: #212833;
+  --muted: #a9b4c2;
+  --text: #f4f6f8;
+  --glaze: #22d3c5;
+  --signal: #f25c6e;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f4f6f8;
+    --surface: #ffffff;
+    --line: #dce1e7;
+    --muted: #5b6573;
+    --text: #0e1116;
+    color-scheme: light;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    16px/1.4 -apple-system,
+    system-ui,
+    sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+}
+main {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: calc(env(safe-area-inset-top) + 32px) 20px calc(env(safe-area-inset-bottom) + 24px);
+  display: grid;
+  gap: 20px;
+}
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+h1 {
+  margin: 0;
+  font-size: 28px;
+}
+h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.muted {
+  color: var(--muted);
+  margin: 0;
+}
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+li button {
+  width: 100%;
+  text-align: left;
+}
+button {
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+button[type='submit'] {
+  background: var(--glaze);
+  color: #0e1116;
+  border: 0;
+  font-weight: 600;
+}
+.row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+input {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font:
+    16px ui-monospace,
+    monospace;
+  -webkit-user-select: text;
+  user-select: text;
+}
+input:focus {
+  outline: none;
+  border-color: var(--glaze);
+}
+#status:not(:empty) {
+  color: var(--signal);
+}
+.addr {
+  display: block;
+  font:
+    13px ui-monospace,
+    monospace;
+  color: var(--muted);
+}

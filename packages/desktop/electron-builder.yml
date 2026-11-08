@@ -1,0 +1,61 @@
+# Packaging for macOS (universal dmg), Windows (NSIS) and Linux (AppImage, deb).
+# Run from the repo root with `pnpm package`, which builds and stages everything first.
+appId: app.tessel.desktop
+productName: Tessel
+copyright: Copyright © Tessel
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+asar: true
+extraResources:
+  # Tray icons and the window icon, read from process.resourcesPath.
+  - from: resources
+    to: .
+    filter: ['*.png']
+  # The phone client the server hands to phones.
+  - from: ../phone/dist
+    to: phone
+  # First-party plugins with their own dependencies (see scripts/stage-plugins.ts).
+  - from: ../../build/plugins
+    to: plugins
+mac:
+  target:
+    - target: dmg
+      arch: universal
+  category: public.app-category.utilities
+  icon: build/icon.png
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSLocalNetworkUsageDescription: Tessel shares your tiles with phones on this network.
+    NSBonjourServices:
+      - _tessel._tcp
+    NSAppleEventsUsageDescription: Tessel changes appearance and sound settings when a tile asks it to.
+  # Signing: set CSC_LINK and CSC_KEY_PASSWORD (Developer ID Application). Notarizing: APPLE_ID,
+  # APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID. Without them the build is unsigned.
+  notarize: false
+dmg:
+  title: Tessel
+win:
+  target:
+    # x64 only: the nut-js native module ships for x64 on Windows. ARM PCs run it under emulation.
+    - target: nsis
+      arch: [x64]
+  icon: build/icon-square.png
+  # Signing: set CSC_LINK and CSC_KEY_PASSWORD (or WIN_CSC_LINK) to a code-signing certificate.
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+linux:
+  target: [AppImage, deb]
+  category: Utility
+  icon: build/icons
+  synopsis: Tap. Build. Done.
+  description: Turn your phone into a control surface for your computer.
+deb:
+  depends: [libxtst6, libpng16-16]

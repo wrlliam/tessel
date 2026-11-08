@@ -1,4 +1,5 @@
 import { BrowserWindow, shell } from 'electron'
+import { resource } from './paths.ts'
 import { fileURLToPath } from 'node:url'
 
 let win: BrowserWindow | undefined
@@ -21,6 +22,8 @@ export function showWindow() {
     show: false,
     title: 'Tessel',
     backgroundColor: '#0E1116',
+    // macOS uses the app bundle's icon; Windows and Linux need one for the window.
+    ...(process.platform !== 'darwin' && { icon: resource('icon.png') }),
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
       preload: fileURLToPath(new URL('../preload/index.cjs', import.meta.url)),

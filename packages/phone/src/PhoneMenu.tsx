@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { chooseAnotherComputer, inNativeApp } from './device.ts'
 
 const DIM_KEY = 'tessel.dim'
 
@@ -52,6 +53,15 @@ export function PhoneMenu({ dim, onDim, onForget }: Props) {
           >
             Dim screen <span className="text-muted">{dim ? 'On' : 'Off'}</span>
           </button>
+          {inNativeApp() && (
+            <button
+              type="button"
+              className="flex min-h-11 w-full items-center rounded-xl px-3 text-left"
+              onClick={chooseAnotherComputer}
+            >
+              Choose another computer
+            </button>
+          )}
           <button
             type="button"
             className="flex min-h-11 w-full items-center rounded-xl px-3 text-left text-signal"

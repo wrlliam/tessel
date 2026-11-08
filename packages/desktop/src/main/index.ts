@@ -1,9 +1,10 @@
+import { mdnsNames } from '@tessel/server'
 import { app, ipcMain } from 'electron'
 import { hostname } from 'node:os'
 import { Channel, type DesktopState } from '../shared/api.ts'
 import { Hub } from './hub.ts'
 import { phoneDir } from './paths.ts'
-import { createPlatform } from './platform/index.ts'
+import { createPlatform, isWayland } from './platform/index.ts'
 import { confirmPermissions, utilitySpawner, watchFolder } from './plugins/electron.ts'
 import { pluginRunner, builtinPluginsDir } from './paths.ts'
 import { addPluginWithDialog } from './plugins/dialogs.ts'
@@ -37,15 +38,17 @@ async function start() {
       confirmPermissions,
       watch: watchFolder,
     },
-    // macOS answers mDNS for its own hostname, so this URL survives DHCP changes.
-    ...(process.platform === 'darwin' && hostname().endsWith('.local')
-      ? { localHostname: hostname() }
-      : {}),
+    // Tessel answers multicast DNS for this .local name, so the URL survives DHCP changes.
+    localHostname: mdnsNames(hostname()).host,
   })
 
   const state = (): DesktopState => ({
     ...hub.state(),
     platform: process.platform,
+    ...(isWayland() && {
+      inputNote:
+        'You are on Wayland, which blocks the usual way of simulating keys. Tessel uses ydotool instead: install it and keep the ydotoold service running for Type text, Key combo, Media key and Mouse blocks.',
+    }),
     startOnLogin: loginItemsSupported ? app.getLoginItemSettings().openAtLogin : null,
   })
 
