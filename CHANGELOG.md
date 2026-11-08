@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **DaVinci Resolve:** shortcut keys for playback, editing, markers and pages (no plugin, free version too), a DaVinci Resolve plugin for renders, named markers, page switching and a live timecode tile, and a ready-made Resolve page.
+- **App commands wait until the app is really in front** before pressing its shortcut, which fixes Spotify's Like (and others) when the app was hidden or in the background.
 - **Pictures on tiles:** choose one in the inspector, or set one at run time; What's playing shows the album cover.
 - **Sliders follow changes** made elsewhere (the volume slider tracks the system volume), and can be **tapped and held**: hold a Voicemeeter fader to reset it to 0 dB, or the volume slider to mute.
 - **Open app** tiles light up while their app is open; apps open reliably on Windows, and macOS finds apps whose names differ slightly.

@@ -203,17 +203,18 @@ For a full plugin to share with others, run `pnpm create-plugin my-plugin` (see 
 
 **Plugins › Get more plugins** lists optional plugins that aren't installed until you want them. Tessel downloads the one you pick from this project's GitHub releases, checks it against the list's SHA-256, then asks for its permissions like any other plugin. Templates that need one have a **Get** button in the gallery.
 
-| Plugin           | Systems        | What it does                                                                                                         |
-| ---------------- | -------------- | -------------------------------------------------------------------------------------------------------------------- |
-| OBS Studio       | all            | Switch scenes, record, stream, virtual camera, save replay, mute sources; tiles light up while live (OBS WebSocket)  |
-| Philips Hue      | all            | Lights and rooms on/off, brightness from a slider, scenes (local bridge)                                             |
-| Elgato Key Light | all            | On/off, brightness and warmth for one or all lights                                                                  |
-| Shortcuts        | macOS          | Run any shortcut from the Shortcuts app, with text in and out                                                        |
-| Audio output     | Windows, macOS | Send sound to speakers, headphones or any output, or switch between two (macOS needs `brew install switchaudio-osx`) |
-| Slack status     | all            | Set or clear your status, pause notifications (needs a user token)                                                   |
-| Spotify          | all            | Play a playlist, album or song from its link; volume, shuffle and repeat on macOS                                    |
+| Plugin           | Systems        | What it does                                                                                                                                                                             |
+| ---------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OBS Studio       | all            | Switch scenes, record, stream, virtual camera, save replay, mute sources; tiles light up while live (OBS WebSocket)                                                                      |
+| Philips Hue      | all            | Lights and rooms on/off, brightness from a slider, scenes (local bridge)                                                                                                                 |
+| Elgato Key Light | all            | On/off, brightness and warmth for one or all lights                                                                                                                                      |
+| Shortcuts        | macOS          | Run any shortcut from the Shortcuts app, with text in and out                                                                                                                            |
+| Audio output     | Windows, macOS | Send sound to speakers, headphones or any output, or switch between two (macOS needs `brew install switchaudio-osx`)                                                                     |
+| Slack status     | all            | Set or clear your status, pause notifications (needs a user token)                                                                                                                       |
+| Spotify          | all            | Play a playlist, album or song from its link; volume, shuffle and repeat on macOS                                                                                                        |
+| DaVinci Resolve  | all            | Open pages, add named and coloured markers, queue and start renders, save, show the project and timecode (Resolve Studio's scripting API with Python 3; set External scripting to Local) |
 
-New pages use them: **Streaming**, **Lights** and **Workday**.
+New pages use them: **Streaming**, **Lights**, **Workday** and **DaVinci Resolve**. Resolve's everyday keys (play, J/K/L, split, ripple delete, in/out, markers, pages, undo, save) are App commands, so they work in the free version without the plugin.
 
 ### Voicemeeter (Windows)
 
