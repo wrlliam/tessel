@@ -8,6 +8,7 @@ export type TemplateCategory =
   | 'Voicemeeter'
   | 'Soundpad'
   | 'Streaming'
+  | 'Video editing'
   | 'Lights'
   | 'Home'
   | 'AI and search'
@@ -359,6 +360,22 @@ function slackStatus(
       colour: '#4A154B',
       graph: simple('slack.status', { text, emoji, minutes }),
     },
+  }
+}
+
+/** A DaVinci Resolve key using its keyboard shortcut (works in the free version, no plugin). */
+function resolveKey(
+  command: string,
+  label: string,
+  icon: string,
+  colour = '#212833',
+): TileTemplate {
+  return {
+    id: `resolve-${command}`,
+    category: 'Video editing',
+    name: `Resolve: ${label}`,
+    description: `${label} in DaVinci Resolve, with its keyboard shortcut. Brings Resolve to the front first.`,
+    tile: { label, icon, colour, graph: app(`resolve.${command}`) },
   }
 }
 
@@ -1860,6 +1877,78 @@ export const templates: TileTemplate[] = [
       },
     },
   },
+
+  // Video editing (DaVinci Resolve)
+  resolveKey('play', 'Play', 'play', '#22D3C5'),
+  resolveKey('reverse', 'Back (J)', 'skip-back'),
+  resolveKey('stop', 'Stop (K)', 'pause'),
+  resolveKey('forward', 'Forward (L)', 'skip-forward'),
+  resolveKey('blade', 'Split', 'scissors', '#FF7A59'),
+  resolveKey('ripple', 'Ripple delete', 'trash-2', '#F25C6E'),
+  resolveKey('in', 'Mark in', 'arrow-right'),
+  resolveKey('out', 'Mark out', 'arrow-left'),
+  resolveKey('marker', 'Marker', 'flag', '#4FA3F7'),
+  resolveKey('snapping', 'Snapping', 'zap'),
+  resolveKey('undo', 'Undo', 'undo-2'),
+  resolveKey('redo', 'Redo', 'redo-2'),
+  resolveKey('save', 'Save', 'save'),
+  resolveKey('still', 'Grab still', 'camera'),
+  resolveKey('pageEdit', 'Edit page', 'layout-grid', '#8B7CF6'),
+  resolveKey('pageCut', 'Cut page', 'scissors', '#8B7CF6'),
+  resolveKey('pageColor', 'Color page', 'palette', '#8B7CF6'),
+  resolveKey('pageFairlight', 'Fairlight page', 'audio-lines', '#8B7CF6'),
+  resolveKey('pageDeliver', 'Deliver page', 'upload', '#8B7CF6'),
+  {
+    id: 'resolve-render',
+    category: 'Video editing',
+    plugin: 'davinci-resolve',
+    name: 'Resolve: render now',
+    description:
+      'Adds the timeline to the render queue with your Deliver settings and starts rendering. Needs Resolve Studio and the DaVinci Resolve plugin. Hold, so it never starts by accident.',
+    tile: {
+      label: 'Render',
+      icon: 'rocket',
+      colour: '#FF7A59',
+      graph: held('davinci-resolve.render', { preset: '', start: true }),
+    },
+  },
+  {
+    id: 'resolve-named-marker',
+    category: 'Video editing',
+    plugin: 'davinci-resolve',
+    name: 'Resolve: red “fix” marker',
+    description:
+      'Adds a red marker named Fix at the playhead, so you can find problem spots later.',
+    tile: {
+      label: 'Fix this',
+      icon: 'flag',
+      colour: '#F25C6E',
+      graph: simple('davinci-resolve.marker', { color: 'Red', name: 'Fix', note: '' }),
+    },
+  },
+  {
+    id: 'resolve-timecode',
+    category: 'Video editing',
+    plugin: 'davinci-resolve',
+    name: 'Resolve: timecode',
+    description:
+      'Shows the playhead timecode and timeline name, every 2 seconds. Tap to save the project.',
+    tile: {
+      label: 'Timecode',
+      icon: 'clock',
+      colour: '#212833',
+      appearanceBindings: [bind('label', '{{state.timecode || "Timecode"}}')],
+      graph: {
+        nodes: [
+          node('tick', 'trigger.schedule', { cron: '*/2 * * * * *' }, 0),
+          node('info', 'davinci-resolve.info', {}, 288),
+          press,
+          node('save', 'davinci-resolve.save', {}, 288, 160),
+        ].map((n) => (n.id === 'press' ? { ...n, position: at(0, 160) } : n)),
+        edges: [wire('tick', 'out', 'info'), wire('press', 'out', 'save')],
+      },
+    },
+  },
 ]
 
 export const TEMPLATE_CATEGORIES: TemplateCategory[] = [
@@ -1870,6 +1959,7 @@ export const TEMPLATE_CATEGORIES: TemplateCategory[] = [
   'Voicemeeter',
   'Soundpad',
   'Streaming',
+  'Video editing',
   'Lights',
   'Home',
   'AI and search',
@@ -2064,6 +2154,32 @@ export const pageTemplates: PageTemplate[] = [
       { template: 'day-mode', col: 0, row: 3 },
       { template: 'night-mode', col: 1, row: 3 },
       { template: 'reminder-stand', col: 2, row: 3 },
+    ],
+  },
+  {
+    id: 'page-resolve',
+    name: 'DaVinci Resolve',
+    description:
+      'Play, J/K/L, split, ripple delete, in and out, markers, undo, pages and save, with Resolve’s shortcuts. Render and the timecode tile need the DaVinci Resolve plugin.',
+    cols: 4,
+    rows: 4,
+    tiles: [
+      { template: 'resolve-reverse', col: 0, row: 0 },
+      { template: 'resolve-stop', col: 1, row: 0 },
+      { template: 'resolve-forward', col: 2, row: 0 },
+      { template: 'resolve-play', col: 3, row: 0 },
+      { template: 'resolve-in', col: 0, row: 1 },
+      { template: 'resolve-out', col: 1, row: 1 },
+      { template: 'resolve-blade', col: 2, row: 1 },
+      { template: 'resolve-ripple', col: 3, row: 1 },
+      { template: 'resolve-marker', col: 0, row: 2 },
+      { template: 'resolve-named-marker', col: 1, row: 2 },
+      { template: 'resolve-undo', col: 2, row: 2 },
+      { template: 'resolve-save', col: 3, row: 2 },
+      { template: 'resolve-pageEdit', col: 0, row: 3 },
+      { template: 'resolve-pageColor', col: 1, row: 3 },
+      { template: 'resolve-pageDeliver', col: 2, row: 3 },
+      { template: 'resolve-render', col: 3, row: 3 },
     ],
   },
   {

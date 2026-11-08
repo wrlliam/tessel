@@ -36,6 +36,44 @@ const discordCommands = (prefix: string, app: string, focus: Record<OS, string>)
     ] as const
   ).map(([id, label, keys]) => ({ id: `${prefix}.${id}`, app, label, focus, keys: all(keys) }))
 
+const resolve = { darwin: 'DaVinci Resolve', win32: 'DaVinci Resolve', linux: 'resolve' }
+
+/** DaVinci Resolve's default keyboard layout. */
+const resolveCommands: AppCommand[] = (
+  [
+    ['play', 'Play or stop', 'space'],
+    ['reverse', 'Play backwards (J)', 'j'],
+    ['stop', 'Stop (K)', 'k'],
+    ['forward', 'Play forwards (L)', 'l'],
+    ['blade', 'Split clip at the playhead', 'mod+b'],
+    ['ripple', 'Ripple delete', 'shift+backspace'],
+    ['in', 'Mark in', 'i'],
+    ['out', 'Mark out', 'o'],
+    ['clearInOut', 'Clear in and out', 'alt+x'],
+    ['marker', 'Add a marker', 'm'],
+    ['snapping', 'Snapping on or off', 'n'],
+    ['undo', 'Undo', 'mod+z'],
+    ['redo', 'Redo', 'mod+shift+z'],
+    ['save', 'Save the project', 'mod+s'],
+    ['zoomIn', 'Zoom the timeline in', 'mod+='],
+    ['zoomOut', 'Zoom the timeline out', 'mod+-'],
+    ['still', 'Grab a still (Color page)', 'mod+alt+g'],
+    ['pageMedia', 'Media page', 'shift+2'],
+    ['pageCut', 'Cut page', 'shift+3'],
+    ['pageEdit', 'Edit page', 'shift+4'],
+    ['pageFusion', 'Fusion page', 'shift+5'],
+    ['pageColor', 'Color page', 'shift+6'],
+    ['pageFairlight', 'Fairlight page', 'shift+7'],
+    ['pageDeliver', 'Deliver page', 'shift+8'],
+  ] as const
+).map(([id, label, keys]) => ({
+  id: `resolve.${id}`,
+  app: 'DaVinci Resolve',
+  label,
+  focus: resolve,
+  keys: all(keys),
+}))
+
 const spotify = { darwin: 'Spotify', win32: 'Spotify', linux: 'Spotify' }
 const code = {
   darwin: 'Visual Studio Code',
@@ -100,6 +138,7 @@ export const APP_COMMANDS: AppCommand[] = [
   { id: 'meet.video', app: 'Google Meet', label: 'Camera on or off', keys: all('mod+e') },
   ...discordCommands('discord', 'Discord', discord),
   ...discordCommands('vesktop', 'Vesktop', vesktop),
+  ...resolveCommands,
   {
     id: 'slack.jump',
     app: 'Slack',

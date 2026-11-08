@@ -13,6 +13,7 @@ import { createSlackPlugin } from '../../../plugins/slack/src/plugin.ts'
 import { createAudioOutputPlugin } from '../../../plugins/audio-output/src/plugin.ts'
 import { createSpotifyPlugin } from '../../../plugins/spotify/src/plugin.ts'
 import { createShortcutsPlugin } from '../../../plugins/mac-shortcuts/src/plugin.ts'
+import { createResolvePlugin } from '../../../plugins/davinci-resolve/src/plugin.ts'
 
 // Templates that use first-party plugin blocks, checked against the plugins' own definitions.
 describe('plugin templates', () => {
@@ -33,6 +34,7 @@ describe('plugin templates', () => {
     'audio-output': createAudioOutputPlugin(never, () => 'darwin'),
     spotify: createSpotifyPlugin(never, () => 'darwin'),
     'mac-shortcuts': createShortcutsPlugin(never, { temp: never }),
+    'davinci-resolve': createResolvePlugin(never, () => 'darwin'),
   }
   for (const [id, plugin] of Object.entries(plugins)) {
     for (const b of plugin.blocks ?? [])

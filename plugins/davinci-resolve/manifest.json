@@ -1,0 +1,22 @@
+{
+  "id": "davinci-resolve",
+  "name": "DaVinci Resolve",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Switch pages, add named markers, queue and start renders, save, and show the project and timecode, through Resolve\u2019s scripting API (Resolve Studio, with Python 3).",
+  "author": "Tessel",
+  "main": "dist/index.js",
+  "permissions": ["shell"],
+  "icon": "video",
+  "settingsSchema": {
+    "type": "object",
+    "properties": {
+      "python": {
+        "type": "string",
+        "title": "Python",
+        "default": "",
+        "description": "Leave empty to use python3 (macOS, Linux) or python (Windows)."
+      }
+    }
+  }
+}
