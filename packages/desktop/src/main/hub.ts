@@ -31,6 +31,7 @@ import {
   type PressEvent,
   ensureTls,
 } from '@tessel/server'
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { join } from 'node:path'
 import QRCode from 'qrcode'
 import type { DesktopState, LogEntry, ProfileEngineEvent, SaveResult } from '../shared/api.ts'
@@ -63,6 +64,8 @@ export interface PhoneEdit {
     bAt: { col: number; row: number }
   }
 }
+
+const sha256 = (s: string) => createHash('sha256').update(s).digest('hex')
 
 const applyLook = (t: Tile, look: PhoneEdit['look']): Tile => {
   const { icon, ...rest } = look
@@ -140,6 +143,7 @@ export class Hub {
   private listeners = new Set<() => void>()
   private engineListeners = new Set<(event: ProfileEngineEvent) => void>()
   private phoneEditListeners = new Set<(edit: PhoneEdit) => void>()
+  private lastShortcutUse = new Map<string, number>()
   private codeTimer?: NodeJS.Timeout
   private networkTimer?: NodeJS.Timeout
   /** Tiles held down on a phone, for long press. */
@@ -200,6 +204,7 @@ export class Hub {
       onPageChange: (_deviceId, pageId) => void this.pageOpened(pageId),
       onSlide: (e) => void this.slide(e.tileId, e.value),
       onEditTile: (deviceId, edit) => void this.editFromPhone(deviceId, edit),
+      onRunKey: (key) => this.runShortcut(key),
       onLocation: (_deviceId, at) => void this.setLocation(at.lat, at.lon),
       onPhonesChanged: (phones) => {
         this.phones = phones
@@ -253,6 +258,17 @@ export class Hub {
       plugins: this.plugins?.list() ?? [],
       phoneSettings: this.settings.phone,
       toured: this.settings.toured,
+      shortcuts: this.settings.shortcuts.map((s) => {
+        const used = this.lastShortcutUse.get(s.id)
+        return {
+          id: s.id,
+          profileId: s.profileId,
+          tileId: s.tileId,
+          label: this.findTile(s.profileId, s.tileId)?.label ?? 'Deleted tile',
+          createdAt: s.createdAt,
+          ...(used && { lastUsedAt: used }),
+        }
+      }),
       blocksVersion: this.blocksVersion,
     }
     if (this.serverError) state.serverError = this.serverError
@@ -265,6 +281,52 @@ export class Hub {
   onChange(listener: () => void): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
+  }
+
+  /** Makes a link that runs a tile. The key is returned once; only its hash is kept. */
+  async createShortcut(
+    profileId: string,
+    tileId: string,
+  ): Promise<{ id: string; key: string } | undefined> {
+    if (!this.findTile(profileId, tileId)) return undefined
+    const key = randomBytes(24).toString('base64url')
+    const id = randomBytes(6).toString('hex')
+    const entry = { id, profileId, tileId, keyHash: sha256(key), createdAt: Date.now() }
+    this.settings = { ...this.settings, shortcuts: [...this.settings.shortcuts, entry] }
+    await this.store.save(this.settings)
+    this.emit()
+    return { id, key }
+  }
+
+  async deleteShortcut(id: string) {
+    this.settings = {
+      ...this.settings,
+      shortcuts: this.settings.shortcuts.filter((s) => s.id !== id),
+    }
+    await this.store.save(this.settings)
+    this.emit()
+  }
+
+  /** A shortcut link was used: runs its tile like a press, in the profile it belongs to. */
+  async runShortcut(
+    key: string,
+  ): Promise<{ ok: true; tile: string } | { ok: false; error: string } | undefined> {
+    const hash = sha256(key)
+    const entry = this.settings.shortcuts.find((s) =>
+      timingSafeEqual(Buffer.from(s.keyHash), Buffer.from(hash)),
+    )
+    if (!entry) return undefined
+    const tile = this.findTile(entry.profileId, entry.tileId)
+    if (!tile) return { ok: false, error: 'That tile no longer exists' }
+    const label = tile.label || tile.id
+    if (this.paused) return { ok: false, error: 'Tiles are paused' }
+    this.lastShortcutUse.set(entry.id, Date.now())
+    this.logger.info(`Shortcut link ran "${label}"`)
+    const result = await this.runtime(entry.profileId).engine.trigger(tile, { type: 'press' })
+    this.emit()
+    return result?.status === 'ok' || !result
+      ? { ok: true, tile: label }
+      : { ok: false, error: result.error ?? `Run ${result.status}` }
   }
 
   /** A phone changed a key; the editor applies the same change to its copy. */

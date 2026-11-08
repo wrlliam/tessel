@@ -144,6 +144,41 @@ export function SettingsView({ state }: { state: DesktopState }) {
             </Select>
           </Row>
         </section>
+        <section aria-labelledby="shortcuts">
+          <h2 id="shortcuts" className="font-display text-lg font-semibold">
+            Shortcut links
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            Links that run a tile from the Shortcuts app, a Lock Screen widget or the Action button.
+            Make one from a tile's right-click menu.
+          </p>
+          {state.shortcuts.length === 0 ? (
+            <p className="mt-3 text-sm text-muted">None yet.</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-line">
+              {state.shortcuts.map((s) => (
+                <li key={s.id} className="flex items-center gap-3 py-2 text-sm">
+                  <span className="flex-1">
+                    {s.label}
+                    <span className="block text-xs text-muted">
+                      {s.lastUsedAt
+                        ? `Last used ${new Date(s.lastUsedAt).toLocaleString()}`
+                        : `Made ${new Date(s.createdAt).toLocaleDateString()}`}
+                    </span>
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void window.tessel.deleteShortcut(s.id)}
+                  >
+                    Remove
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
         <section aria-labelledby="updates">
           <h2 id="updates" className="font-display text-lg font-semibold">
             Updates

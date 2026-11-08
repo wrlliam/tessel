@@ -10,6 +10,7 @@ import type { Appearance, Page, Tile } from '@tessel/core'
 import {
   Copy,
   FileInput,
+  Link,
   Folder,
   LayoutTemplate,
   Plus,
@@ -18,6 +19,8 @@ import {
   Trash2,
 } from 'lucide-react'
 import { openTel, shareTiles } from './share.ts'
+import { ShortcutDialog } from './ShortcutDialog.tsx'
+import { saveNow } from './sync.ts'
 import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { cn } from '../lib/cn.ts'
 import { Popover, PopoverAnchor, PopoverContent } from '../ui/popover.tsx'
@@ -50,6 +53,10 @@ export function TileGrid({ page, live, keyStyle, onTemplates }: Props) {
   const running = useEditor((s) => s.runningTiles)
   const { moveTile, resizeTile, addTile, addFolder, addSlider, duplicateTile, deleteTile } =
     useEditor.getState()
+  const [shortcut, setShortcut] = useState<{
+    label: string
+    link: { urls: string[]; qr: string }
+  }>()
   const [tileMenu, setTileMenu] = useState<{ tileId: string; x: number; y: number }>()
   const tileAnchor = useRef({
     getBoundingClientRect: () =>
@@ -216,6 +223,13 @@ export function TileGrid({ page, live, keyStyle, onTemplates }: Props) {
           )}
         </PopoverContent>
       </Popover>
+      {shortcut && (
+        <ShortcutDialog
+          label={shortcut.label}
+          link={shortcut.link}
+          onClose={() => setShortcut(undefined)}
+        />
+      )}
       <Popover
         open={tileMenu !== undefined}
         onOpenChange={(open) => !open && setTileMenu(undefined)}
@@ -240,6 +254,22 @@ export function TileGrid({ page, live, keyStyle, onTemplates }: Props) {
                 }}
               >
                 <Share /> Share as .tel…
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  const tile = page.tiles.find((t) => t.id === tileMenu.tileId)
+                  const profileId = useEditor.getState().profile?.id
+                  setTileMenu(undefined)
+                  if (!tile || !profileId) return
+                  void saveNow()
+                    .then(() => window.tessel.createShortcut(profileId, tile.id))
+                    .then((link) => {
+                      if (link) setShortcut({ label: tile.label || 'Tile', link })
+                      else useEditor.setState({ notice: 'Turn on Allow phones to make a link.' })
+                    })
+                }}
+              >
+                <Link /> Shortcut link…
               </MenuItem>
               <MenuItem
                 onClick={() => {

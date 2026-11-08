@@ -16,6 +16,18 @@ export const Settings = z.object({
   autoUpdate: z.boolean().default(true),
   /** Last location a phone shared, for weather tiles. Kept so tiles work before a phone connects. */
   location: z.object({ lat: z.number(), lon: z.number(), at: z.number() }).optional(),
+  /** Links that run a tile, for the Shortcuts app and the like. Only a hash of each key is kept. */
+  shortcuts: z
+    .array(
+      z.object({
+        id: z.string(),
+        profileId: z.string(),
+        tileId: z.string(),
+        keyHash: z.string(),
+        createdAt: z.number(),
+      }),
+    )
+    .default([]),
   /** First-run tour finished or skipped. */
   toured: z.boolean().default(false),
   /** Sent to every connected phone. */

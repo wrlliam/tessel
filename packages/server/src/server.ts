@@ -58,6 +58,10 @@ export interface TesselServerOptions {
   onPageChange?: (deviceId: string, pageId: string) => void
   /** A slider tile was dragged; value is 0 to 100. */
   onSlide?: (event: { deviceId: string; tileId: string; value: number }) => void
+  /** A shortcut link was used. Resolves to what happened, or undefined for an unknown key. */
+  onRunKey?: (
+    key: string,
+  ) => Promise<{ ok: true; tile: string } | { ok: false; error: string } | undefined>
   /** A phone changed a key's look or swapped two keys. */
   onEditTile?: (deviceId: string, edit: Omit<EditTileMessage, 'type'>) => void
   /** A phone shared where it is, after the desktop asked. */
@@ -242,6 +246,24 @@ export class TesselServer {
           .send(this.tls.ca)
       })
       scoped.post('/api/pair', (req, reply) => this.handlePair(req, reply))
+      // Shortcut apps may send a form or text body with the POST; it's ignored.
+      scoped.addContentTypeParser(
+        ['application/x-www-form-urlencoded', 'text/plain'],
+        { parseAs: 'string' },
+        (_req, body, done) => done(null, body),
+      )
+      // Shortcut links: POST runs the tile behind the key; GET only explains, so a browser
+      // opening or prefetching the link never runs anything.
+      scoped.post<{ Params: { key: string } }>('/run/:key', (req, reply) =>
+        this.handleRun(req.params.key, req.ip, reply),
+      )
+      scoped.get('/run/:key', async (_req, reply) =>
+        reply
+          .type('text/html; charset=utf-8')
+          .send(
+            '<!doctype html><meta name="viewport" content="width=device-width"><title>Tessel shortcut</title><body style="font:16px system-ui;padding:24px;max-width:32em">This is a Tessel shortcut link. It runs a tile when something sends it a POST request, such as the Shortcuts app with <b>Get Contents of URL</b> set to <b>POST</b>. Opening it in a browser does nothing.</body>',
+          ),
+      )
       scoped.get(
         '/ws',
         {
@@ -281,6 +303,25 @@ export class TesselServer {
       )
     }
     return app
+  }
+
+  private runHits = new Map<string, number[]>()
+
+  private async handleRun(key: string, ip: string, reply: FastifyReply) {
+    // At most 10 runs a second, and 60 a minute, per address.
+    const now = Date.now()
+    const hits = (this.runHits.get(ip) ?? []).filter((t) => now - t < 60_000)
+    if (hits.filter((t) => now - t < 1000).length >= 10 || hits.length >= 60) {
+      reply.header('Retry-After', '5')
+      return reply.code(429).send({ ok: false, error: 'Too many runs. Wait a moment.' })
+    }
+    hits.push(now)
+    this.runHits.set(ip, hits)
+    if (!/^[A-Za-z0-9_-]{20,64}$/.test(key) || !this.opts.onRunKey)
+      return reply.code(404).send({ ok: false, error: 'Unknown shortcut' })
+    const result = await this.opts.onRunKey(key)
+    if (!result) return reply.code(404).send({ ok: false, error: 'Unknown shortcut' })
+    return reply.code(result.ok ? 200 : 409).send(result)
   }
 
   private async handlePair(req: FastifyRequest, reply: FastifyReply) {

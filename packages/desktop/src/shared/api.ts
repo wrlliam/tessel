@@ -61,6 +61,15 @@ export interface DesktopState {
   location?: { lat: number; lon: number; at: number }
   /** First-run tour finished or skipped. */
   toured: boolean
+  /** Links that run a tile from the Shortcuts app and the like. */
+  shortcuts: Array<{
+    id: string
+    profileId: string
+    tileId: string
+    label: string
+    createdAt: number
+    lastUsedAt?: number
+  }>
   version: string
   update: UpdateState
   /** The My blocks folder, once created. */
@@ -138,6 +147,12 @@ export interface TesselApi {
   importTel(path?: string): Promise<TelImport>
   /** A .tel was opened from the system (double-click) or dropped on the window. */
   onTelOpened(listener: (path: string) => void): () => void
+  /** Makes a shortcut link for a tile: its URLs (one per address) and a QR code of the first. */
+  createShortcut(
+    profileId: string,
+    tileId: string,
+  ): Promise<{ id: string; urls: string[]; qr: string } | undefined>
+  deleteShortcut(id: string): Promise<void>
   /** A phone changed a key's look or swapped two keys. */
   onPhoneEdit(listener: (edit: PhoneEdit) => void): () => void
   /** The path of a file dropped on the window. */
@@ -204,4 +219,6 @@ export const Channel = {
   importTel: 'tel:import',
   telOpened: 'tel:opened',
   phoneEdit: 'phone:edit',
+  createShortcut: 'shortcut:create',
+  deleteShortcut: 'shortcut:delete',
 } as const

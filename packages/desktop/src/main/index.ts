@@ -11,6 +11,7 @@ import { addPluginWithDialog } from './plugins/dialogs.ts'
 import { exportWithDialog, importWithDialog } from './transfer-dialogs.ts'
 import { TesselTray } from './tray.ts'
 import { Updater } from './updater.ts'
+import QRCode from 'qrcode'
 import { ensureMyBlocks, ensurePackage, newBlockFile } from './custom-blocks.ts'
 import { createRequire } from 'node:module'
 import { dirname } from 'node:path'
@@ -209,6 +210,23 @@ async function start() {
     )
     await shell.openPath(file)
   })
+  ipcMain.handle(Channel.createShortcut, async (_e, profileId: unknown, tileId: unknown) => {
+    if (typeof profileId !== 'string' || typeof tileId !== 'string') return undefined
+    const made = await hub.createShortcut(profileId, tileId)
+    if (!made) return undefined
+    const urls = hub.state().urls.map((u) => `${u}run/${made.key}`)
+    const qr = urls[0]
+      ? await QRCode.toDataURL(urls[0], {
+          margin: 1,
+          width: 360,
+          color: { dark: '#0E1116', light: '#F4F6F8' },
+        })
+      : ''
+    return { id: made.id, urls, qr }
+  })
+  ipcMain.handle(Channel.deleteShortcut, (_e, id: unknown) =>
+    typeof id === 'string' ? hub.deleteShortcut(id) : undefined,
+  )
   ipcMain.handle(Channel.exportTel, (_e, req: unknown) => {
     const r = req as SharedTiles | undefined
     if (!r || typeof r.name !== 'string' || !Array.isArray(r.tiles))

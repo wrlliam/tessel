@@ -52,6 +52,9 @@ const api: TesselApi = {
     return () => ipcRenderer.off(Channel.telOpened, handler)
   },
   pathForFile: (file) => webUtils.getPathForFile(file),
+  createShortcut: (profileId, tileId) =>
+    ipcRenderer.invoke(Channel.createShortcut, profileId, tileId),
+  deleteShortcut: (id) => ipcRenderer.invoke(Channel.deleteShortcut, id),
   onPhoneEdit: (listener) => {
     const handler = (_: unknown, edit: PhoneEdit) => listener(edit)
     ipcRenderer.on(Channel.phoneEdit, handler)

@@ -483,6 +483,31 @@ describe('Hub settings', () => {
 })
 
 describe('Hub phone settings and remembered looks', () => {
+  it('runs a tile from a shortcut link, by POST only, until it is removed', async () => {
+    const { hub, port, platform } = await makeHub()
+    const made = await hub.createShortcut('default', 'save')
+    expect(made).toBeDefined()
+    const url = `http://127.0.0.1:${port}/run/${made!.key}`
+    expect((await fetch(url)).status).toBe(200)
+    expect(platform.pressCombo).not.toHaveBeenCalled()
+    const res = await fetch(url, { method: 'POST' })
+    expect(await res.json()).toEqual({ ok: true, tile: 'Save' })
+    expect(platform.pressCombo).toHaveBeenCalledTimes(1)
+    const form = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: 'a=1',
+    })
+    expect(form.status).toBe(200)
+    expect(hub.state().shortcuts[0]?.lastUsedAt).toBeTypeOf('number')
+    expect(JSON.stringify(hub.state())).not.toContain(made!.key)
+    expect(
+      (await fetch(`http://127.0.0.1:${port}/run/${'x'.repeat(32)}`, { method: 'POST' })).status,
+    ).toBe(404)
+    await hub.deleteShortcut(made!.id)
+    expect((await fetch(url, { method: 'POST' })).status).toBe(404)
+  })
+
   it('lets phones rename, recolour and swap keys, but only when allowed', async () => {
     const { hub } = await makeHub()
     const edits: unknown[] = []
