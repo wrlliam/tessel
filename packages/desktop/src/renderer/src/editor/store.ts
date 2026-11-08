@@ -78,6 +78,8 @@ interface EditorActions {
   updateGraph(tileId: string, change: (graph: Graph) => Graph, coalesceKey?: string): void
   addTile(cell: Cell): void
   addFolder(cell: Cell): void
+  /** A slider tile, wired from On slide. */
+  addSlider(cell: Cell): void
   insertTemplate(template: TileTemplate, cell?: Cell): boolean
   duplicateTile(tileId: string): void
   deleteTile(tileId: string): void
@@ -355,6 +357,27 @@ export const useEditor = create<Editor>()((set, get) => {
     },
 
     addTile: (cell) => placeOnSelectedPage(newTile(cell)),
+
+    addSlider: (cell) =>
+      placeOnSelectedPage(
+        newTile(cell, {
+          label: 'Slider',
+          icon: 'sliders-horizontal',
+          kind: 'slider',
+          concurrency: 'restart',
+          graph: {
+            nodes: [
+              {
+                id: uid('n'),
+                type: 'trigger.slide',
+                params: { min: 0, max: 100, step: 1 },
+                position: { x: 0, y: 0 },
+              },
+            ],
+            edges: [],
+          },
+        }),
+      ),
 
     addFolder: (cell) => {
       const p = get().profile

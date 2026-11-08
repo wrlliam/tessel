@@ -7,7 +7,7 @@ import {
   type DragMoveEvent,
 } from '@dnd-kit/core'
 import type { Appearance, Page, Tile } from '@tessel/core'
-import { Folder, LayoutTemplate, Plus } from 'lucide-react'
+import { Copy, Folder, LayoutTemplate, Plus, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { cn } from '../lib/cn.ts'
 import { Popover, PopoverAnchor, PopoverContent } from '../ui/popover.tsx'
@@ -38,7 +38,14 @@ interface Props {
 export function TileGrid({ page, live, keyStyle, onTemplates }: Props) {
   const selected = useEditor((s) => s.selectedTileId)
   const running = useEditor((s) => s.runningTiles)
-  const { moveTile, resizeTile, addTile, addFolder } = useEditor.getState()
+  const { moveTile, resizeTile, addTile, addFolder, addSlider, duplicateTile, deleteTile } =
+    useEditor.getState()
+  const [tileMenu, setTileMenu] = useState<{ tileId: string; x: number; y: number }>()
+  const tileAnchor = useRef({
+    getBoundingClientRect: () =>
+      new DOMRect(tileMenuRef.current?.x ?? 0, tileMenuRef.current?.y ?? 0, 0, 0),
+  })
+  const tileMenuRef = useRef<{ x: number; y: number } | undefined>(undefined)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
   const [ghost, setGhost] = useState<{
     col: number
@@ -139,6 +146,11 @@ export function TileGrid({ page, live, keyStyle, onTemplates }: Props) {
               running={running[t.id] === true}
               keyStyle={keyStyle}
               onResize={(span) => resizeTile(t.id, span)}
+              onMenu={(x, y) => {
+                tileMenuRef.current = { x, y }
+                setTileMenu({ tileId: t.id, x, y })
+              }}
+              onDelete={() => deleteTile(t.id)}
             />
           ))}
         </div>
@@ -168,11 +180,47 @@ export function TileGrid({ page, live, keyStyle, onTemplates }: Props) {
               )}
               <MenuItem
                 onClick={() => {
+                  addSlider(menu)
+                  setMenu(undefined)
+                }}
+              >
+                <SlidersHorizontal /> Slider
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
                   onTemplates(menu)
                   setMenu(undefined)
                 }}
               >
                 <LayoutTemplate /> From a template…
+              </MenuItem>
+            </>
+          )}
+        </PopoverContent>
+      </Popover>
+      <Popover
+        open={tileMenu !== undefined}
+        onOpenChange={(open) => !open && setTileMenu(undefined)}
+      >
+        <PopoverAnchor virtualRef={tileAnchor} />
+        <PopoverContent className="w-44 p-1" align="start" aria-label="Tile actions">
+          {tileMenu && (
+            <>
+              <MenuItem
+                onClick={() => {
+                  duplicateTile(tileMenu.tileId)
+                  setTileMenu(undefined)
+                }}
+              >
+                <Copy /> Duplicate
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  deleteTile(tileMenu.tileId)
+                  setTileMenu(undefined)
+                }}
+              >
+                <Trash2 /> Delete
               </MenuItem>
             </>
           )}
@@ -202,9 +250,21 @@ interface TileProps {
   running: boolean
   keyStyle: KeyStyle
   onResize: (span: { w: number; h: number }) => void
+  onMenu: (x: number, y: number) => void
+  onDelete: () => void
 }
 
-function GridTile({ page, tile, look, selected, running, keyStyle, onResize }: TileProps) {
+function GridTile({
+  page,
+  tile,
+  look,
+  selected,
+  running,
+  keyStyle,
+  onResize,
+  onMenu,
+  onDelete,
+}: TileProps) {
   const { selectTile } = useEditor.getState()
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: tile.id })
   const [resize, setResize] = useState<{
@@ -255,6 +315,17 @@ function GridTile({ page, tile, look, selected, running, keyStyle, onResize }: T
         aria-pressed={selected}
         aria-label={`${tile.kind === 'folder' ? 'Folder' : 'Tile'} ${look.label || 'Untitled'}`}
         onClick={() => selectTile(tile.id)}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          selectTile(tile.id)
+          onMenu(e.clientX, e.clientY)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Delete' || e.key === 'Backspace') {
+            e.preventDefault()
+            onDelete()
+          }
+        }}
         data-pressed={running}
         className={cn('key size-full', selected && 'outline-2 outline-offset-2 outline-glaze')}
         style={{ borderRadius: 'inherit', ...keyVars(look.colour, keyStyle) }}
