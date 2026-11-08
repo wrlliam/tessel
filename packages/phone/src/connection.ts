@@ -21,6 +21,8 @@ export interface TileOverride {
   icon?: string
   /** Slider position, 0 to 100. */
   value?: number
+  /** Indicator lit by the computer, e.g. the app is open. */
+  active?: boolean
 }
 
 export interface ConnectionState {

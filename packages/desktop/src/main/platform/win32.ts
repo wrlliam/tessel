@@ -56,8 +56,14 @@ export function createWin32(deps: {
         throw new UserFacingError(
           `Couldn't find "${app}" in the Start menu. Check the name, or use the full path to the .exe.`,
         )
-      // Explorer exits with code 1 even on success, so don't wait on it.
-      deps.launch('explorer.exe', [`shell:AppsFolder\\${match.AppID}`])
+      // Start-Process shows the app's window normally. (Launching through a hidden helper
+      // window could start the app hidden, so it looked like nothing happened.)
+      await deps.run('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `Start-Process -FilePath 'shell:AppsFolder\\${match.AppID.replace(/'/g, "''")}'`,
+      ])
     },
 
     async setDarkMode(on: OnOff) {

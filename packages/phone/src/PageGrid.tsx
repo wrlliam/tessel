@@ -93,7 +93,11 @@ export function PageGrid({
               width: w,
               height: h,
               borderRadius: keyRadius(settings.keyShape, w, h),
-              ...keyVars(look.colour, kind === 'back' ? 'tinted' : (t.style ?? settings.keyStyle)),
+              ...keyVars(
+                look.colour,
+                kind === 'back' ? 'tinted' : (t.style ?? settings.keyStyle),
+                overrides[t.id]?.active,
+              ),
             }}
           >
             {kind === 'slider' && (

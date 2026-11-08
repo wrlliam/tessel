@@ -483,6 +483,47 @@ describe('Hub settings', () => {
 })
 
 describe('Hub phone settings and remembered looks', () => {
+  it('lights Open app tiles while their app runs', async () => {
+    const { hub } = await makeHub()
+    const profile = structuredClone(hub.getProfile('default')!)
+    const tile = profile.pages[0]!.tiles.find((t) => t.id === 'lock')!
+    tile.graph = {
+      nodes: [
+        { id: 'p', type: 'trigger.press', params: {}, position: { x: 0, y: 0 } },
+        { id: 'o', type: 'action.openApp', params: { app: 'Spotify' }, position: { x: 0, y: 0 } },
+      ],
+      edges: [{ id: 'e', from: { nodeId: 'p', port: 'out' }, to: { nodeId: 'o', port: 'in' } }],
+    }
+    await hub.saveProfile(profile)
+    const running = ['finder']
+    ;(
+      hub as unknown as { opts: { platform: { runningApps: () => Promise<string[]> } } }
+    ).opts.platform.runningApps = async () => running
+    const sent: unknown[] = []
+    const server = (hub as unknown as { server: { broadcast: (m: unknown) => void } }).server
+    const original = server.broadcast.bind(server)
+    server.broadcast = (m) => {
+      sent.push(m)
+      original(m)
+    }
+    await hub.checkOpenApps()
+    running.push('spotify')
+    await hub.checkOpenApps()
+    await hub.checkOpenApps()
+    expect(
+      sent.filter(
+        (m) =>
+          typeof m === 'object' &&
+          m !== null &&
+          'active' in m &&
+          (m as unknown as { tileId: string }).tileId === 'lock',
+      ),
+    ).toEqual([
+      { type: 'tileState', tileId: 'lock', active: false },
+      { type: 'tileState', tileId: 'lock', active: true },
+    ])
+  })
+
   it('runs a tile from a shortcut link, by POST only, until it is removed', async () => {
     const { hub, port, platform } = await makeHub()
     const made = await hub.createShortcut('default', 'save')

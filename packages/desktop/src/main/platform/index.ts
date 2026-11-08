@@ -4,6 +4,7 @@ import { readdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { createCommon, type ShellPolicy } from './common.ts'
 import { createNowPlaying } from './now-playing.ts'
+import { createRunningApps } from './running.ts'
 import { Toaster } from '../toast.ts'
 import { zxRunner } from '../paths.ts'
 import { runZx } from '../zx.ts'
@@ -112,6 +113,7 @@ export function createPlatform(shellPolicy: () => ShellPolicy): Platform {
     ...input,
     ...common,
     nowPlaying: createNowPlaying(os, run),
+    runningApps: createRunningApps(os, run),
     toast: (t) => toaster.show(t),
   }
 }

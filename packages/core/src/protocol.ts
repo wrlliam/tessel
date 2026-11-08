@@ -168,6 +168,8 @@ export const TileStateMessage = z.object({
   icon: z.string().optional(),
   /** Slider tiles: where the bar sits, 0 to 100. */
   value: z.number().min(0).max(100).optional(),
+  /** Lights the key's indicator, e.g. while the app an Open app tile opens is running. */
+  active: z.boolean().optional(),
 })
 export const PongMessage = z.object({ type: z.literal('pong'), t: z.number() })
 export const PhoneSettingsMessage = z.object({

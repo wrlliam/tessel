@@ -26,11 +26,28 @@ export function createDarwin(deps: { run: Run }) {
       const isPath = app.startsWith('/') || app.endsWith('.app')
       try {
         await deps.run('open', isPath ? [app] : ['-a', app])
+        return
       } catch {
-        throw new UserFacingError(
-          `Couldn't find an app called "${app}". Check the name in your Applications folder.`,
-        )
+        // The name may differ in case or spacing from the app's file name; ask Spotlight.
       }
+      const found = isPath
+        ? ''
+        : (
+            await deps
+              .run('mdfind', [
+                `kMDItemContentType == "com.apple.application-bundle" && kMDItemDisplayName == "${app.replace(/"/g, '')}*"cd`,
+              ])
+              .catch(() => ({ stdout: '' }))
+          ).stdout
+            .split('\n')
+            .find((l) => l.endsWith('.app'))
+      if (found) {
+        await deps.run('open', [found])
+        return
+      }
+      throw new UserFacingError(
+        `Couldn't find an app called "${app}". Check the name in your Applications folder.`,
+      )
     },
 
     setDarkMode: (on: OnOff) =>

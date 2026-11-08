@@ -96,12 +96,16 @@ describe('Windows', () => {
     expect(pickStartApp(apps, 'zzz')).toBeUndefined()
   })
 
-  it('launches Start menu apps, including Store apps, through Explorer', async () => {
+  it('launches Start menu apps, including Store apps, with a visible window', async () => {
     const d = deps()
     await createWin32(d).openApp('Calculator')
-    expect(d.launch).toHaveBeenCalledWith('explorer.exe', [
-      'shell:AppsFolder\\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App',
-    ])
+    const last = (d.run as unknown as { mock: { calls: Array<[string, string[]]> } }).mock.calls.at(
+      -1,
+    )
+    expect(last?.[0]).toBe('powershell.exe')
+    expect(last?.[1].at(-1)).toBe(
+      "Start-Process -FilePath 'shell:AppsFolder\\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App'",
+    )
   })
 
   it('caches the Start menu list', async () => {
@@ -109,14 +113,15 @@ describe('Windows', () => {
     const win = createWin32(d)
     await win.openApp('Discord')
     await win.openApp('Calculator')
-    expect(d.run).toHaveBeenCalledTimes(1)
+    const lists = d.run.mock.calls.filter((c) => String(c[1].at(-1)).includes('Get-StartApps'))
+    expect(lists).toHaveLength(1)
   })
 
   it('handles a single app (PowerShell returns an object, not an array)', async () => {
     const d = deps()
     d.run.mockResolvedValueOnce({ stdout: JSON.stringify(apps[0]), stderr: '' })
     await createWin32(d).openApp('Discord')
-    expect(d.launch).toHaveBeenCalled()
+    expect(String(d.run.mock.calls.at(-1)?.[1].at(-1))).toContain('com.squirrel.Discord.Discord')
   })
 
   it('opens paths with the shell', async () => {

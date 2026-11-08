@@ -32,6 +32,7 @@ import {
   ensureTls,
 } from '@tessel/server'
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
+import { isRunning } from './platform/running.ts'
 import { join } from 'node:path'
 import QRCode from 'qrcode'
 import type { DesktopState, LogEntry, ProfileEngineEvent, SaveResult } from '../shared/api.ts'
@@ -133,6 +134,9 @@ export class Hub {
   private urls: string[] = []
   /** Slider positions (0 to 100) of the active profile, as phones show them. */
   private positions = new Map<string, number>()
+  /** Open app tiles whose app is running, as phones show it. */
+  private activity = new Map<string, boolean>()
+  private appTimer?: NodeJS.Timeout
   private sliding = new Set<string>()
   private pendingSlide = new Map<string, number>()
   private platform: Platform
@@ -217,6 +221,11 @@ export class Hub {
           tileId,
           value,
         })),
+        ...[...this.activity].map(([tileId, active]) => ({
+          type: 'tileState' as const,
+          tileId,
+          active,
+        })),
         ...[...this.live].map(([tileId, look]) => tileStateMessage(tileId, look)),
       ],
     })
@@ -230,6 +239,10 @@ export class Hub {
     this.activate()
     this.scheduleCodeRotation()
     this.networkTimer = setInterval(() => void this.refreshNetwork(), NETWORK_POLL_MS)
+    this.appTimer = setInterval(
+      () => void this.checkOpenApps(),
+      this.opts.platform.os === 'win32' ? 5000 : 3000,
+    )
     if (this.settings.allowPhones) await this.startServer()
   }
 
@@ -663,6 +676,30 @@ export class Hub {
     }
   }
 
+  /** Lights Open app tiles while their app is open. */
+  async checkOpenApps() {
+    if (!this.listening || !this.opts.platform.runningApps) return
+    const watched = tilesOf(this.library.active()).flatMap((t) => {
+      const app = t.graph.nodes.find((n) => n.type === 'action.openApp')?.params['app']
+      return typeof app === 'string' && app.trim() && !app.includes('{{')
+        ? [[t.id, app] as const]
+        : []
+    })
+    if (watched.length === 0) return
+    let running: string[]
+    try {
+      running = await this.opts.platform.runningApps()
+    } catch {
+      return
+    }
+    for (const [tileId, app] of watched) {
+      const active = isRunning(app, running)
+      if (this.activity.get(tileId) === active) continue
+      this.activity.set(tileId, active)
+      this.server.broadcast({ type: 'tileState', tileId, active })
+    }
+  }
+
   /** Where phones are, for weather tiles. Only kept when Share location is on. */
   async setLocation(lat: number, lon: number) {
     if (!this.settings.phone.shareLocation) return
@@ -692,6 +729,7 @@ export class Hub {
   async dispose() {
     clearTimeout(this.codeTimer)
     clearInterval(this.networkTimer)
+    clearInterval(this.appTimer)
     this.scheduler.stop()
     for (const h of this.holds.values()) clearTimeout(h.timer)
     await this.plugins?.dispose()
@@ -730,6 +768,7 @@ export class Hub {
   private activate() {
     this.overrides.clear()
     this.positions.clear()
+    this.activity.clear()
     const active = this.library.active()
     for (const tile of tilesOf(active)) {
       const look = savedLook(active, tile.id)

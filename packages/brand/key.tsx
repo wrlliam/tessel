@@ -48,7 +48,7 @@ export const textOn = (hex: string) => (luminance(hex) > 0.25 ? '#0E1116' : '#F4
  * CSS variables for a key face. Tinted keys keep the face dark and let the colour show in a
  * soft tint and the indicator light; solid keys fill the face with the colour.
  */
-export function keyVars(colour: string, style: KeyStyle): CSSProperties {
+export function keyVars(colour: string, style: KeyStyle, active?: boolean): CSSProperties {
   // Near-black tile colours (the Ink defaults) mean "no colour": plain face, unlit light.
   const plain = luminance(colour) < 0.03
   const light = plain ? 'var(--key-light-off)' : colour
@@ -82,6 +82,13 @@ export function keyVars(colour: string, style: KeyStyle): CSSProperties {
               '--k-text': 'var(--text)',
               '--k-light': light,
             }
+  // Something on the computer says this key is on (e.g. its app is open): light it and ring it.
+  if (active === true) {
+    const lit = plain ? 'var(--glaze)' : colour
+    vars['--k-light'] = lit
+    vars['--k-ring'] = `color-mix(in oklab, ${lit} 65%, transparent)`
+    vars['--k-ring-w'] = '2px'
+  } else if (active === false && style !== 'solid') vars['--k-light'] = 'var(--key-light-off)'
   return vars as CSSProperties
 }
 
