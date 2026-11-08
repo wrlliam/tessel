@@ -307,6 +307,19 @@ try {
   if (custom !== 'Soup' && custom !== 'Ramen')
     throw new Error(`My blocks gave ${JSON.stringify(custom)}`)
 
+  step('Try mode presses a tile from the editor, like the phone')
+  await page.evaluate(() => window.tessel.addVariables('default', { lunch: 'none' }))
+  // The tile was saved straight to the main process above; reload so the editor has it.
+  await page.reload()
+  await page.getByRole('button', { name: 'Try', exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Try', exact: true }).click()
+  await page.getByRole('button', { name: /^Tile Lunch/ }).click()
+  await page.waitForFunction(async () => {
+    const v = (await window.tessel.getProfile('default'))?.variables['lunch']
+    return v === 'Soup' || v === 'Ramen'
+  })
+  await page.getByRole('button', { name: 'Try', exact: true }).click()
+
   step('share the tile as a .tel and open it again, code and all')
   const telPath = join(dataDir, 'lunch.tel')
   await app.evaluate(({ dialog }, path) => {

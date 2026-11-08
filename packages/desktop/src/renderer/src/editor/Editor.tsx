@@ -1,6 +1,6 @@
 import type { KeyStyle } from '@tessel/brand/key'
 import type { Appearance, OS, TileTemplate } from '@tessel/core'
-import { LayoutTemplate } from 'lucide-react'
+import { MousePointerClick, LayoutTemplate } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { openTel } from './share.ts'
 import { Button } from '../ui/button.tsx'
@@ -110,6 +110,7 @@ export function Editor({
   const save = useEditor((s) => s.save)
   const tile = useSelectedTile()
   const page = useSelectedPage()
+  const [trying, setTrying] = useState(false)
   const [gallery, setGallery] = useState<{ cell?: Cell } | null>(null)
   if (!profile) return null
   const live = profile.id === activeProfileId ? liveAppearance : {}
@@ -138,16 +139,33 @@ export function Editor({
             <section aria-label={`Tiles on ${page.name}`} className="space-y-2">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs text-muted">Tiles on “{page.name}”</h3>
-                <Button size="sm" variant="ghost" onClick={() => setGallery({})}>
-                  <LayoutTemplate /> Templates
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant={trying ? 'primary' : 'ghost'}
+                    aria-pressed={trying}
+                    title="Click tiles to press them, like on the phone"
+                    onClick={() => setTrying(!trying)}
+                  >
+                    <MousePointerClick /> Try
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setGallery({})}>
+                    <LayoutTemplate /> Templates
+                  </Button>
+                </div>
               </div>
               <TileGrid
                 page={page}
                 live={live}
                 keyStyle={keyStyle}
                 onTemplates={(cell) => setGallery({ cell })}
+                trying={trying}
               />
+              {trying && (
+                <p className="text-xs text-muted">
+                  Click a tile to press it. Sliders take the spot you click; folders open.
+                </p>
+              )}
               <Notice />
               <p className="text-xs text-muted">
                 Drag tiles to move them. Drag the corner of the selected tile to resize.

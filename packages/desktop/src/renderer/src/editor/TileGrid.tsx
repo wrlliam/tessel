@@ -51,10 +51,12 @@ interface Props {
   live: Record<string, Appearance>
   keyStyle: KeyStyle
   onTemplates: (cell: Cell) => void
+  /** Try mode: clicks press tiles like the phone does, instead of selecting them. */
+  trying?: boolean
 }
 
 /** Phone-shaped preview of a page. Drag tiles to move them; drag the corner of the selected tile to resize. */
-export function TileGrid({ page, live, keyStyle, onTemplates }: Props) {
+export function TileGrid({ page, live, keyStyle, onTemplates, trying = false }: Props) {
   const problems = usePageProblems(page)
   const selected = useEditor((s) => s.selectedTileId)
   const running = useEditor((s) => s.runningTiles)
@@ -167,6 +169,7 @@ export function TileGrid({ page, live, keyStyle, onTemplates }: Props) {
               tile={t}
               look={previewLook(t, live[t.id])}
               problem={problems[t.id]}
+              trying={trying}
               selected={t.id === selected}
               running={running[t.id] === true}
               keyStyle={keyStyle}
@@ -319,6 +322,7 @@ interface TileProps {
   onDelete: () => void
   /** Why the tile won't run, if it won't. */
   problem?: string | undefined
+  trying?: boolean
 }
 
 function GridTile({
@@ -332,6 +336,7 @@ function GridTile({
   onMenu,
   onDelete,
   problem,
+  trying = false,
 }: TileProps) {
   const { selectTile } = useEditor.getState()
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: tile.id })
@@ -377,12 +382,12 @@ function GridTile({
     >
       <button
         type="button"
-        {...listeners}
+        {...(trying ? {} : listeners)}
         {...attributes}
         role="button"
         aria-pressed={selected}
         aria-label={`${tile.kind === 'folder' ? 'Folder' : 'Tile'} ${look.label || 'Untitled'}${problem ? `, needs fixing: ${problem}` : ''}`}
-        onClick={() => selectTile(tile.id)}
+        onClick={(e) => (trying ? void tryTile(tile, e) : selectTile(tile.id))}
         onContextMenu={(e) => {
           e.preventDefault()
           selectTile(tile.id)
@@ -414,7 +419,7 @@ function GridTile({
           !
         </span>
       )}
-      {selected && (
+      {selected && !trying && (
         <div
           role="presentation"
           title="Drag to resize"
@@ -470,4 +475,33 @@ function usePageProblems(page: Page): Record<string, string> {
     }
   }, [page, blocksVersion])
   return problems
+}
+
+/** Presses a tile from the editor the way a phone would: folders open, sliders take the spot clicked. */
+async function tryTile(
+  tile: Tile,
+  e: { clientX: number; clientY: number; currentTarget: Element },
+) {
+  const s = useEditor.getState()
+  const profileId = s.profile?.id
+  if (!profileId) return
+  if (tile.kind === 'folder') {
+    if (tile.targetPageId) s.selectPage(tile.targetPageId)
+    return
+  }
+  await saveNow()
+  if (tile.kind === 'slider') {
+    const box = e.currentTarget.getBoundingClientRect()
+    const vertical = box.height > box.width * 1.1
+    const raw = vertical
+      ? (box.bottom - e.clientY) / box.height
+      : (e.clientX - box.left) / box.width
+    await window.tessel.trySlide(
+      profileId,
+      tile.id,
+      Math.round(Math.max(0, Math.min(1, raw)) * 100),
+    )
+    return
+  }
+  await window.tessel.testRun(profileId, tile.id)
 }

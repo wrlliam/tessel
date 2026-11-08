@@ -52,6 +52,12 @@ macOS gives a universal `.dmg`, Windows an NSIS `.exe`, Linux an `.AppImage` and
 
 Swipe sideways or tap the dots to change page. Folder tiles open their page; Back returns. A tap fires when you lift your finger (or after a short hold), so starting a swipe on a tile never presses it. The **⋯** menu has **Dim screen** (a dark overlay for OLED phones; tiles still work), **Choose another computer** (iPhone app) and **Forget this computer**.
 
+**Pairing.** Scan the QR code on the Phones tab and the phone pairs by itself: the code rides in the link's `#` part, which never reaches a server, and the phone drops it from the address once used. Typing the address and the 6-digit code still works.
+
+**Editing keys on the phone.** **⋯ › Edit keys**, then tap a key to change its name, colour or icon, or **Swap with…** another key on the page. Phones can only change how keys look and where they sit, never what they do; turn it off with **Edit keys on the phone** on the Phones tab.
+
+**Shortcut links.** Right-click a tile on the desktop › **Shortcut link…** gives a private link (and QR code). Add it to the iOS Shortcuts app with **Get Contents of URL** set to POST, then put that shortcut on the Lock Screen, the Action button, Back Tap or Siri; on Android, an app like HTTP Shortcuts does the same. Opening the link in a browser only shows a help page. Only a hash of each link's key is stored, uses are rate-limited, and **Settings › Shortcut links** lists them to remove.
+
 **Phone settings live on the desktop.** The **Phones** tab has an **On the phone** card with a live preview: theme (follow the phone, dark, light), key colour (tinted keys keep the face neutral with a coloured light; solid fills the key), labels and their size, spacing, the page name bar, vibrate on press, keep the screen on and dim strength. Changes reach connected phones at once, and phones keep the last settings for when they reconnect.
 
 **Held sideways.** **Reflow** (the default) lays the keys out again in wide rows so they stay big, and moves the page name, dots and menu to a narrow rail on the right. **Fill** stretches the grid across the whole screen (wide keys put the icon beside the label), **Fit** keeps keys square and centred, **Rotate** swaps rows and columns.
@@ -111,6 +117,8 @@ The window has four tabs: **Editor**, **Phones** (pairing and devices), **Plugin
   - **Folders** are tiles that open their own page. The phone adds a Back tile in its top-left slot.
 - **Centre:** the block canvas, with a categorised palette beside it. Drag blocks in, or press `Space` or right-click on the canvas to search. Drag from a port to another to wire them; ports only accept compatible wires, and loops are refused.
 - **Right:** the inspector for the selected block's settings, its wires (connect and disconnect without a mouse), and the tile: label, icon (a named icon or one emoji), colour, position, size, what a press does while it is still running, and **live appearance**.
+- **Try:** switch it on above the grid and clicking a tile presses it, as the phone would (sliders take the spot you click, folders open).
+- **Problems:** a tile that won't run shows a red badge; hover it for the reason.
 - **Bottom:** the run log. Click a failed run to jump to the block that failed.
 
 **Live appearance.** A tile's label, colour or icon can follow variables, e.g. label `Count: {{var.count ?? 0}}`, and the **Set tile appearance** block can change them while a tile runs (use it for status, like a mute tile turning red). It can change this tile or any other tile in the profile, and with **Keep it after Tessel restarts** the new look is saved; **Reset** returns a tile to its settings. The phone and the editor's grid show the live look.

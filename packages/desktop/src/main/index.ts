@@ -271,6 +271,10 @@ async function start() {
   ipcMain.handle(Channel.testRun, (_e, profileId: unknown, tileId: unknown) => {
     if (str(profileId) && str(tileId)) return hub.testRun(profileId, tileId)
   })
+  ipcMain.handle(Channel.trySlide, (_e, profileId: unknown, tileId: unknown, value: unknown) => {
+    if (str(profileId) && str(tileId) && typeof value === 'number' && Number.isFinite(value))
+      return hub.trySlide(profileId, tileId, value)
+  })
   ipcMain.handle(Channel.stopTile, (_e, profileId: unknown, tileId: unknown) => {
     if (str(profileId) && str(tileId)) hub.stopTile(profileId, tileId)
   })

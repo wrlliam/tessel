@@ -33,6 +33,8 @@ const api: TesselApi = {
   validateGraph: (graph) => ipcRenderer.invoke(Channel.validateGraph, graph),
   testRun: (profileId, tileId) => ipcRenderer.invoke(Channel.testRun, profileId, tileId),
   stopTile: (profileId, tileId) => ipcRenderer.invoke(Channel.stopTile, profileId, tileId),
+  trySlide: (profileId, tileId, value) =>
+    ipcRenderer.invoke(Channel.trySlide, profileId, tileId, value),
   setPluginEnabled: (id, on) => ipcRenderer.invoke(Channel.setPluginEnabled, id, on),
   restartPlugin: (id) => ipcRenderer.invoke(Channel.restartPlugin, id),
   removePlugin: (id) => ipcRenderer.invoke(Channel.removePlugin, id),

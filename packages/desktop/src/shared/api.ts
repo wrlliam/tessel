@@ -123,6 +123,8 @@ export interface TesselApi {
   /** Runs the saved tile as if it were pressed. */
   testRun(profileId: string, tileId: string): Promise<void>
   stopTile(profileId: string, tileId: string): Promise<void>
+  /** Sets a slider tile (0 to 100) from the editor, as if dragged on a phone. */
+  trySlide(profileId: string, tileId: string, value: number): Promise<void>
   onEngineEvent(listener: (event: ProfileEngineEvent) => void): () => void
   setPluginEnabled(id: string, on: boolean): Promise<SaveResult>
   restartPlugin(id: string): Promise<void>
@@ -202,6 +204,7 @@ export const Channel = {
   validateGraph: 'graph:validate',
   testRun: 'tile:test-run',
   stopTile: 'tile:stop',
+  trySlide: 'tile:try-slide',
   engineEvent: 'engine:event',
   setPluginEnabled: 'plugins:enable',
   restartPlugin: 'plugins:restart',

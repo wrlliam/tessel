@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Pair by scanning** the QR code; no code to type.
+- **First run asks what Tessel is for** and adds matching ready-made pages.
+- **Edit keys on the phone:** name, colour, icon and swapping places (never what keys do).
+- **Shortcut links** run a tile from the iPhone Lock Screen, Action button, Back Tap or Siri (or Android shortcut apps).
+- **Editor:** Try mode presses tiles from the desktop; tiles that won't run get a badge; the grid shows edits straight away.
 - **My blocks return several values by name** (`return { days, words }`, with `next` to pick the output), type-checked against `values`.
 - **Every push to main is released** by CI with installers for macOS, Windows and Linux; installed copies update themselves.
 - **zx** for scripts: the Run a zx script block, and zx ready to import in My blocks.

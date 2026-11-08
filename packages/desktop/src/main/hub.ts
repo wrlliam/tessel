@@ -507,6 +507,15 @@ export class Hub {
     if (tile) await this.runtime(profileId).engine.trigger(tile, { type: 'press' })
   }
 
+  /** Moves a slider from the editor's Try mode, as if dragged on a phone. */
+  async trySlide(profileId: string, tileId: string, position: number) {
+    const value = Math.max(0, Math.min(100, position))
+    if (profileId === this.library.activeId) return this.slide(tileId, value)
+    const tile = this.findTile(profileId, tileId)
+    if (tile?.kind === 'slider')
+      await this.runtime(profileId).engine.trigger(tile, { type: 'slide', data: { value } })
+  }
+
   stopTile(profileId: string, tileId: string) {
     this.runtimes.get(profileId)?.engine.cancel(tileId)
   }
