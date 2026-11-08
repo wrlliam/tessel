@@ -1,7 +1,7 @@
 import { mdnsNames } from '@tessel/server'
 import { shell, app, ipcMain } from 'electron'
 import { hostname } from 'node:os'
-import { Channel, type DesktopState } from '../shared/api.ts'
+import { Channel, type DesktopState, type SharedTiles } from '../shared/api.ts'
 import { Hub } from './hub.ts'
 import { phoneDir } from './paths.ts'
 import { createPlatform, isWayland } from './platform/index.ts'
@@ -15,6 +15,7 @@ import { ensureMyBlocks, ensurePackage, newBlockFile } from './custom-blocks.ts'
 import { createRequire } from 'node:module'
 import { dirname } from 'node:path'
 import { MY_BLOCKS_FILES, STARTER } from './custom-blocks-files.ts'
+import { exportTelWithDialog, importTelWithDialog } from './tel-dialogs.ts'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { currentWindow, markQuitting, showWindow } from './window.ts'
@@ -26,10 +27,26 @@ if (dataDirOverride) app.setPath('userData', dataDirOverride)
 // Electron has no login-item API on Linux; hide the option there.
 const loginItemsSupported = process.platform === 'darwin' || process.platform === 'win32'
 
+// .tel files can arrive before Tessel is ready: from Finder (open-file) or as a launch argument.
+const pendingTel: string[] = []
+let telHandler: ((path: string) => void) | undefined
+const telArg = (argv: string[]) => argv.find((a) => a.toLowerCase().endsWith('.tel'))
+const receiveTel = (path: string) => (telHandler ? telHandler(path) : pendingTel.push(path))
+
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
-  app.on('second-instance', () => showWindow())
+  app.on('open-file', (e, path) => {
+    e.preventDefault()
+    receiveTel(path)
+  })
+  const first = telArg(process.argv)
+  if (first) pendingTel.push(first)
+  app.on('second-instance', (_e, argv) => {
+    const tel = telArg(argv)
+    if (tel) receiveTel(tel)
+    else showWindow()
+  })
   void app.whenReady().then(start)
 }
 
@@ -168,7 +185,7 @@ async function start() {
   if (myBlocksReady()) void setUpMyBlocks().catch(() => {})
   ipcMain.handle(Channel.createMyBlocks, async () => {
     try {
-      await ensureMyBlocks(myBlocksDir, MY_BLOCKS_FILES)
+      await setUpMyBlocks()
       if (
         !hub
           .plugin()
@@ -191,6 +208,30 @@ async function start() {
     )
     await shell.openPath(file)
   })
+  ipcMain.handle(Channel.exportTel, (_e, req: unknown) => {
+    const r = req as SharedTiles | undefined
+    if (!r || typeof r.name !== 'string' || !Array.isArray(r.tiles))
+      return { ok: false, error: 'Nothing to share' }
+    return exportTelWithDialog(currentWindow(), hub, myBlocksDir, r)
+  })
+  ipcMain.handle(Channel.importTel, (_e, path: unknown) =>
+    importTelWithDialog(
+      currentWindow(),
+      hub,
+      myBlocksDir,
+      setUpMyBlocks,
+      typeof path === 'string' && path.endsWith('.tel') ? path : undefined,
+    ),
+  )
+  // .tel files opened from Finder or Explorer go to the editor, which asks before adding them.
+  const openTel = (path: string) => {
+    const win = showWindow()
+    const send = () => win.webContents.send(Channel.telOpened, path)
+    if (win.webContents.isLoading()) win.webContents.once('did-finish-load', send)
+    else send()
+  }
+  for (const p of pendingTel.splice(0)) openTel(p)
+  telHandler = openTel
   ipcMain.handle(Channel.addPlugin, (_e, kind: unknown) =>
     kind === 'folder' || kind === 'zip' || kind === 'dev'
       ? addPluginWithDialog(hub.plugin(), currentWindow(), kind)

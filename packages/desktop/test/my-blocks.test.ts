@@ -142,6 +142,33 @@ describe('My blocks', () => {
     expect(r?.error).toMatch(/at most 12/)
   })
 
+  it('skips a broken file and says why, keeping the others', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tessel-myblocks-'))
+    const dir = await ensureMyBlocks(join(root, 'my-blocks'), await files())
+    await writeFile(join(dir, 'blocks', 'broken.ts'), 'export default 42\n')
+    await writeFile(join(dir, 'blocks', 'git-branch.ts'), '// no zx here\nexport default 1\n')
+    const registry = createRegistry()
+    const logs: string[] = []
+    const manager = new PluginManager({
+      dataDir: join(root, 'data'),
+      builtinDirs: [],
+      spawn: forkSpawner(runner),
+      os: 'darwin',
+      registry,
+      logger: { info: (m) => logs.push(m), warn: (m) => logs.push(m), error: (m) => logs.push(m) },
+      confirmPermissions: vi.fn(async () => true),
+      onChange: () => {},
+      onEvent: () => {},
+      onTileState: () => {},
+    })
+    managers.push(manager)
+    await manager.load()
+    await manager.addDev(dir)
+    expect(registry.get('my-blocks.pick-one')).toBeDefined()
+    expect(registry.get('my-blocks.broken')).toBeUndefined()
+    expect(logs.some((l) => l.includes('Skipped blocks/broken.ts'))).toBe(true)
+  })
+
   it('adds a new block from the starter', async () => {
     const { dir, registry } = await start()
     const file = await newBlockFile(dir, 'Shout it', (await files())['blocks/_starter.ts']!)

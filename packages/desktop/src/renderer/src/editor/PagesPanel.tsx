@@ -1,5 +1,14 @@
 import { pageTemplates, type Page } from '@tessel/core'
-import { ChevronDown, ChevronUp, File, Folder, LayoutGrid, Plus } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronUp,
+  File,
+  FileInput,
+  Folder,
+  LayoutGrid,
+  Plus,
+  Share,
+} from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '../lib/cn.ts'
 import { Button } from '../ui/button.tsx'
@@ -7,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
 import { Field } from '../ui/field.tsx'
 import { Input, Select } from '../ui/input.tsx'
 import { parentOf } from './layout.ts'
+import { openTel, shareTiles } from './share.ts'
 import { useEditor, useSelectedPage } from './store.ts'
 
 const SIZES = [1, 2, 3, 4, 5, 6, 7, 8]
@@ -123,6 +133,15 @@ function PageSettings() {
             </Button>
           </>
         )}
+        {page.kind === 'page' && page.tiles.length > 0 && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => void shareTiles(page.name, page.tiles, page)}
+          >
+            <Share /> Share
+          </Button>
+        )}
         {confirm === page.id ? (
           <Button size="sm" variant="danger" onClick={() => deletePage(page.id)}>
             Delete with its tiles
@@ -161,6 +180,20 @@ function NewPageMenu({ onPick }: { onPick: (template?: (typeof pageTemplates)[nu
           <span>
             Blank page
             <span className="block text-xs text-muted">Same size as the page you're on</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false)
+            void openTel()
+          }}
+          className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-line"
+        >
+          <FileInput className="mt-0.5 size-4 shrink-0 text-muted" />
+          <span>
+            From a .tel file…
+            <span className="block text-xs text-muted">Tiles or a page someone shared</span>
           </span>
         </button>
         <p className="px-2 pt-2 pb-1 text-xs text-muted">Ready-made</p>

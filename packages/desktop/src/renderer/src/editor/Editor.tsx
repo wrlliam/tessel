@@ -2,6 +2,7 @@ import type { KeyStyle } from '@tessel/brand/key'
 import type { Appearance, OS, TileTemplate } from '@tessel/core'
 import { LayoutTemplate } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { openTel } from './share.ts'
 import { Button } from '../ui/button.tsx'
 import { Canvas } from './Canvas.tsx'
 import { Inspector } from './Inspector.tsx'
@@ -17,6 +18,31 @@ import { TileGrid } from './TileGrid.tsx'
 const isEditable = (el: EventTarget | null) =>
   el instanceof HTMLElement &&
   (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))
+
+/** .tel files opened from the system, or dropped on the window, are added after a check. */
+function useTelFiles() {
+  useEffect(() => {
+    const off = window.tessel.onTelOpened((path) => void openTel(path))
+    const over = (e: DragEvent) => {
+      if ([...(e.dataTransfer?.items ?? [])].some((i) => i.kind === 'file')) e.preventDefault()
+    }
+    const drop = (e: DragEvent) => {
+      const file = [...(e.dataTransfer?.files ?? [])].find((f) =>
+        f.name.toLowerCase().endsWith('.tel'),
+      )
+      if (!file) return
+      e.preventDefault()
+      void openTel(window.tessel.pathForFile(file))
+    }
+    window.addEventListener('dragover', over)
+    window.addEventListener('drop', drop)
+    return () => {
+      off()
+      window.removeEventListener('dragover', over)
+      window.removeEventListener('drop', drop)
+    }
+  }, [])
+}
 
 /** Plugins coming or going change the block list; fetch it again. */
 function useBlockReload(version: number) {
@@ -77,6 +103,7 @@ export function Editor({
   keyStyle,
 }: Props) {
   useEditorSync(activeProfileId)
+  useTelFiles()
   useBlockReload(blocksVersion)
   useShortcuts(os)
   const profile = useEditor((s) => s.profile)

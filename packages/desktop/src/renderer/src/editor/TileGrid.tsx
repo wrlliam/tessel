@@ -7,7 +7,17 @@ import {
   type DragMoveEvent,
 } from '@dnd-kit/core'
 import type { Appearance, Page, Tile } from '@tessel/core'
-import { Copy, Folder, LayoutTemplate, Plus, SlidersHorizontal, Trash2 } from 'lucide-react'
+import {
+  Copy,
+  FileInput,
+  Folder,
+  LayoutTemplate,
+  Plus,
+  Share,
+  SlidersHorizontal,
+  Trash2,
+} from 'lucide-react'
+import { openTel, shareTiles } from './share.ts'
 import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { cn } from '../lib/cn.ts'
 import { Popover, PopoverAnchor, PopoverContent } from '../ui/popover.tsx'
@@ -194,6 +204,14 @@ export function TileGrid({ page, live, keyStyle, onTemplates }: Props) {
               >
                 <LayoutTemplate /> From a template…
               </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  setMenu(undefined)
+                  void openTel()
+                }}
+              >
+                <FileInput /> From a .tel file…
+              </MenuItem>
             </>
           )}
         </PopoverContent>
@@ -213,6 +231,15 @@ export function TileGrid({ page, live, keyStyle, onTemplates }: Props) {
                 }}
               >
                 <Copy /> Duplicate
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  const tile = page.tiles.find((t) => t.id === tileMenu.tileId)
+                  if (tile) void shareTiles(tile.label || 'Tile', [tile])
+                  setTileMenu(undefined)
+                }}
+              >
+                <Share /> Share as .tel…
               </MenuItem>
               <MenuItem
                 onClick={() => {

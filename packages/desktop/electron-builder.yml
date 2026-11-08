@@ -22,6 +22,12 @@ extraResources:
   # First-party plugins with their own dependencies (see scripts/stage-plugins.ts).
   - from: ../../build/plugins
     to: plugins
+# Double-clicking a .tel opens it in Tessel.
+fileAssociations:
+  - ext: tel
+    name: Tessel tiles
+    description: Tiles shared from Tessel
+    role: Editor
 # Where installed copies look for updates (electron-updater reads latest*.yml from the release).
 publish:
   provider: github
@@ -69,10 +75,14 @@ linux:
   target: [AppImage, deb]
   # The package name (@tessel/desktop) isn't usable as a file name.
   executableName: tessel
+  syncDesktopName: true
   category: Utility
   maintainer: William Banham <https://github.com/wrlliam/tessel>
   icon: build/icons
   synopsis: Tap. Build. Done.
   description: Turn your phone into a control surface for your computer.
 deb:
+  # Debian package names can't contain '@' or '/'.
+  packageName: tessel
+  artifactName: tessel_${version}_${arch}.${ext}
   depends: [libxtst6, libpng16-16]

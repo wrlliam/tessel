@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import {
   Channel,
   type DesktopState,
@@ -43,6 +43,14 @@ const api: TesselApi = {
   createMyBlocks: () => ipcRenderer.invoke(Channel.createMyBlocks),
   openMyBlocks: () => ipcRenderer.invoke(Channel.openMyBlocks),
   newMyBlock: (name) => ipcRenderer.invoke(Channel.newMyBlock, name),
+  exportTel: (req) => ipcRenderer.invoke(Channel.exportTel, req),
+  importTel: (path) => ipcRenderer.invoke(Channel.importTel, path),
+  onTelOpened: (listener) => {
+    const handler = (_: unknown, path: string) => listener(path)
+    ipcRenderer.on(Channel.telOpened, handler)
+    return () => ipcRenderer.off(Channel.telOpened, handler)
+  },
+  pathForFile: (file) => webUtils.getPathForFile(file),
   updatePluginSettings: (id, values) =>
     ipcRenderer.invoke(Channel.updatePluginSettings, id, values),
   onEngineEvent: (listener) => {

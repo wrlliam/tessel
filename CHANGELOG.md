@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Every push to main is released** by CI with installers for macOS, Windows and Linux; installed copies update themselves.
+- **zx** for scripts: the Run a zx script block, and zx ready to import in My blocks.
+- **.tel files** to share tiles or a whole page, including the code of the My blocks they use; double-click, drop or import to add them.
+- **Key styles:** Outline and Glass, Rounded/Square/Round shapes, icon sizes, lights on or off, and a per-tile style.
 - **Your own blocks in TypeScript** (Plugins › Create my blocks folder): settings, inputs, several outputs, npm packages and a std library; reload on save, no build step.
 - **Plugins:** Home Assistant, Soundpad, Ollama and Google (search links and Gemini).
 - **Pop-ups** on the computer's screen, and **Changed?** to react once, e.g. to a new song.

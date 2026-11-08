@@ -1,4 +1,5 @@
 import type {
+  JsonValue,
   BlockDescriptor,
   Graph,
   GraphIssue,
@@ -82,6 +83,13 @@ interface EditorActions {
   addFolder(cell: Cell): void
   /** A slider tile, wired from On slide. */
   addSlider(cell: Cell): void
+  /** Adds tiles from a .tel: as a new page, or into free slots on the selected page. */
+  addShared(shared: {
+    name: string
+    page?: { name: string; cols: number; rows: number }
+    tiles: Tile[]
+    variables: Record<string, JsonValue>
+  }): void
   insertTemplate(template: TileTemplate, cell?: Cell): boolean
   duplicateTile(tileId: string): void
   deleteTile(tileId: string): void
@@ -361,6 +369,55 @@ export const useEditor = create<Editor>()((set, get) => {
     },
 
     addTile: (cell) => placeOnSelectedPage(newTile(cell)),
+
+    addShared: (shared) => {
+      const p = get().profile
+      if (!p) return
+      const fresh = shared.tiles.map((t) => ({ ...structuredClone(t), id: uid('t') }))
+      const variables = { ...shared.variables, ...p.variables }
+      if (shared.page) {
+        const page: Page = {
+          id: uid('pg'),
+          name: shared.page.name,
+          kind: 'page',
+          cols: shared.page.cols,
+          rows: shared.page.rows,
+          tiles: [],
+        }
+        // Keep the shared layout where it fits; anything else goes in the next free slot.
+        for (const t of fresh) {
+          if (fits(page, t.position, t.span)) page.tiles.push(t)
+          else {
+            const cell = freeCells(page)[0]
+            if (cell) page.tiles.push({ ...t, position: cell, span: { w: 1, h: 1 } })
+          }
+        }
+        commit({ ...p, variables, pages: [...p.pages, page] })
+        set({
+          selectedPageId: page.id,
+          selectedTileId: page.tiles[0]?.id ?? null,
+          selectedNodeIds: [],
+        })
+        return
+      }
+      const target = selectedPage()
+      if (!target) return
+      const placed: Tile[] = []
+      const page = { ...target, tiles: [...target.tiles] }
+      for (const t of fresh) {
+        const cell = freeCells(page).find((c) => fits(page, c, t.span)) ?? freeCells(page)[0]
+        if (!cell) break
+        const span = fits(page, cell, t.span) ? t.span : { w: 1, h: 1 }
+        const tile = { ...t, position: cell, span }
+        page.tiles.push(tile)
+        placed.push(tile)
+      }
+      if (placed.length < fresh.length)
+        set({ notice: `Only ${placed.length} of ${fresh.length} tiles fit on this page.` })
+      if (placed.length === 0) return
+      commit({ ...mapPage(p, target.id, () => page), variables })
+      set({ selectedTileId: placed[0]?.id ?? null, selectedNodeIds: [] })
+    },
 
     addSlider: (cell) =>
       placeOnSelectedPage(

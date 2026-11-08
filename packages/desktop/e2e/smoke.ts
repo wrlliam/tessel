@@ -304,6 +304,23 @@ try {
   if (custom !== 'Soup' && custom !== 'Ramen')
     throw new Error(`My blocks gave ${JSON.stringify(custom)}`)
 
+  step('share the tile as a .tel and open it again, code and all')
+  const telPath = join(dataDir, 'lunch.tel')
+  await app.evaluate(({ dialog }, path) => {
+    dialog.showSaveDialog = (async () => ({ canceled: false, filePath: path })) as never
+  }, telPath)
+  const shared = await page.evaluate(async (path) => {
+    const profile = await window.tessel.getProfile('default')
+    const tile = profile?.pages[0]?.tiles.find((t) => t.id === 'lunch')
+    if (!profile || !tile) throw new Error('no lunch tile')
+    const out = await window.tessel.exportTel({ profileId: 'default', name: 'Lunch', tiles: [tile] })
+    if (!out.ok) throw new Error(JSON.stringify(out))
+    const back = await window.tessel.importTel(path)
+    return back.ok ? back.tiles.map((t) => t.graph.nodes.map((n) => n.type).join(',')) : back
+  }, telPath)
+  if (!Array.isArray(shared) || !String(shared[0]).includes('my-blocks.pick-one'))
+    throw new Error(`.tel round trip gave ${JSON.stringify(shared)}`)
+
   step('the pop-up shows above other windows')
   const toastShown = await app.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows().some(

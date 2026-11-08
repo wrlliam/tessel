@@ -56,6 +56,8 @@ Swipe sideways or tap the dots to change page. Folder tiles open their page; Bac
 
 **Held sideways.** **Reflow** (the default) lays the keys out again in wide rows so they stay big, and moves the page name, dots and menu to a narrow rail on the right. **Fill** stretches the grid across the whole screen (wide keys put the icon beside the label), **Fit** keeps keys square and centred, **Rotate** swaps rows and columns.
 
+**Key styles.** **Key style** is Tinted, Solid, Outline or Glass; **Key shape** is Rounded, Square or Round (circles, and pills on wide keys); icons come in three sizes; the indicator lights can be turned off. Any tile can use its own key style (**Key style** in the inspector).
+
 **Keeping the screen on.** With **Keep the screen on**, the phone stays awake while Tessel is open: natively in the iPhone app, with Wake Lock over the secure connection, and otherwise with a tiny muted video that starts on your first tap (Safari needs a tap before it plays anything).
 
 **Share location** (off by default) asks the phone for its rough location (about 100 m) every few minutes, for weather tiles. Browsers only allow it over the secure connection; otherwise type a place in the Weather block.
@@ -119,6 +121,8 @@ The window has four tabs: **Editor**, **Phones** (pairing and devices), **Plugin
 
 **App command** sends a known shortcut to an app, picking the right keys for your OS and optionally bringing the app to the front first: Zoom, Microsoft Teams, Google Meet, Discord, Slack, Spotify, VS Code, the browser, and system shortcuts. Commands an app doesn't have on your OS say so when pressed.
 
+**Share tiles as .tel files.** Right-click a tile and choose **Share as .tel…**, or press **Share** in a page's settings. A `.tel` holds the tiles (or the page), the variables they use, which plugins they need, and the code of any [My blocks](docs/custom-blocks.md) they use. Open one by double-clicking it, dropping it on Tessel, or **+ Page › From a .tel file…** (or the same in an empty slot's menu). Tessel shows what's inside and warns when it includes code before adding anything; incoming My blocks are added to your folder, and renamed if you already have a different block with that name.
+
 **Import and export.** A profile exports as a `.tessel` file (a zip of JSON, including its variables, so check them before sharing). Importing shows which blocks the profile uses and asks before adding it as a new profile.
 
 **Test run** saves and runs the tile; blocks show their status as they run (time taken, failed, skipped). Presses from your phone light up the canvas too. Edits save automatically.
@@ -135,16 +139,18 @@ The window has four tabs: **Editor**, **Phones** (pairing and devices), **Plugin
 
 Every tile is a small graph: a trigger, then blocks joined by wires. Flow wires set the order; value wires carry data (`Get time` › `hour` into `If`).
 
-| Category | Blocks                                                                                                                                                                                                                                               |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Trigger  | On press, On long press, On release, On slide, On page open, On schedule                                                                                                                                                                             |
-| Action   | Open app, App command, Open URL, Open file, Type text, Key combo, Media key, Mouse, Set clipboard, Notification, Show a pop-up, HTTP request, Run shell command, Switch page, Run another tile, Set tile appearance, Set setting, Lock screen, Sleep |
-| Logic    | If, Switch, Compare, Toggle, Changed?, Delay, Countdown, Repeat, Wait until                                                                                                                                                                          |
-| Data     | Get time, Get variable, Set variable, Math, Text, Random, Get clipboard, What's playing, Weather                                                                                                                                                     |
+| Category | Blocks                                                                                                                                                                                                                                                                |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Trigger  | On press, On long press, On release, On slide, On page open, On schedule                                                                                                                                                                                              |
+| Action   | Open app, App command, Open URL, Open file, Type text, Key combo, Media key, Mouse, Set clipboard, Notification, Show a pop-up, HTTP request, Run shell command, Run a zx script, Switch page, Run another tile, Set tile appearance, Set setting, Lock screen, Sleep |
+| Logic    | If, Switch, Compare, Toggle, Changed?, Delay, Countdown, Repeat, Wait until                                                                                                                                                                                           |
+| Data     | Get time, Get variable, Set variable, Math, Text, Random, Get clipboard, What's playing, Weather                                                                                                                                                                      |
 
 **Sliders.** A slider tile shows a bar on the phone: drag it up and down on a tall key, or side to side on a wide one. **On slide** maps the position onto a range you set (0 to 100 for volume, -60 to 12 for a Voicemeeter fader) and keeps it in `{{state.value}}`, so the label can show it. Fast drags are merged, so the computer keeps up.
 
 **Live tiles** change on their own: pair **On schedule** (cron takes a seconds field, e.g. `*/2 * * * * *`) or **On page open** with **Weather** (Open-Meteo; a place you type, or the phone's location when **Share location** is on), **What's playing** (Spotify or Apple Music on macOS, the system player on Windows, MPRIS on Linux; title, artist and time left), **Countdown** (time left in tile state) or a plugin reading, and **Set tile appearance**.
+
+**zx scripts.** **Run a zx script** runs JavaScript with Google's [zx](https://google.github.io/zx/): `` $`git pull` `` runs a command, and `fs`, `path`, `os`, `glob`, `sleep` and `YAML` are ready. A wired-in value arrives as `input`, and what the script returns comes out of `result`. Like shell commands, scripts are off until you allow them in Settings (or set them to ask every time).
 
 **Pop-ups.** **Show a pop-up** puts a message on the computer's screen above every window for a few seconds, without taking focus. With **Changed?** a live tile can pop up only when something changes: the **Pop up new songs** template shows each new song as it starts.
 

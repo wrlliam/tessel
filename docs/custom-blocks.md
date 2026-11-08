@@ -87,6 +87,35 @@ Throw an `Error` to fail the run; its message shows in the run log and on the ph
 | `std.parseJson`     | `parseJson(text, fallback)`                                                                                                                                                                      |
 | `std.homeAssistant` | `homeAssistant({ url, token })` gives `state`, `states`, `call('light.turn_on', data)`, `toggle`, `turnOn`, `turnOff`                                                                            |
 
+## zx
+
+Tessel puts a copy of [zx](https://google.github.io/zx/) in the folder, so blocks can run commands without installing anything:
+
+```ts
+import { $ } from 'zx'
+import { block } from '../tessel/index.ts'
+
+export default block({
+  name: 'Git branch',
+  params: { folder: { type: 'text', label: 'Project folder', default: '.' } },
+  values: { branch: 'string' },
+  async run({ params, ctx }) {
+    const { stdout } = await $({
+      cwd: params.folder,
+      signal: ctx.signal,
+      quiet: true,
+    })`git branch --show-current`
+    return { values: { branch: stdout.trim() } }
+  },
+})
+```
+
+Pass `ctx.signal` so a stopped tile stops the command. For a quick script without writing a block, use the built-in **Run a zx script** block.
+
+## Sharing
+
+Tiles that use your blocks can be shared as a `.tel` file (right-click a tile, **Share as .tel…**). The file carries the code of the blocks they use; whoever opens it sees that it contains code and chooses whether to add it.
+
 ## Packages
 
 Run `npm install <package>` (or pnpm, yarn) in the folder, then import it as usual:
@@ -118,6 +147,6 @@ My blocks asks for network, files and programs, since it is your own code. Tesse
 
 ## Trouble
 
-- **The block doesn't appear.** Check the activity log on the Phones tab: a syntax error or a file that doesn't `export default block(...)` stops the plugin, and the log says which file.
+- **The block doesn't appear.** Check the activity log on the Phones tab: a file with a syntax error, a missing package, or no `export default block(...)` is skipped, and the log says which file and why. The other blocks keep working.
 - **"Unsupported TypeScript syntax".** Remove `enum`, `namespace` or constructor parameter properties; use plain objects and types instead.
 - **Changes don't show.** Tessel reloads when files change; **Reload** on the Plugins tab forces it.

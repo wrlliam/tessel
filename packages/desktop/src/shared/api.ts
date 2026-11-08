@@ -7,6 +7,7 @@ import type {
   JsonValue,
   PhoneSettings,
   Profile,
+  Tile,
 } from '@tessel/core'
 import type { PairingCode } from '@tessel/server'
 import type { PluginInfo } from '../main/plugins/manager.ts'
@@ -130,7 +131,34 @@ export interface TesselApi {
   openMyBlocks(): Promise<void>
   /** Adds blocks/<name>.ts from the starter and opens it. */
   newMyBlock(name: string): Promise<void>
+  /** Saves tiles or a page as a .tel file, with the My blocks they use. */
+  exportTel(req: SharedTiles): Promise<SaveResult | { ok: false; cancelled: true }>
+  /** Opens a .tel (asks for a file when no path is given) after showing what's in it. */
+  importTel(path?: string): Promise<TelImport>
+  /** A .tel was opened from the system (double-click) or dropped on the window. */
+  onTelOpened(listener: (path: string) => void): () => void
+  /** The path of a file dropped on the window. */
+  pathForFile(file: File): string
 }
+
+/** Tiles to share as a .tel: one or more tiles, or a whole page. */
+export interface SharedTiles {
+  profileId: string
+  name: string
+  tiles: Tile[]
+  page?: { name: string; cols: number; rows: number }
+}
+
+export type TelImport =
+  | {
+      ok: true
+      name: string
+      page?: { name: string; cols: number; rows: number }
+      tiles: Tile[]
+      variables: Record<string, JsonValue>
+    }
+  | { ok: false; error: string }
+  | { ok: false; cancelled: true }
 
 export type SaveResult = { ok: true } | { ok: false; error: string }
 
@@ -169,4 +197,7 @@ export const Channel = {
   createMyBlocks: 'my-blocks:create',
   openMyBlocks: 'my-blocks:open',
   newMyBlock: 'my-blocks:new',
+  exportTel: 'tel:export',
+  importTel: 'tel:import',
+  telOpened: 'tel:opened',
 } as const

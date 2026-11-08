@@ -228,18 +228,30 @@ const isBlock = (v: unknown): v is Omit<PluginBlock, 'id'> =>
  */
 export async function loadBlocks(folder: URL) {
   const blocks: PluginBlock[] = []
+  // A broken file is skipped and reported, so one mistake doesn't take every block away.
+  const problems: string[] = []
   const files = (await readdir(folder)).filter((f) => /^[^_.].*\.(ts|js|mjs)$/.test(f)).sort()
   for (const file of files) {
     const id = file
       .replace(/\.(ts|js|mjs)$/, '')
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
-    const mod = (await import(new URL(file, folder).href)) as { default?: unknown }
-    const found = Array.isArray(mod.default) ? mod.default : [mod.default]
-    found.forEach((b, i) => {
-      if (!isBlock(b)) throw new Error(`blocks/${file} must export default block({...})`)
-      blocks.push({ ...b, id: found.length > 1 ? `${id}-${i + 1}` : id })
-    })
+    try {
+      const mod = (await import(new URL(file, folder).href)) as { default?: unknown }
+      const found = Array.isArray(mod.default) ? mod.default : [mod.default]
+      const valid = found.filter(isBlock)
+      if (valid.length !== found.length) throw new Error('it must export default block({...})')
+      valid.forEach((b, i) => blocks.push({ ...b, id: found.length > 1 ? `${id}-${i + 1}` : id }))
+    } catch (err) {
+      problems.push(
+        `blocks/${file}: ${err instanceof Error ? err.message.split('\n')[0] : String(err)}`,
+      )
+    }
   }
-  return { blocks }
+  return {
+    blocks,
+    onLoad(ctx: Pick<BlockContext, 'log'>) {
+      for (const p of problems) ctx.log.error(`Skipped ${p}`)
+    },
+  }
 }
