@@ -34,6 +34,10 @@ for (const size of [16, 32, 48, 64, 128, 256, 512])
 
 // iOS app icon: full-bleed square; iOS rounds the corners itself.
 render('icon.svg', 1024, 'packages/ios-shell/assets/icon.png')
+render('icon.svg', 1024, 'packages/ios-shell/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png')
+// iOS launch screen, in the three slots Capacitor's template uses.
+const splash = 'packages/ios-shell/ios/App/App/Assets.xcassets/Splash.imageset'
+for (const name of ['splash-2732x2732.png', 'splash-2732x2732-1.png', 'splash-2732x2732-2.png']) render('splash.svg', 2732, `${splash}/${name}`)
 // macOS template images: black + alpha, the OS recolours them for light/dark menu bars.
 for (const [name, file] of [
   ['trayTemplate', 'tray.svg'],
