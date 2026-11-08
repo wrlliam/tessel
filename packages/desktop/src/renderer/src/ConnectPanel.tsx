@@ -14,7 +14,7 @@ export function ConnectPanel({ state }: { state: DesktopState }) {
       <Panel title="Connect a phone">
         <p className="text-muted">
           {state.serverError
-            ? 'Sharing is stopped. Fix the problem above, then turn Allow phones off and on.'
+            ? 'Sharing stopped. Fix the problem shown above, then turn Allow phones off and on.'
             : state.listening
               ? 'No network found. Join a Wi-Fi network your phone also uses.'
               : 'Turn on Allow phones. Your phone and computer need to be on the same Wi-Fi.'}

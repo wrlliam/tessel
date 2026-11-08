@@ -4,7 +4,7 @@
 
 The desktop app is the brain. The phone is a remote that only ever says "tile X pressed".
 
-> Status: **Phase 2 (engine and first blocks).** Tiles run real block graphs. There's no editor yet (phase 3), so the starter tiles are fixed; edit `profiles/default.json` by hand if you want to try your own.
+> Status: **Phase 3 (editor).** Build tiles visually and test them from the desktop. Pages, folders and profiles come in phase 4.
 
 ## Requirements
 
@@ -39,6 +39,25 @@ Paired phones are listed in the window. **Remove** disconnects one immediately a
 | `pnpm build`                      | Build every package                                                                       |
 | `pnpm check`                      | Typecheck, lint and test                                                                  |
 | `pnpm icons`                      | Re-render PNG icons from the SVGs in `packages/brand`                                     |
+
+## Editor
+
+The window has two tabs: **Editor** and **Phones** (pairing and devices).
+
+- **Left:** the page as your phone shows it. Click a tile to edit it; click an empty slot to add one (it starts with an On press block).
+- **Centre:** the block canvas, with a categorised palette beside it. Drag blocks in, or press `Space` or right-click on the canvas to search. Drag from a port to another to wire them; ports only accept compatible wires, and loops are refused.
+- **Right:** the inspector for the selected block's settings, its wires (connect and disconnect without a mouse), and the tile's label, colour and what a press does while it is still running.
+- **Bottom:** the run log. Click a failed run to jump to the block that failed.
+
+**Test run** saves and runs the tile; blocks show their status as they run (time taken, failed, skipped). Presses from your phone light up the canvas too. Edits save automatically.
+
+| Shortcut (Ctrl on Windows/Linux) |                                 |
+| -------------------------------- | ------------------------------- |
+| `Space` / right-click on canvas  | Add a block                     |
+| `⌘Z` / `⇧⌘Z`                     | Undo / redo                     |
+| `⌘C` / `⌘V` / `⌘D`               | Copy / paste / duplicate blocks |
+| `⌘↵`                             | Test run                        |
+| `Delete` / `Backspace`           | Remove selected blocks or wires |
 
 ## Blocks
 
@@ -75,7 +94,9 @@ Stored as JSON in the OS app-data folder (`~/Library/Application Support/Tessel`
 
 - `settings.json`: Allow phones, port
 - `devices.json`: paired devices (SHA-256 of each token, never the token)
-- `profiles/default.json`: pages, tiles, graphs and global variables. Created from the starter profile on first run; delete it to reset.
+- `profiles/default.json`: pages, tiles, graphs and global variables. Created from the starter profile on first run; delete it to reset. The editor saves layout and graphs; variables are left as tiles last set them.
+
+Set `TESSEL_DATA_DIR` to use a different folder (handy for testing without touching your tiles).
 
 ## Security
 

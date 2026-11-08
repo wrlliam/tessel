@@ -1,0 +1,111 @@
+// End-to-end check of the editor against the built app, using a throwaway data folder.
+// Run: pnpm --filter @tessel/desktop build && pnpm --filter @tessel/desktop e2e
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { _electron as electron, type Page } from 'playwright-core'
+
+const appDir = join(import.meta.dirname, '..')
+const shots = process.env['TESSEL_E2E_SHOTS']
+const step = (name: string) => console.log(`- ${name}`)
+
+async function center(page: Page, selector: string) {
+  const box = await page.locator(selector).first().boundingBox()
+  if (!box) throw new Error(`Not visible: ${selector}`)
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+}
+
+const dataDir = await mkdtemp(join(tmpdir(), 'tessel-e2e-'))
+await writeFile(
+  join(dataDir, 'settings.json'),
+  JSON.stringify({ schemaVersion: 1, data: { allowPhones: false, port: 4747 } }),
+)
+
+const app = await electron.launch({
+  args: ['.'],
+  cwd: appDir,
+  env: { ...process.env, TESSEL_DATA_DIR: dataDir },
+})
+const errors: string[] = []
+try {
+  const page = await app.firstWindow()
+  page.on('pageerror', (e) => errors.push(e.message))
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
+
+  step('editor opens on the first tile')
+  await page.getByRole('button', { name: 'Test run' }).waitFor()
+
+  step('add a tile in an empty slot; it starts with On press')
+  await page.getByRole('button', { name: 'Add a tile in row 5, column 1' }).click()
+  await page.locator('.react-flow__node', { hasText: 'On press' }).waitFor()
+
+  step('Space opens the block search; pick Delay')
+  const pane = await center(page, '.react-flow__pane')
+  await page.mouse.move(pane.x + 150, pane.y)
+  await page.mouse.click(pane.x + 150, pane.y)
+  await page.keyboard.press('Space')
+  await page.getByPlaceholder('Add a block…').fill('delay')
+  await page.keyboard.press('Enter')
+  const delay = page.locator('.react-flow__node', { hasText: 'Delay' })
+  await delay.waitFor()
+
+  step('set the delay in the inspector')
+  await page.getByLabel('Milliseconds').fill('40')
+
+  step('wire On press to Delay by dragging between ports')
+  const from = await center(
+    page,
+    '.react-flow__node:has-text("On press") .react-flow__handle-right',
+  )
+  await page.mouse.move(from.x, from.y)
+  await page.mouse.down()
+  await page.mouse.move(from.x + 20, from.y + 10, { steps: 5 })
+  await page
+    .locator('.react-flow__node:has-text("Delay") .react-flow__handle-left')
+    .hover({ force: true })
+  await page.mouse.up()
+  await page.locator('.react-flow__edge').first().waitFor()
+
+  step('Test run lights up the nodes and logs the run')
+  await page.getByRole('button', { name: 'Test run' }).click()
+  await page
+    .getByText(/New tile.*ran in \d+ ms|ran in \d+ ms/)
+    .first()
+    .waitFor()
+  await delay.getByText(/\d+ ms/).waitFor()
+  if (shots) await page.screenshot({ path: join(shots, 'e2e-run.png') })
+
+  step('the profile was saved with the new graph')
+  const saved = JSON.parse(await readFile(join(dataDir, 'profiles', 'default.json'), 'utf8'))
+  const tile = saved.data.pages[0].tiles.find((t: { label: string }) => t.label === 'New tile')
+  if (!tile || tile.graph.nodes.length !== 2 || tile.graph.edges.length !== 1) {
+    throw new Error(`Saved graph is wrong: ${JSON.stringify(tile?.graph)}`)
+  }
+
+  step('undo removes the wire')
+  await page.mouse.click(pane.x - 200, pane.y + 150)
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z')
+  await page.locator('.react-flow__edge').waitFor({ state: 'detached' })
+
+  step('redo brings it back')
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+Shift+z')
+  await page.locator('.react-flow__edge').first().waitFor()
+
+  step('wire from the inspector without a mouse drag')
+  await page
+    .getByRole('complementary', { name: 'Blocks' })
+    .getByRole('button', { name: 'Open app' })
+    .click()
+  await delay.click()
+  await page.getByLabel('Connect out to').selectOption({ label: 'Open app › in' })
+  await page.waitForFunction(() => document.querySelectorAll('.react-flow__edge').length === 2)
+
+  if (errors.length) throw new Error(`Renderer errors:\n${errors.join('\n')}`)
+  console.log('Smoke test passed')
+} catch (err) {
+  if (errors.length) console.error(`Renderer errors:\n${errors.join('\n')}`)
+  if (shots) await (await app.firstWindow()).screenshot({ path: join(shots, 'e2e-failure.png') })
+  throw err
+} finally {
+  await app.close()
+}

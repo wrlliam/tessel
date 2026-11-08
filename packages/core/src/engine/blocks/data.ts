@@ -47,6 +47,19 @@ export const getVariable = defineBlock({
   inputs: [],
   outputs: [{ id: 'value', kind: 'value', type: 'any' }],
   paramsSchema: z.object({ name: VariableName, scope: Scope }),
+  fields: [
+    { key: 'name', label: 'Name', widget: 'text', placeholder: 'mood' },
+    {
+      key: 'scope',
+      label: 'Scope',
+      widget: 'select',
+      options: [
+        { value: 'global', label: 'Global (saved with profile)' },
+        { value: 'local', label: 'Local (this run only)' },
+      ],
+    },
+  ],
+  defaults: { name: '', scope: 'global' },
   run: (ctx, { name, scope }) => ({
     values: { value: scope === 'local' ? ctx.locals.get(name) : ctx.globals.get(name) },
   }),
@@ -61,6 +74,20 @@ export const setVariable = defineBlock({
   inputs: [flowIn, { id: 'value', kind: 'value', type: 'any' }],
   outputs: [flowOut],
   paramsSchema: z.object({ name: VariableName, scope: Scope, value: z.unknown() }),
+  fields: [
+    { key: 'name', label: 'Name', widget: 'text', placeholder: 'mood' },
+    { key: 'value', label: 'Value', widget: 'text', placeholder: '{{var.count + 1}}' },
+    {
+      key: 'scope',
+      label: 'Scope',
+      widget: 'select',
+      options: [
+        { value: 'global', label: 'Global (saved with profile)' },
+        { value: 'local', label: 'Local (this run only)' },
+      ],
+    },
+  ],
+  defaults: { name: '', scope: 'global', value: '' },
   run: (ctx, { name, scope, value }) => {
     if (scope === 'local') ctx.locals.set(name, value)
     else ctx.globals.set(name, value)

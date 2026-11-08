@@ -19,3 +19,5 @@ interface Performance {
   now(): number
 }
 declare const performance: Performance
+
+declare function structuredClone<T>(value: T): T

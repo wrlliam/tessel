@@ -1,3 +1,4 @@
+import type { BlockDescriptor, EngineEvent, Graph, GraphIssue, Profile } from '@tessel/core'
 import type { PairingCode } from '@tessel/server'
 
 export interface LogEntry {
@@ -40,7 +41,17 @@ export interface TesselApi {
   setStartOnLogin(on: boolean): Promise<void>
   newPairingCode(): Promise<void>
   revokeDevice(id: string): Promise<void>
+  getBlocks(): Promise<BlockDescriptor[]>
+  getProfile(): Promise<Profile>
+  saveProfile(profile: Profile): Promise<SaveResult>
+  validateGraph(graph: Graph): Promise<GraphIssue[]>
+  /** Runs the saved tile as if it were pressed. */
+  testRun(tileId: string): Promise<void>
+  stopTile(tileId: string): Promise<void>
+  onEngineEvent(listener: (event: EngineEvent) => void): () => void
 }
+
+export type SaveResult = { ok: true } | { ok: false; error: string }
 
 export const Channel = {
   getState: 'state:get',
@@ -50,4 +61,11 @@ export const Channel = {
   setStartOnLogin: 'app:start-on-login',
   newPairingCode: 'pairing:new-code',
   revokeDevice: 'devices:revoke',
+  getBlocks: 'blocks:list',
+  getProfile: 'profile:get',
+  saveProfile: 'profile:save',
+  validateGraph: 'graph:validate',
+  testRun: 'tile:test-run',
+  stopTile: 'tile:stop',
+  engineEvent: 'engine:event',
 } as const

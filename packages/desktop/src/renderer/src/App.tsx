@@ -1,24 +1,40 @@
 import logoUrl from '@tessel/brand/logo-mark.svg'
+import type { OS } from '@tessel/core'
+import { Tabs } from 'radix-ui'
 import type { DesktopState } from '../../shared/api.ts'
-import { ActivityLog } from './ActivityLog.tsx'
-import { ConnectPanel } from './ConnectPanel.tsx'
-import { DevicesPanel } from './DevicesPanel.tsx'
+import { Editor } from './editor/Editor.tsx'
+import { cn } from './lib/cn.ts'
+import { PhonesView } from './PhonesView.tsx'
 import { Switch } from './Switch.tsx'
 import { useDesktopState } from './useDesktopState.ts'
+
+const tab =
+  'rounded-lg px-3 py-1 text-sm text-muted hover:text-text data-[state=active]:bg-line data-[state=active]:text-text'
 
 export function App() {
   const state = useDesktopState()
   if (!state) return null
 
   return (
-    <div className="flex h-full flex-col">
+    <Tabs.Root defaultValue="editor" className="flex h-full flex-col">
       <header
-        className={`drag flex items-center gap-4 border-b border-line px-6 py-3 ${state.platform === 'darwin' ? 'pl-24' : ''}`}
+        className={cn(
+          'drag flex items-center gap-4 border-b border-line px-4 py-2.5',
+          state.platform === 'darwin' && 'pl-22',
+        )}
       >
         <img src={logoUrl} alt="" className="size-6" />
         <h1 className="font-display text-lg font-semibold tracking-tight">Tessel</h1>
-        <span className="text-sm text-muted">Tap. Build. Done.</span>
+        <Tabs.List aria-label="Sections" className="ml-4 flex gap-1">
+          <Tabs.Trigger value="editor" className={tab}>
+            Editor
+          </Tabs.Trigger>
+          <Tabs.Trigger value="phones" className={tab}>
+            Phones
+          </Tabs.Trigger>
+        </Tabs.List>
         <div className="ml-auto flex items-center gap-6">
+          <StatusDot state={state} />
           <Switch
             label="Pause tiles"
             checked={state.paused}
@@ -31,37 +47,33 @@ export function App() {
           />
         </div>
       </header>
-
-      <StatusBar state={state} />
-
-      <main className="grid min-h-0 flex-1 items-start grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] gap-4 overflow-auto p-4">
-        <ConnectPanel state={state} />
-        <DevicesPanel state={state} />
-      </main>
-
-      <ActivityLog entries={state.log} />
-    </div>
+      <Tabs.Content
+        value="editor"
+        className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
+        forceMount
+      >
+        <Editor os={state.platform as OS} />
+      </Tabs.Content>
+      <Tabs.Content value="phones" className="flex min-h-0 flex-1 flex-col">
+        <PhonesView state={state} />
+      </Tabs.Content>
+    </Tabs.Root>
   )
 }
 
-function StatusBar({ state }: { state: DesktopState }) {
+function StatusDot({ state }: { state: DesktopState }) {
   const online = state.devices.filter((d) => d.online).length
-  let dot = 'bg-muted'
-  let text = 'Phones off. Turn on Allow phones to connect one.'
-  if (state.serverError) {
-    dot = 'bg-signal'
-    text = state.serverError
-  } else if (state.listening) {
-    dot = online > 0 ? 'bg-glaze' : 'bg-cat-trigger'
-    text =
-      online > 0
-        ? `${online} ${online === 1 ? 'phone' : 'phones'} connected`
-        : `Sharing on port ${state.port}. Waiting for a phone.`
-  }
+  const [dot, text] = state.serverError
+    ? ['bg-signal', 'Not sharing']
+    : !state.listening
+      ? ['bg-muted', 'Phones off']
+      : online > 0
+        ? ['bg-glaze', online === 1 ? '1 phone' : `${online} phones`]
+        : ['bg-cat-trigger', 'No phone yet']
   return (
-    <div role="status" className="flex items-center gap-2 px-6 py-2 text-sm text-muted">
+    <span role="status" className="flex items-center gap-2 text-sm text-muted">
       <span className={`size-2 rounded-full ${dot}`} aria-hidden />
-      <span className={state.serverError ? 'text-signal' : ''}>{text}</span>
-    </div>
+      {text}
+    </span>
   )
 }

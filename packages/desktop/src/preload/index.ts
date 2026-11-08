@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { EngineEvent } from '@tessel/core'
 import { Channel, type DesktopState, type TesselApi } from '../shared/api.ts'
 
 const api: TesselApi = {
@@ -13,6 +14,17 @@ const api: TesselApi = {
   setStartOnLogin: (on) => ipcRenderer.invoke(Channel.setStartOnLogin, on),
   newPairingCode: () => ipcRenderer.invoke(Channel.newPairingCode),
   revokeDevice: (id) => ipcRenderer.invoke(Channel.revokeDevice, id),
+  getBlocks: () => ipcRenderer.invoke(Channel.getBlocks),
+  getProfile: () => ipcRenderer.invoke(Channel.getProfile),
+  saveProfile: (profile) => ipcRenderer.invoke(Channel.saveProfile, profile),
+  validateGraph: (graph) => ipcRenderer.invoke(Channel.validateGraph, graph),
+  testRun: (tileId) => ipcRenderer.invoke(Channel.testRun, tileId),
+  stopTile: (tileId) => ipcRenderer.invoke(Channel.stopTile, tileId),
+  onEngineEvent: (listener) => {
+    const handler = (_: unknown, event: EngineEvent) => listener(event)
+    ipcRenderer.on(Channel.engineEvent, handler)
+    return () => ipcRenderer.off(Channel.engineEvent, handler)
+  },
 }
 
 contextBridge.exposeInMainWorld('tessel', api)

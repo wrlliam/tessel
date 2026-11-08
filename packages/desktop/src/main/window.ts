@@ -14,10 +14,10 @@ export function showWindow() {
     return win
   }
   win = new BrowserWindow({
-    width: 1100,
-    height: 760,
-    minWidth: 820,
-    minHeight: 560,
+    width: 1360,
+    height: 860,
+    minWidth: 1024,
+    minHeight: 640,
     show: false,
     title: 'Tessel',
     backgroundColor: '#0E1116',

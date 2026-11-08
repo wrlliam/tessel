@@ -1,11 +1,11 @@
 import { Profile } from './model.ts'
 
 const press = { id: 'press', type: 'trigger.press', params: {}, position: { x: 0, y: 0 } }
-const step = (id: string, type: string, params: Record<string, unknown>, x = 280) => ({
+const step = (id: string, type: string, params: Record<string, unknown>, x = 288, y = 0) => ({
   id,
   type,
   params,
-  position: { x, y: 0 },
+  position: { x, y },
 })
 const wire = (from: string, fromPort: string, to: string, toPort = 'in') => ({
   id: `${from}-${fromPort}-${to}-${toPort}`,
@@ -59,12 +59,12 @@ export const sampleProfile: Profile = Profile.parse({
           graph: {
             nodes: [
               press,
-              step('time', 'data.getTime', {}, 0),
+              step('time', 'data.getTime', {}, 0, 96),
               step('if', 'logic.if', {
                 condition: { kind: 'compare', left: '{{input.a}}', op: '>=', right: 18 },
               }),
-              step('dark', 'action.setSetting', { setting: 'darkMode', value: true }, 560),
-              step('light', 'action.setSetting', { setting: 'darkMode', value: false }, 560),
+              step('dark', 'action.setSetting', { setting: 'darkMode', value: true }, 576, -48),
+              step('light', 'action.setSetting', { setting: 'darkMode', value: false }, 576, 96),
             ],
             edges: [
               wire('press', 'out', 'if'),

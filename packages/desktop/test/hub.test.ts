@@ -202,3 +202,55 @@ describe('Hub tiles', () => {
     expect(saved.data.variables.n).toBe(2)
   })
 })
+
+describe('Hub editor API', () => {
+  it('lists block descriptors without code', async () => {
+    const { hub } = await makeHub()
+    const blocks = hub.blocks()
+    expect(blocks.map((b) => b.id)).toContain('action.openApp')
+    expect(blocks[0]).not.toHaveProperty('run')
+  })
+
+  it('saves an edited profile but keeps variables set by tiles', async () => {
+    const { hub, dataDir } = await makeHub()
+    const edited = structuredClone(hub.getProfile())
+    const tile = edited.pages[0]?.tiles[0]
+    if (tile) tile.label = 'Chat'
+    edited.variables = { email: 'stale@example.com' }
+    expect(await hub.saveProfile(edited)).toEqual({ ok: true })
+    const saved = JSON.parse(await readFile(join(dataDir, 'profiles', 'default.json'), 'utf8'))
+    expect(saved.data.pages[0].tiles[0].label).toBe('Chat')
+    expect(saved.data.variables.email).toBe('you@example.com')
+  })
+
+  it('rejects an invalid profile', async () => {
+    const { hub } = await makeHub()
+    const broken = structuredClone(hub.getProfile())
+    const tile = broken.pages[0]?.tiles[0]
+    if (tile) tile.position = { col: 9, row: 9 }
+    const result = await hub.saveProfile(broken)
+    expect(result.ok).toBe(false)
+    expect(hub.getProfile().pages[0]?.tiles[0]?.position).toEqual({ col: 0, row: 0 })
+  })
+
+  it('validates graphs', async () => {
+    const { hub } = await makeHub()
+    expect(hub.checkGraph({ nodes: [{ id: 'x', type: 'nope' }], edges: [] })[0]?.message).toMatch(
+      /Unknown block/,
+    )
+    expect(hub.checkGraph('garbage')).toEqual([
+      { severity: 'error', message: 'The graph is not readable' },
+    ])
+  })
+
+  it('test runs a tile and streams engine events', async () => {
+    const { hub, platform } = await makeHub()
+    const events: string[] = []
+    hub.onEngineEvent((e) => events.push(e.type))
+    hub.setPaused(true)
+    await hub.testRun('calculator')
+    expect(platform.openApp).toHaveBeenCalledWith('Calculator')
+    expect(events[0]).toBe('run:start')
+    expect(events.at(-1)).toBe('run:end')
+  })
+})

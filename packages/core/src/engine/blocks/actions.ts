@@ -17,6 +17,10 @@ export const openApp = defineBlock({
   inputs: [flowIn, { id: 'app', kind: 'value', type: 'string' }],
   outputs: [flowOut],
   paramsSchema: z.object({ app: text('Choose an app to open') }),
+  fields: [
+    { key: 'app', label: 'App', widget: 'text', placeholder: 'Discord', help: 'Name or full path' },
+  ],
+  defaults: { app: '' },
   run: (ctx, { app }) => ctx.platform.openApp(app),
 })
 
@@ -33,6 +37,8 @@ export const typeText = defineBlock({
       z.string().max(10_000),
     ),
   }),
+  fields: [{ key: 'text', label: 'Text', widget: 'textarea', placeholder: 'Hello {{var.name}}' }],
+  defaults: { text: '' },
   run: (ctx, { text }) => ctx.platform.typeText(text),
 })
 
@@ -53,6 +59,8 @@ export const keyCombo = defineBlock({
       }
     }),
   }),
+  fields: [{ key: 'combo', label: 'Shortcut', widget: 'combo', placeholder: 'mod+shift+s' }],
+  defaults: { combo: '' },
   run: (ctx, { combo }) => ctx.platform.pressCombo(resolveCombo(combo, ctx.platform.os)),
 })
 
@@ -64,6 +72,16 @@ export const setSetting = defineBlock({
   inputs: [flowIn, { id: 'value', kind: 'value', type: 'boolean' }],
   outputs: [flowOut],
   paramsSchema: z.object({ setting: z.enum(['darkMode']), value: bool }),
+  fields: [
+    {
+      key: 'setting',
+      label: 'Setting',
+      widget: 'select',
+      options: [{ value: 'darkMode', label: 'Dark mode' }],
+    },
+    { key: 'value', label: 'On', widget: 'toggle' },
+  ],
+  defaults: { setting: 'darkMode', value: true },
   run: (ctx, { value }) => ctx.platform.setDarkMode(value),
 })
 

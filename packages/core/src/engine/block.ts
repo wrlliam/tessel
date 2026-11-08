@@ -37,6 +37,19 @@ export interface BlockResult {
   values?: Record<string, unknown>
 }
 
+export type FieldWidget =
+  'text' | 'textarea' | 'number' | 'toggle' | 'select' | 'combo' | 'condition'
+
+/** How the editor shows one param. Text-like fields accept {{templates}}. */
+export interface FieldDef {
+  key: string
+  label: string
+  widget: FieldWidget
+  placeholder?: string
+  help?: string
+  options?: Array<{ value: string; label: string }>
+}
+
 export interface BlockDefinition<P = unknown> {
   id: string
   category: Category
@@ -49,6 +62,10 @@ export interface BlockDefinition<P = unknown> {
   inputs: PortDef[]
   outputs: PortDef[]
   paramsSchema: z.ZodType<P>
+  /** Editor form, in display order. */
+  fields?: FieldDef[]
+  /** Params for a freshly added block. */
+  defaults?: Record<string, unknown>
   run(
     ctx: RunContext,
     params: P,
@@ -62,6 +79,14 @@ export interface BlockDefinition<P = unknown> {
 export const defineBlock = <S extends z.ZodType>(
   def: BlockDefinition<z.output<S>> & { paramsSchema: S },
 ) => def as unknown as BlockDefinition
+
+/** The serialisable part of a block, sent to the editor. */
+export type BlockDescriptor = Omit<BlockDefinition, 'run' | 'paramsSchema'>
+
+export function describeBlock(def: BlockDefinition): BlockDescriptor {
+  const { run: _run, paramsSchema: _schema, ...rest } = def
+  return structuredClone(rest)
+}
 
 export const flowIn: PortDef = { id: 'in', kind: 'flow' }
 export const flowOut: PortDef = { id: 'out', kind: 'flow' }

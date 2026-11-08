@@ -1,6 +1,11 @@
 import {
   createRegistry,
+  describeBlock,
   Engine,
+  Graph,
+  validateGraph,
+  type BlockDescriptor,
+  type GraphIssue,
   Profile,
   PROFILE_SCHEMA_VERSION,
   sampleProfile,
@@ -24,7 +29,7 @@ import {
 } from '@tessel/server'
 import { join } from 'node:path'
 import QRCode from 'qrcode'
-import type { DesktopState, LogEntry } from '../shared/api.ts'
+import type { DesktopState, LogEntry, SaveResult } from '../shared/api.ts'
 import { settingsStore, type Settings } from './settings.ts'
 
 const LOG_LIMIT = 200
@@ -65,6 +70,7 @@ export class Hub {
   private log: LogEntry[] = []
   private logId = 0
   private listeners = new Set<() => void>()
+  private engineListeners = new Set<(event: EngineEvent) => void>()
   private codeTimer?: NodeJS.Timeout
   private networkTimer?: NodeJS.Timeout
   readonly logger: Logger = {
@@ -140,6 +146,49 @@ export class Hub {
   onChange(listener: () => void): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
+  }
+
+  onEngineEvent(listener: (event: EngineEvent) => void): () => void {
+    this.engineListeners.add(listener)
+    return () => this.engineListeners.delete(listener)
+  }
+
+  blocks(): BlockDescriptor[] {
+    return this.registry.list().map(describeBlock)
+  }
+
+  getProfile(): Profile {
+    return this.profile
+  }
+
+  /** Saves the editor's layout and graphs. Variables stay as the engine left them. */
+  async saveProfile(input: unknown): Promise<SaveResult> {
+    const parsed = Profile.safeParse(input)
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0]
+      return { ok: false, error: issue?.message ?? 'The profile is not valid' }
+    }
+    this.profile = { ...parsed.data, variables: this.profile.variables }
+    clearTimeout(this.saveTimer)
+    this.saveTimer = undefined
+    await this.profileStore.save(this.profile)
+    this.server.setProfile(this.profile)
+    return { ok: true }
+  }
+
+  checkGraph(input: unknown): GraphIssue[] {
+    const graph = Graph.safeParse(input)
+    if (!graph.success) return [{ severity: 'error', message: 'The graph is not readable' }]
+    return validateGraph(graph.data, this.registry)
+  }
+
+  async testRun(tileId: string) {
+    const tile = this.findTile(tileId)
+    if (tile) await this.engine.trigger(tile, { type: 'press' })
+  }
+
+  stopTile(tileId: string) {
+    this.engine.cancel(tileId)
   }
 
   async setAllowPhones(on: boolean) {
@@ -254,6 +303,7 @@ export class Hub {
   }
 
   private handleEngineEvent(e: EngineEvent) {
+    this.engineListeners.forEach((l) => l(e))
     if (e.type !== 'run:end') return
     const tile = this.findTile(e.tileId)
     const label = `"${tile?.label || e.tileId}"`

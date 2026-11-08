@@ -72,3 +72,13 @@ describe('sample profile', () => {
     }
   })
 })
+
+describe('sample profile layout', () => {
+  it('never stacks two blocks on the same spot', async () => {
+    const { sampleProfile } = await import('../src/index.ts')
+    for (const tile of sampleProfile.pages.flatMap((p) => p.tiles)) {
+      const spots = tile.graph.nodes.map((n) => `${n.position.x},${n.position.y}`)
+      expect(new Set(spots).size, tile.id).toBe(spots.length)
+    }
+  })
+})

@@ -7,6 +7,10 @@ import { createPlatform } from './platform/index.ts'
 import { TesselTray } from './tray.ts'
 import { currentWindow, markQuitting, showWindow } from './window.ts'
 
+// Lets tests and side-by-side installs use their own settings, devices and profiles.
+const dataDirOverride = process.env['TESSEL_DATA_DIR']
+if (dataDirOverride) app.setPath('userData', dataDirOverride)
+
 // Electron has no login-item API on Linux; hide the option there.
 const loginItemsSupported = process.platform === 'darwin' || process.platform === 'win32'
 
@@ -59,6 +63,7 @@ async function start() {
     currentWindow()?.webContents.send(Channel.state, s)
   }
   hub.onChange(broadcast)
+  hub.onEngineEvent((event) => currentWindow()?.webContents.send(Channel.engineEvent, event))
 
   ipcMain.handle(Channel.getState, () => state())
   ipcMain.handle(Channel.setAllowPhones, (_e, on: unknown) => hub.setAllowPhones(on === true))
@@ -67,6 +72,16 @@ async function start() {
   ipcMain.handle(Channel.newPairingCode, () => hub.newPairingCode())
   ipcMain.handle(Channel.revokeDevice, (_e, id: unknown) => {
     if (typeof id === 'string') return hub.revokeDevice(id)
+  })
+  ipcMain.handle(Channel.getBlocks, () => hub.blocks())
+  ipcMain.handle(Channel.getProfile, () => hub.getProfile())
+  ipcMain.handle(Channel.saveProfile, (_e, profile: unknown) => hub.saveProfile(profile))
+  ipcMain.handle(Channel.validateGraph, (_e, graph: unknown) => hub.checkGraph(graph))
+  ipcMain.handle(Channel.testRun, (_e, id: unknown) => {
+    if (typeof id === 'string') return hub.testRun(id)
+  })
+  ipcMain.handle(Channel.stopTile, (_e, id: unknown) => {
+    if (typeof id === 'string') hub.stopTile(id)
   })
 
   await hub.init()

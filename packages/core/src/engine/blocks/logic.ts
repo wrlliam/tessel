@@ -73,6 +73,8 @@ export const ifBlock = defineBlock({
     { id: 'no', kind: 'flow', label: 'no' },
   ],
   paramsSchema: z.object({ condition: Condition }),
+  fields: [{ key: 'condition', label: 'Condition', widget: 'condition' }],
+  defaults: { condition: { kind: 'compare', left: '{{input.a}}', op: '==', right: '' } },
   run: (_ctx, { condition }) => ({ next: checkCondition(condition) ? 'yes' : 'no' }),
 })
 
@@ -86,6 +88,8 @@ export const delay = defineBlock({
   inputs: [flowIn],
   outputs: [flowOut],
   paramsSchema: z.object({ ms: z.coerce.number().int().min(0).max(MAX_DELAY_MS) }),
+  fields: [{ key: 'ms', label: 'Milliseconds', widget: 'number', placeholder: '500' }],
+  defaults: { ms: 500 },
   run: (ctx, { ms }) =>
     new Promise<void>((resolve, reject) => {
       const timer = setTimeout(resolve, ms)
