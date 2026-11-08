@@ -17,6 +17,8 @@ export const PhoneTile = z.object({
   position: z.object({ col: z.int(), row: z.int() }),
   span: z.object({ w: z.int(), h: z.int() }),
   kind: z.enum(['action', 'folder', 'slider']),
+  /** This tile's own key style, instead of the phone's. */
+  style: z.enum(['tinted', 'solid', 'outline', 'glass']).optional(),
   /** Folder tiles: the folder page they open. */
   targetPageId: z.string().optional(),
 })
@@ -59,6 +61,7 @@ export function toPhoneProfile(profile: Profile): PhoneProfile {
           kind: t.kind,
         }
         if (t.icon !== undefined) tile.icon = t.icon
+        if (t.style) tile.style = t.style
         if (t.kind === 'folder' && t.targetPageId) tile.targetPageId = t.targetPageId
         return tile
       }),
@@ -70,7 +73,12 @@ export function toPhoneProfile(profile: Profile): PhoneProfile {
 export const PhoneSettings = z.object({
   theme: z.enum(['system', 'dark', 'light']).default('system'),
   /** 'tinted' shows a tile's colour on a dark key; 'solid' fills the key with it. */
-  keyStyle: z.enum(['tinted', 'solid']).default('tinted'),
+  keyStyle: z.enum(['tinted', 'solid', 'outline', 'glass']).default('tinted'),
+  /** Corners: rounded (20% of the side), square-ish, or round (circles and pills). */
+  keyShape: z.enum(['rounded', 'square', 'round']).default('rounded'),
+  iconSize: z.enum(['small', 'regular', 'large']).default('regular'),
+  /** The small indicator light in each key's corner. */
+  lights: z.boolean().default(true),
   labels: z.boolean().default(true),
   labelSize: z.enum(['small', 'regular', 'large']).default('regular'),
   spacing: z.enum(['compact', 'regular', 'roomy']).default('regular'),

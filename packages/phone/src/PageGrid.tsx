@@ -1,4 +1,4 @@
-import { KeyFace, keyVars } from '@tessel/brand/key'
+import { ICON_SCALE, KeyFace, keyRadius, keyVars } from '@tessel/brand/key'
 import type { PhonePage, PhoneProfile, PhoneSettings, PhoneTile } from '@tessel/core'
 import type { TileOverride } from './connection.ts'
 import { cellsFor, GAP, orient, reflow } from './layout.ts'
@@ -57,7 +57,6 @@ export function PageGrid({
   if (cells.width <= 0 || cells.height <= 0) return null
   const stepX = cells.width + cells.gap
   const stepY = cells.height + cells.gap
-  const radius = Math.round(Math.min(cells.width, cells.height) * 0.2)
   const tiles = page.kind === 'folder' ? [BACK, ...shown.tiles] : shown.tiles
 
   return (
@@ -90,8 +89,8 @@ export function PageGrid({
               top: t.position.row * stepY,
               width: w,
               height: h,
-              borderRadius: radius,
-              ...keyVars(look.colour, kind === 'back' ? 'tinted' : settings.keyStyle),
+              borderRadius: keyRadius(settings.keyShape, w, h),
+              ...keyVars(look.colour, kind === 'back' ? 'tinted' : (t.style ?? settings.keyStyle)),
             }}
           >
             {kind === 'slider' && (
@@ -109,6 +108,9 @@ export function PageGrid({
               labelSize={settings.labelSize}
               folder={folder}
               wide={w > h * 2}
+              iconScale={ICON_SCALE[settings.iconSize]}
+              lights={settings.lights}
+              shape={settings.keyShape}
               {...(count !== undefined && { count })}
             />
           </div>

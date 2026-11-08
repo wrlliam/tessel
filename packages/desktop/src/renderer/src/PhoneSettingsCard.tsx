@@ -1,4 +1,4 @@
-import { KeyFace, keyVars } from '@tessel/brand/key'
+import { ICON_SCALE, KeyFace, keyRadius, keyVars } from '@tessel/brand/key'
 import type { PhoneSettings } from '@tessel/core'
 import type { ReactNode } from 'react'
 import { Panel } from './Panel.tsx'
@@ -46,10 +46,21 @@ export function PhoneSettingsCard({
         {SAMPLE.map((k) => (
           <div
             key={k.label}
-            className="key size-16 rounded-[13px]"
-            style={keyVars(k.colour, settings.keyStyle)}
+            className="key size-16"
+            style={{
+              borderRadius: keyRadius(settings.keyShape, 64, 64),
+              ...keyVars(k.colour, settings.keyStyle),
+            }}
           >
-            <KeyFace look={k} size={64} labels={settings.labels} labelSize={settings.labelSize} />
+            <KeyFace
+              look={k}
+              size={64}
+              labels={settings.labels}
+              labelSize={settings.labelSize}
+              iconScale={ICON_SCALE[settings.iconSize]}
+              lights={settings.lights}
+              shape={settings.keyShape}
+            />
           </div>
         ))}
       </div>
@@ -66,15 +77,51 @@ export function PhoneSettingsCard({
             ]}
           />
         </Row>
-        <Row label="Key colour" help="Tinted keeps keys dark with a coloured light">
+        <Row label="Key style" help="Tiles can override this in the editor">
           <Segmented
-            label="Key colour"
+            label="Key style"
             value={settings.keyStyle}
             onChange={(keyStyle) => set({ keyStyle })}
             options={[
               { value: 'tinted', label: 'Tinted' },
               { value: 'solid', label: 'Solid' },
+              { value: 'outline', label: 'Outline' },
+              { value: 'glass', label: 'Glass' },
             ]}
+          />
+        </Row>
+        <Row label="Key shape">
+          <Segmented
+            label="Key shape"
+            value={settings.keyShape}
+            onChange={(keyShape) => set({ keyShape })}
+            options={[
+              { value: 'rounded', label: 'Rounded' },
+              { value: 'square', label: 'Square' },
+              { value: 'round', label: 'Round' },
+            ]}
+          />
+        </Row>
+        <Row label="Icons">
+          <div className="flex items-center gap-3">
+            <Segmented
+              label="Icon size"
+              value={settings.iconSize}
+              onChange={(iconSize) => set({ iconSize })}
+              options={[
+                { value: 'small', label: 'S' },
+                { value: 'regular', label: 'M' },
+                { value: 'large', label: 'L' },
+              ]}
+            />
+          </div>
+        </Row>
+        <Row label="Indicator lights" help="The small dot in each key's corner">
+          <Switch
+            label="Indicator lights"
+            hideLabel
+            checked={settings.lights}
+            onChange={(lights) => set({ lights })}
           />
         </Row>
         <Row label="Labels">

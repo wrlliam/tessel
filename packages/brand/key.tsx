@@ -2,7 +2,16 @@
 import type { CSSProperties } from 'react'
 import { TileIcon } from './icons.tsx'
 
-export type KeyStyle = 'tinted' | 'solid'
+export type KeyStyle = 'tinted' | 'solid' | 'outline' | 'glass'
+export type KeyShape = 'rounded' | 'square' | 'round'
+
+/** Corner radius for a key: rounded is 20% of the short side, round makes circles and pills. */
+export function keyRadius(shape: KeyShape, width: number, height: number): number {
+  const side = Math.min(width, height)
+  return Math.round(side * (shape === 'round' ? 0.5 : shape === 'square' ? 0.08 : 0.2))
+}
+
+export const ICON_SCALE = { small: 0.8, regular: 1, large: 1.25 } as const
 
 export interface KeyLook {
   label: string
@@ -29,16 +38,36 @@ export function keyVars(colour: string, style: KeyStyle): CSSProperties {
   // Near-black tile colours (the Ink defaults) mean "no colour": plain face, unlit light.
   const plain = luminance(colour) < 0.03
   const light = plain ? 'var(--key-light-off)' : colour
+  const tint = (pct: number) => `color-mix(in oklab, ${colour} ${pct}%, var(--key-face))`
   const vars: Record<string, string> =
     style === 'solid'
       ? { '--k-face': colour, '--k-text': textOn(colour), '--k-light': 'transparent' }
-      : {
-          '--k-face': plain
-            ? 'var(--key-face)'
-            : `color-mix(in oklab, ${colour} 16%, var(--key-face))`,
-          '--k-text': 'var(--text)',
-          '--k-light': light,
-        }
+      : style === 'outline'
+        ? {
+            '--k-face': 'var(--key-face)',
+            '--k-text': 'var(--text)',
+            '--k-light': light,
+            '--k-ring': plain
+              ? 'var(--key-line)'
+              : `color-mix(in oklab, ${colour} 70%, transparent)`,
+            '--k-ring-w': '1.5px',
+          }
+        : style === 'glass'
+          ? {
+              '--k-face': plain ? 'var(--key-face)' : tint(24),
+              '--k-text': 'var(--text)',
+              '--k-light': light,
+              '--k-ring': 'rgb(255 255 255 / 0.10)',
+              '--k-sheen':
+                'linear-gradient(180deg, rgb(255 255 255 / 0.10), rgb(255 255 255 / 0) 55%)',
+            }
+          : {
+              '--k-face': plain
+                ? 'var(--key-face)'
+                : `color-mix(in oklab, ${colour} 16%, var(--key-face))`,
+              '--k-text': 'var(--text)',
+              '--k-light': light,
+            }
   return vars as CSSProperties
 }
 
@@ -53,6 +82,12 @@ interface FaceProps {
   count?: number
   /** Lays the icon beside the label, for keys much wider than tall. */
   wide?: boolean
+  /** Icon size relative to the usual. */
+  iconScale?: number
+  /** The small indicator light in the corner. */
+  lights?: boolean
+  /** Round keys keep the light and count further in, inside the curve. */
+  shape?: KeyShape
 }
 
 const LABEL = { small: [10, 0.1, 13], regular: [11, 0.115, 15], large: [12, 0.135, 17] } as const
@@ -66,12 +101,15 @@ export function KeyFace({
   folder,
   count,
   wide,
+  iconScale = 1,
+  lights = true,
+  shape = 'rounded',
 }: FaceProps) {
   const [min, ratio, max] = LABEL[labelSize]
   const font = Math.round(Math.max(min, Math.min(max, size * ratio)))
   const icon = look.icon || (folder ? 'folder' : '')
-  const corner = Math.round(Math.max(8, size * 0.1))
-  const iconSize = Math.round(Math.min(labels ? 34 : 44, size * (labels ? 0.28 : 0.36)))
+  const corner = Math.round(Math.max(8, size * (shape === 'round' ? 0.2 : 0.1)))
+  const iconSize = Math.round(Math.min(labels ? 34 : 44, size * (labels ? 0.28 : 0.36)) * iconScale)
   return (
     <span
       className="key-face"
@@ -81,15 +119,15 @@ export function KeyFace({
         gap: Math.round(size * (wide ? 0.2 : 0.07)),
       }}
     >
-      {folder ? (
-        count !== undefined && (
-          <span className="key-count" style={{ top: corner, right: corner }} aria-hidden>
-            {count}
-          </span>
-        )
-      ) : (
-        <span className="key-light" style={{ top: corner, right: corner }} aria-hidden />
-      )}
+      {folder
+        ? count !== undefined && (
+            <span className="key-count" style={{ top: corner, right: corner }} aria-hidden>
+              {count}
+            </span>
+          )
+        : lights && (
+            <span className="key-light" style={{ top: corner, right: corner }} aria-hidden />
+          )}
       {icon && <TileIcon icon={icon} size={iconSize} className="key-icon" />}
       {(labels || !icon) && (
         <span className="key-label" style={{ fontSize: font }}>

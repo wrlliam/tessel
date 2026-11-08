@@ -48,6 +48,8 @@ export const Tile = z
     span: z.object({ w: z.int().min(1), h: z.int().min(1) }).default({ w: 1, h: 1 }),
     /** Slider tiles show a bar on the phone; dragging it runs On slide with the new value. */
     kind: z.enum(['action', 'folder', 'slider']).default('action'),
+    /** Key style for this tile only; empty follows the phone setting. */
+    style: z.enum(['tinted', 'solid', 'outline', 'glass']).optional(),
     /** Sub-page opened by a folder tile. */
     targetPageId: Id.optional(),
     graph: Graph.default({ nodes: [], edges: [] }),

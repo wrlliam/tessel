@@ -248,6 +248,29 @@ function TileSection({ tile }: { tile: Tile }) {
           />
         </div>
       </Field>
+      <Field
+        label="Key style"
+        htmlFor="tile-style"
+        help="Overrides the phone's key style for this tile"
+      >
+        <Select
+          id="tile-style"
+          value={tile.style ?? ''}
+          onChange={(e) => {
+            const v = e.target.value
+            updateTile(
+              tile.id,
+              v ? { style: v as NonNullable<typeof tile.style> } : { style: undefined },
+            )
+          }}
+        >
+          <option value="">Same as the phone</option>
+          <option value="tinted">Tinted</option>
+          <option value="solid">Solid</option>
+          <option value="outline">Outline</option>
+          <option value="glass">Glass</option>
+        </Select>
+      </Field>
       <div className="grid grid-cols-4 gap-2">
         <Field label="Column" htmlFor="tile-col">
           <Select

@@ -74,14 +74,16 @@ jobs:
         shell: bash
         run: |
           node -e "const f='packages/desktop/package.json';const p=require('./'+f);p.version=process.env.VERSION;require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
+      - name: Build
+        run: pnpm build:plugins && pnpm stage:plugins && pnpm --filter @tessel/phone build && pnpm --filter @tessel/desktop build
       - name: Package
         shell: bash
+        working-directory: packages/desktop
         run: |
-          if [ -n "$APPLE_ID" ] && [ "$RUNNER_OS" = "macOS" ]; then
-            pnpm package -- --config.mac.notarize=true --publish never
-          else
-            pnpm package -- --publish never
-          fi
+          # The release job publishes; electron-builder only builds here.
+          extra=""
+          if [ -n "$APPLE_ID" ] && [ "$RUNNER_OS" = "macOS" ]; then extra="--config.mac.notarize=true"; fi
+          pnpm exec electron-builder --publish never $extra
       - uses: actions/upload-artifact@v7
         with:
           name: tessel-${{ matrix.os }}

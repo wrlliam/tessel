@@ -328,7 +328,7 @@ function GridTile({
         }}
         data-pressed={running}
         className={cn('key size-full', selected && 'outline-2 outline-offset-2 outline-glaze')}
-        style={{ borderRadius: 'inherit', ...keyVars(look.colour, keyStyle) }}
+        style={{ borderRadius: 'inherit', ...keyVars(look.colour, tile.style ?? keyStyle) }}
       >
         <KeyFace
           look={look}
