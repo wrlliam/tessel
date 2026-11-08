@@ -252,6 +252,65 @@ try {
   await page.getByRole('tab', { name: 'Phones' }).click()
   if (process.platform !== 'win32')
     await page.getByText('"VM" › Set gain: Voicemeeter is Windows-only.').waitFor()
+  step('My blocks: create the folder and run a block written in TypeScript')
+  // Stands in for the permission prompt and keeps the folder from opening in Finder.
+  await app.evaluate(({ dialog, shell }) => {
+    dialog.showMessageBox = (async () => ({ response: 0, checkboxChecked: false })) as never
+    shell.openPath = (async () => '') as never
+  })
+  await page.getByRole('tab', { name: 'Plugins' }).click()
+  await page.getByRole('button', { name: 'Create my blocks folder' }).click()
+  await page.getByText(/blocks, under Plugins › My blocks/).waitFor({ timeout: 30_000 })
+  const custom = await page.evaluate(async () => {
+    const profile = await window.tessel.getProfile('default')
+    if (!profile) throw new Error('no profile')
+    const at = { x: 0, y: 0 }
+    const page0 = profile.pages[0]!
+    page0.tiles = page0.tiles.filter((t) => t.position.row + t.span.h <= 3)
+    page0.tiles.push({
+      id: 'lunch',
+      label: 'Lunch',
+      colour: '#212833',
+      position: { col: 0, row: 3 },
+      span: { w: 1, h: 1 },
+      kind: 'action',
+      concurrency: 'queue',
+      appearanceBindings: [],
+      graph: {
+        nodes: [
+          { id: 'p', type: 'trigger.press', params: {}, position: at },
+          { id: 'b', type: 'my-blocks.pick-one', params: { choices: 'Soup\nRamen' }, position: at },
+          { id: 's', type: 'data.setVariable', params: { name: 'lunch' }, position: at },
+          {
+            id: 't',
+            type: 'action.toast',
+            params: { title: 'Lunch', body: 'Soup or ramen', seconds: 2, position: 'top-right' },
+            position: at,
+          },
+        ],
+        edges: [
+          { id: 'e1', from: { nodeId: 'p', port: 'out' }, to: { nodeId: 'b', port: 'in' } },
+          { id: 'e2', from: { nodeId: 'b', port: 'out' }, to: { nodeId: 's', port: 'in' } },
+          { id: 'e3', from: { nodeId: 'b', port: 'choice' }, to: { nodeId: 's', port: 'value' } },
+          { id: 'e4', from: { nodeId: 's', port: 'out' }, to: { nodeId: 't', port: 'in' } },
+        ],
+      },
+    })
+    const saved = await window.tessel.saveProfile(profile)
+    if (!saved.ok) throw new Error(saved.error)
+    await window.tessel.testRun('default', 'lunch')
+    return (await window.tessel.getProfile('default'))?.variables['lunch']
+  })
+  if (custom !== 'Soup' && custom !== 'Ramen') throw new Error(`My blocks gave ${JSON.stringify(custom)}`)
+
+  step('the pop-up shows above other windows')
+  const toastShown = await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows().some(
+      (w) => w.isVisible() && w.isAlwaysOnTop() && w.webContents.getURL().startsWith('data:text/html'),
+    ),
+  )
+  if (!toastShown) throw new Error('The pop-up window did not show')
+
   if (shots) {
     await page.getByRole('tab', { name: 'Plugins' }).click()
     await page.screenshot({ path: join(shots, 'e2e-plugins.png') })

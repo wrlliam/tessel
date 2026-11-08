@@ -169,3 +169,49 @@ describe('Weather', () => {
     expect(r?.error).toMatch(/Share location/)
   })
 })
+
+describe('pop-ups and Changed?', () => {
+  it('shows a pop-up with wired-in text', async () => {
+    const toast = vi.fn(async () => {})
+    const { engine } = setup({ platform: { ...mockPlatform(), toast } })
+    const graph: Graph = {
+      nodes: [
+        node('p', 'trigger.press'),
+        node('t', 'data.text', { template: 'Hello' }),
+        node('x', 'action.toast', { title: 'Hi', seconds: 3, position: 'bottom-left' }),
+      ],
+      edges: [wire('p.out', 'x.in'), wire('t.text', 'x.body')],
+    }
+    const r = await engine.trigger(tile(graph), press)
+    expect(r?.error).toBeUndefined()
+    expect(toast).toHaveBeenCalledWith({
+      title: 'Hi',
+      body: 'Hello',
+      seconds: 3,
+      position: 'bottom-left',
+    })
+  })
+
+  it('goes out changed only when the value differs from last time', async () => {
+    const state = new Map<string, unknown>()
+    const { engine, globals } = setup({
+      tileState: { get: (_t, k) => state.get(k), set: (_t, k, v) => void state.set(k, v) },
+    })
+    let n = 0
+    const graph = (value: string): Graph => ({
+      nodes: [
+        node('p', 'trigger.press'),
+        node('v', 'data.text', { template: value }),
+        node('c', 'logic.changed', { key: 'last' }),
+        node('s', 'data.setVariable', { name: 'hits', value: ++n }),
+      ],
+      edges: [wire('p.out', 'c.in'), wire('v.text', 'c.value'), wire('c.changed', 's.in')],
+    })
+    await engine.trigger(tile(graph('a')), press)
+    expect(globals.get('hits')).toBe(1)
+    await engine.trigger(tile(graph('a')), press)
+    expect(globals.get('hits')).toBe(1)
+    await engine.trigger(tile(graph('b')), press)
+    expect(globals.get('hits')).toBe(3)
+  })
+})

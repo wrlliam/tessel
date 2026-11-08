@@ -8,7 +8,9 @@
     "./manifest": "./src/manifest.ts",
     "./protocol": "./src/protocol.ts",
     "./runner": "./src/runner.ts",
-    "./testing": "./src/testing.ts"
+    "./testing": "./src/testing.ts",
+    "./std": "./custom/std.ts",
+    "./custom/*": "./custom/*"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

@@ -45,7 +45,10 @@ const NETWORK_POLL_MS = 10_000
 const LONG_PRESS_MS = 500
 const LEVELS = { info: 0, warn: 1, error: 2 } as const
 
-export type HubState = Omit<DesktopState, 'platform' | 'startOnLogin' | 'version' | 'update'>
+export type HubState = Omit<
+  DesktopState,
+  'platform' | 'startOnLogin' | 'version' | 'update' | 'myBlocksDir'
+>
 
 export interface HubOptions {
   dataDir: string

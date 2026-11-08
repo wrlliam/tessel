@@ -294,4 +294,92 @@ export const getClipboard = defineBlock({
   },
 })
 
-export const liveBlocks = [countdown, nowPlaying, weather, getClipboard]
+export const toast = defineBlock({
+  id: 'action.toast',
+  category: 'action',
+  name: 'Show a pop-up',
+  description:
+    "Shows a message on the computer's screen, above every window, then hides it. Wire text into title or body, e.g. the song from What's playing.",
+  inputs: [
+    flowIn,
+    { id: 'title', kind: 'value', type: 'string' },
+    { id: 'body', kind: 'value', type: 'string' },
+  ],
+  outputs: [flowOut],
+  paramsSchema: z.object({
+    title: z.string().max(80).default(''),
+    body: z.string().max(400).default(''),
+    icon: z.string().max(8).default(''),
+    colour: z
+      .union([z.literal(''), z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Use a colour like #22D3C5')])
+      .default(''),
+    seconds: z.coerce.number().min(1).max(60).default(5),
+    position: z
+      .enum(['top-right', 'top-left', 'top-center', 'bottom-right', 'bottom-left', 'bottom-center'])
+      .default('top-right'),
+  }),
+  fields: [
+    { key: 'title', label: 'Title', widget: 'text', placeholder: 'Now playing' },
+    { key: 'body', label: 'Message', widget: 'textarea', placeholder: '{{var.count}} presses' },
+    { key: 'icon', label: 'Emoji', widget: 'text', placeholder: '🎵' },
+    { key: 'colour', label: 'Accent colour', widget: 'text', placeholder: '#22D3C5' },
+    { key: 'seconds', label: 'Seconds on screen', widget: 'number' },
+    {
+      key: 'position',
+      label: 'Where',
+      widget: 'select',
+      options: [
+        { value: 'top-right', label: 'Top right' },
+        { value: 'top-center', label: 'Top middle' },
+        { value: 'top-left', label: 'Top left' },
+        { value: 'bottom-right', label: 'Bottom right' },
+        { value: 'bottom-center', label: 'Bottom middle' },
+        { value: 'bottom-left', label: 'Bottom left' },
+      ],
+    },
+  ],
+  defaults: { title: '', body: '', icon: '', colour: '', seconds: 5, position: 'top-right' },
+  run: async (ctx, p) => {
+    if (!ctx.platform.toast) throw new UnsupportedError('Pop-ups', ctx.platform.os)
+    if (!p.title.trim() && !p.body.trim())
+      throw new UserFacingError('The pop-up has nothing to say')
+    await ctx.platform.toast({
+      title: p.title,
+      body: p.body,
+      ...(p.icon && { icon: p.icon }),
+      ...(p.colour && { colour: p.colour }),
+      seconds: p.seconds,
+      position: p.position,
+    })
+  },
+})
+
+export const changed = defineBlock({
+  id: 'logic.changed',
+  category: 'logic',
+  name: 'Changed?',
+  description:
+    "Goes out 'changed' when the wired-in value differs from last time this tile ran, otherwise 'same'. Good for reacting once to a new song or reading.",
+  inputs: [flowIn, { id: 'value', kind: 'value', type: 'any' }],
+  outputs: [
+    { id: 'changed', kind: 'flow', label: 'changed' },
+    { id: 'same', kind: 'flow', label: 'same' },
+  ],
+  paramsSchema: z.object({
+    key: z
+      .string()
+      .regex(/^[a-zA-Z_]\w*$/, 'Use letters, numbers and _')
+      .max(32)
+      .default('last'),
+  }),
+  fields: [{ key: 'key', label: 'Remember it as', widget: 'text', placeholder: 'last' }],
+  defaults: { key: 'last' },
+  run: (ctx, { key }, input) => {
+    const now = JSON.stringify(input['value'] ?? null)
+    const before = ctx.tileState.get(key)
+    ctx.tileState.set(key, now)
+    return { next: before === now ? 'same' : 'changed' }
+  },
+})
+
+export const liveBlocks = [countdown, nowPlaying, weather, getClipboard, toast, changed]

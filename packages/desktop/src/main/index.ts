@@ -1,5 +1,5 @@
 import { mdnsNames } from '@tessel/server'
-import { app, ipcMain } from 'electron'
+import { shell, app, ipcMain } from 'electron'
 import { hostname } from 'node:os'
 import { Channel, type DesktopState } from '../shared/api.ts'
 import { Hub } from './hub.ts'
@@ -11,6 +11,10 @@ import { addPluginWithDialog } from './plugins/dialogs.ts'
 import { exportWithDialog, importWithDialog } from './transfer-dialogs.ts'
 import { TesselTray } from './tray.ts'
 import { Updater } from './updater.ts'
+import { ensureMyBlocks, newBlockFile } from './custom-blocks.ts'
+import { MY_BLOCKS_FILES, STARTER } from './custom-blocks-files.ts'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { currentWindow, markQuitting, showWindow } from './window.ts'
 
 // Lets tests and side-by-side installs use their own settings, devices and profiles.
@@ -52,6 +56,9 @@ async function start() {
     }),
     startOnLogin: loginItemsSupported ? app.getLoginItemSettings().openAtLogin : null,
     version: app.getVersion(),
+    myBlocksDir: existsSync(join(app.getPath('userData'), 'my-blocks', 'manifest.json'))
+      ? join(app.getPath('userData'), 'my-blocks')
+      : undefined,
     update: updater.state,
   })
   const updater = new Updater(() => broadcast())
@@ -147,6 +154,35 @@ async function start() {
   ipcMain.handle(Channel.removePlugin, (_e, id: unknown) =>
     str(id) ? hub.plugin().remove(id) : undefined,
   )
+  // My blocks: TypeScript blocks in a folder next to Tessel's data, run as a dev plugin.
+  const myBlocksDir = join(app.getPath('userData'), 'my-blocks')
+  const myBlocksReady = () => existsSync(join(myBlocksDir, 'manifest.json'))
+  if (myBlocksReady()) void ensureMyBlocks(myBlocksDir, MY_BLOCKS_FILES).catch(() => {})
+  ipcMain.handle(Channel.createMyBlocks, async () => {
+    try {
+      await ensureMyBlocks(myBlocksDir, MY_BLOCKS_FILES)
+      if (
+        !hub
+          .plugin()
+          .list()
+          .some((p) => p.id === 'my-blocks')
+      )
+        await hub.plugin().addDev(myBlocksDir)
+      broadcast()
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: (err as Error).message }
+    }
+  })
+  ipcMain.handle(Channel.openMyBlocks, () => shell.openPath(myBlocksDir).then(() => undefined))
+  ipcMain.handle(Channel.newMyBlock, async (_e, name: unknown) => {
+    const file = await newBlockFile(
+      myBlocksDir,
+      typeof name === 'string' ? name.slice(0, 60) : '',
+      STARTER,
+    )
+    await shell.openPath(file)
+  })
   ipcMain.handle(Channel.addPlugin, (_e, kind: unknown) =>
     kind === 'folder' || kind === 'zip' || kind === 'dev'
       ? addPluginWithDialog(hub.plugin(), currentWindow(), kind)

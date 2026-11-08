@@ -49,6 +49,21 @@ export interface NowPlayingInfo {
   duration?: number
 }
 
+export type ToastPosition =
+  'top-right' | 'top-left' | 'top-center' | 'bottom-right' | 'bottom-left' | 'bottom-center'
+
+/** A message shown on the computer's screen above other windows, then gone. */
+export interface ToastSpec {
+  title: string
+  body: string
+  /** One emoji, shown beside the text. */
+  icon?: string
+  /** Accent colour, like #22D3C5. */
+  colour?: string
+  seconds: number
+  position: ToastPosition
+}
+
 /** What blocks may ask of the computer. Each OS supplies its own adapter. */
 export interface Platform {
   os: OS
@@ -75,6 +90,8 @@ export interface Platform {
   /** The song playing in Spotify or the system's media player, if any. */
   nowPlaying?(): Promise<NowPlayingInfo | undefined>
   readClipboard?(): Promise<string>
+  /** Shows a pop-up message on the computer's screen. */
+  toast?(toast: ToastSpec): Promise<void>
   /** Last known location, e.g. shared by a phone. */
   location?(): { lat: number; lon: number; name?: string } | undefined
 }

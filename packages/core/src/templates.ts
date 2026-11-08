@@ -7,6 +7,7 @@ export type TemplateCategory =
   | 'Live tiles'
   | 'Voicemeeter'
   | 'Soundpad'
+  | 'Home'
   | 'AI and search'
   | 'Apps'
   | 'System'
@@ -898,6 +899,80 @@ export const templates: TileTemplate[] = [
     },
   },
 
+  // Pop-ups
+  {
+    id: 'popup-date',
+    category: 'Live tiles',
+    name: "Pop up today's date",
+    description: "Shows today's day and date on the computer's screen for a few seconds.",
+    tile: {
+      label: 'Date',
+      icon: 'calendar',
+      colour: '#212833',
+      graph: {
+        nodes: [
+          press,
+          node('time', 'data.getTime', {}, 0, 128),
+          node('text', 'data.text', { template: '{{input.a}}, {{input.b}}' }, 288, 128),
+          node(
+            'toast',
+            'action.toast',
+            { title: 'Today', body: '', icon: '📅', colour: '', seconds: 5, position: 'top-right' },
+            576,
+          ),
+        ],
+        edges: [
+          wire('press', 'out', 'toast'),
+          wire('time', 'weekday', 'text', 'a'),
+          wire('time', 'date', 'text', 'b'),
+          wire('text', 'text', 'toast', 'body'),
+        ],
+      },
+    },
+  },
+  {
+    id: 'popup-song',
+    category: 'Live tiles',
+    name: 'Pop up new songs',
+    description:
+      "Watches what's playing and pops the song up on screen for 6 seconds whenever it changes. Tap to play or pause.",
+    tile: {
+      label: 'Song pop-ups',
+      icon: 'music',
+      colour: '#1DB954',
+      graph: {
+        nodes: [
+          node('tick', 'trigger.schedule', { cron: '*/3 * * * * *' }, 0),
+          node('np', 'data.nowPlaying', {}, 288),
+          node('changed', 'logic.changed', { key: 'lastSong' }, 576),
+          node(
+            'toast',
+            'action.toast',
+            {
+              title: 'Now playing',
+              body: '',
+              icon: '🎵',
+              colour: '#1DB954',
+              seconds: 6,
+              position: 'bottom-right',
+            },
+            864,
+          ),
+          node('press', 'trigger.press', {}, 0, 256),
+          node('pp', 'action.mediaKey', { key: 'playPause' }, 288, 256),
+        ],
+        edges: [
+          wire('tick', 'out', 'np'),
+          wire('np', 'out', 'changed'),
+          wire('np', 'song', 'changed', 'value'),
+          wire('changed', 'changed', 'toast'),
+          wire('np', 'song', 'toast', 'body'),
+          wire('press', 'out', 'pp'),
+        ],
+      },
+    },
+  },
+
   // Voicemeeter
   vmMute('vm-mute-strip1', 'strip', 1, 'Mic'),
   vmMute('vm-mute-strip2', 'strip', 2, 'Input 2'),
@@ -1038,6 +1113,111 @@ export const templates: TileTemplate[] = [
     },
   },
 
+  // Home (Home Assistant)
+  {
+    id: 'ha-light',
+    category: 'Home',
+    plugin: 'home-assistant',
+    name: 'Light switch',
+    description:
+      'Toggles a Home Assistant light and lights up while it is on, even when someone switches it elsewhere.',
+    tile: {
+      label: 'Desk light',
+      icon: 'lightbulb',
+      colour: '#212833',
+      appearanceBindings: [bind('colour', '{{state.on ? "#F5B63D" : "#212833"}}')],
+      graph: {
+        nodes: [
+          press,
+          node('toggle', 'home-assistant.toggle', { entity: 'light.desk', action: 'toggle' }, 288),
+          node('watch', 'home-assistant.watch', { entity: 'light.desk' }, 0, 192),
+        ],
+        edges: [wire('press', 'out', 'toggle')],
+      },
+    },
+  },
+  {
+    id: 'ha-scene',
+    category: 'Home',
+    plugin: 'home-assistant',
+    name: 'Scene',
+    description: 'Turns on a Home Assistant scene, e.g. movie night.',
+    tile: {
+      label: 'Movie night',
+      icon: 'moon',
+      colour: '#8B7CF6',
+      graph: simple('home-assistant.service', {
+        service: 'scene.turn_on',
+        entity: 'scene.movie_night',
+        data: '',
+      }),
+    },
+  },
+  {
+    id: 'ha-brightness',
+    category: 'Home',
+    plugin: 'home-assistant',
+    name: 'Brightness slider',
+    description: 'Drag to set a Home Assistant light’s brightness.',
+    tile: {
+      label: 'Desk light',
+      icon: 'sun-dim',
+      colour: '#F5B63D',
+      kind: 'slider',
+      concurrency: 'restart',
+      appearanceBindings: [bind('label', 'Desk {{state.value ?? 50}}%')],
+      graph: slider(
+        'home-assistant.service',
+        {
+          service: 'light.turn_on',
+          entity: 'light.desk',
+          data: '{"brightness_pct": {{input.value}}}',
+        },
+        'value',
+        { min: 0, max: 100, step: 5 },
+      ),
+    },
+  },
+  {
+    id: 'ha-sensor',
+    category: 'Home',
+    plugin: 'home-assistant',
+    name: 'Sensor reading',
+    description: 'Shows a Home Assistant sensor, like a room temperature, updated every minute.',
+    tile: {
+      label: 'Living room',
+      icon: 'thermometer',
+      colour: '#212833',
+      graph: live(
+        60,
+        [
+          node(
+            'read',
+            'home-assistant.state',
+            { entity: 'sensor.living_room_temperature', attribute: 'unit_of_measurement' },
+            288,
+          ),
+          node('text', 'data.text', { template: '{{input.a}}{{input.b}}' }, 288, 256),
+          node(
+            'show',
+            'action.setTileAppearance',
+            { tile: '', label: '', colour: '', icon: '', reset: false, remember: false },
+            576,
+          ),
+        ],
+        [
+          wire('read', 'on', 'show'),
+          wire('read', 'off', 'show'),
+          wire('read', 'other', 'show'),
+          wire('read', 'state', 'text', 'a'),
+          wire('read', 'attribute', 'text', 'b'),
+          wire('text', 'text', 'show', 'label'),
+        ],
+        'read',
+      ),
+    },
+  },
+
   // AI and search
   {
     id: 'ai-explain-ollama',
@@ -1165,6 +1345,7 @@ export const TEMPLATE_CATEGORIES: TemplateCategory[] = [
   'Live tiles',
   'Voicemeeter',
   'Soundpad',
+  'Home',
   'AI and search',
   'Apps',
   'System',
@@ -1282,6 +1463,23 @@ export const pageTemplates: PageTemplate[] = [
       { template: 'soundpad-again', col: 1, row: 1 },
       { template: 'soundpad-stop', col: 2, row: 1 },
       { template: 'soundpad-volume', col: 0, row: 2, w: 3 },
+    ],
+  },
+  {
+    id: 'page-home',
+    name: 'Home',
+    description:
+      'Lights, a scene, brightness and a sensor from Home Assistant. Needs the Home Assistant plugin.',
+    cols: 3,
+    rows: 3,
+    tiles: [
+      { template: 'ha-light', col: 0, row: 0 },
+      { template: 'ha-light', col: 1, row: 0, label: 'Lamp' },
+      { template: 'ha-scene', col: 2, row: 0 },
+      { template: 'ha-sensor', col: 0, row: 1 },
+      { template: 'popup-date', col: 1, row: 1 },
+      { template: 'live-weather', col: 2, row: 1 },
+      { template: 'ha-brightness', col: 0, row: 2, w: 3 },
     ],
   },
   {

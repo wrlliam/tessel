@@ -40,6 +40,9 @@ const api: TesselApi = {
   finishTour: () => ipcRenderer.invoke(Channel.finishTour),
   checkForUpdate: () => ipcRenderer.invoke(Channel.checkForUpdate),
   installUpdate: () => ipcRenderer.invoke(Channel.installUpdate),
+  createMyBlocks: () => ipcRenderer.invoke(Channel.createMyBlocks),
+  openMyBlocks: () => ipcRenderer.invoke(Channel.openMyBlocks),
+  newMyBlock: (name) => ipcRenderer.invoke(Channel.newMyBlock, name),
   updatePluginSettings: (id, values) =>
     ipcRenderer.invoke(Channel.updatePluginSettings, id, values),
   onEngineEvent: (listener) => {

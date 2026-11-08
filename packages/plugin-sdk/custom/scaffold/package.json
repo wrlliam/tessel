@@ -1,0 +1,7 @@
+{
+  "name": "my-tessel-blocks",
+  "private": true,
+  "type": "module",
+  "description": "Run `npm install <package>` here to use packages in your blocks.",
+  "dependencies": {}
+}

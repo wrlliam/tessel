@@ -1,0 +1,29 @@
+{
+  "id": "my-blocks",
+  "name": "My blocks",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Blocks you write in TypeScript, in this folder. Tessel reloads them when you save.",
+  "author": "You",
+  "main": "index.ts",
+  "permissions": ["network", "filesystem", "shell"],
+  "icon": "code",
+  "settingsSchema": {
+    "type": "object",
+    "properties": {
+      "haUrl": {
+        "type": "string",
+        "title": "Home Assistant address",
+        "description": "For blocks that use std.homeAssistant, e.g. http://homeassistant.local:8123",
+        "default": ""
+      },
+      "haToken": {
+        "type": "string",
+        "title": "Home Assistant token",
+        "description": "A long-lived access token from your Home Assistant profile.",
+        "secret": true,
+        "default": ""
+      }
+    }
+  }
+}

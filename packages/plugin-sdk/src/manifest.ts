@@ -43,7 +43,8 @@ export const PluginManifest = z.object({
   /** Entry file, relative to the plugin folder. */
   main: z
     .string()
-    .regex(/^[^/\\].*\.(js|mjs)$/, 'main must be a .js file inside the plugin folder')
+    // .ts runs as is (Node strips the types), which suits blocks written in place.
+    .regex(/^[^/\\].*\.(js|mjs|ts|mts)$/, 'main must be a .js or .ts file inside the plugin folder')
     .refine((p) => !p.split(/[\\/]/).includes('..'), 'main must stay inside the plugin folder'),
   /** Operating systems the plugin is useful on. Leave out for all. */
   platforms: z.array(z.enum(['darwin', 'win32', 'linux'])).optional(),

@@ -54,7 +54,11 @@ Swipe sideways or tap the dots to change page. Folder tiles open their page; Bac
 
 **Phone settings live on the desktop.** The **Phones** tab has an **On the phone** card with a live preview: theme (follow the phone, dark, light), key colour (tinted keys keep the face neutral with a coloured light; solid fills the key), labels and their size, spacing, the page name bar, vibrate on press, keep the screen on and dim strength. Changes reach connected phones at once, and phones keep the last settings for when they reconnect.
 
-**Held sideways.** **Fill** stretches the keys across the whole screen (wide keys put the icon beside the label), **Fit** keeps keys square and centred, **Rotate** swaps rows and columns.
+**Held sideways.** **Reflow** (the default) lays the keys out again in wide rows so they stay big, and moves the page name, dots and menu to a narrow rail on the right. **Fill** stretches the grid across the whole screen (wide keys put the icon beside the label), **Fit** keeps keys square and centred, **Rotate** swaps rows and columns.
+
+**Keeping the screen on.** With **Keep the screen on**, the phone stays awake while Tessel is open: natively in the iPhone app, with Wake Lock over the secure connection, and otherwise with a tiny muted video that starts on your first tap (Safari needs a tap before it plays anything).
+
+**Share location** (off by default) asks the phone for its rough location (about 100 m) every few minutes, for weather tiles. Browsers only allow it over the secure connection; otherwise type a place in the Weather block.
 
 ## Connect your iPhone
 
@@ -109,7 +113,9 @@ The window has four tabs: **Editor**, **Phones** (pairing and devices), **Plugin
 
 **Live appearance.** A tile's label, colour or icon can follow variables, e.g. label `Count: {{var.count ?? 0}}`, and the **Set tile appearance** block can change them while a tile runs (use it for status, like a mute tile turning red). It can change this tile or any other tile in the profile, and with **Keep it after Tessel restarts** the new look is saved; **Reset** returns a tile to its settings. The phone and the editor's grid show the live look.
 
-**Templates** (about 40, searchable, in groups): Meetings (Zoom, Teams, Google Meet and Discord mute, camera, share, raise hand, leave), Media and sound, Apps (Spotify, Slack, VS Code, browser tabs), System (screenshot, record screen, emoji picker, show desktop, dark mode, lock), Productivity and Examples. Mute tiles in meeting apps flip their own status, so if you also mute in the app itself they can drift until the next press.
+**Pages.** **+ Page** adds a blank page or a ready-made one: Meetings, Music, Voicemeeter mixer, Voice chat, Soundboard, Home and Desk.
+
+**Templates** (86, searchable, in groups; including sliders, live tiles, Voicemeeter, Soundpad, Home Assistant, AI and search): Meetings (Zoom, Teams, Google Meet and Discord mute, camera, share, raise hand, leave), Media and sound, Apps (Spotify, Slack, VS Code, browser tabs), System (screenshot, record screen, emoji picker, show desktop, dark mode, lock), Productivity and Examples. Mute tiles in meeting apps flip their own status, so if you also mute in the app itself they can drift until the next press.
 
 **App command** sends a known shortcut to an app, picking the right keys for your OS and optionally bringing the app to the front first: Zoom, Microsoft Teams, Google Meet, Discord, Slack, Spotify, VS Code, the browser, and system shortcuts. Commands an app doesn't have on your OS say so when pressed.
 
@@ -129,12 +135,18 @@ The window has four tabs: **Editor**, **Phones** (pairing and devices), **Plugin
 
 Every tile is a small graph: a trigger, then blocks joined by wires. Flow wires set the order; value wires carry data (`Get time` › `hour` into `If`).
 
-| Category | Blocks                                                                                                                                                                                                                                |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Trigger  | On press, On long press, On release, On page open, On schedule                                                                                                                                                                        |
-| Action   | Open app, App command, Open URL, Open file, Type text, Key combo, Media key, Mouse, Set clipboard, Notification, HTTP request, Run shell command, Switch page, Run another tile, Set tile appearance, Set setting, Lock screen, Sleep |
-| Logic    | If, Switch, Compare, Toggle, Delay, Repeat, Wait until                                                                                                                                                                                |
-| Data     | Get time, Get variable, Set variable, Math, Text, Random                                                                                                                                                                              |
+| Category | Blocks                                                                                                                                                                                                                                               |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Trigger  | On press, On long press, On release, On slide, On page open, On schedule                                                                                                                                                                             |
+| Action   | Open app, App command, Open URL, Open file, Type text, Key combo, Media key, Mouse, Set clipboard, Notification, Show a pop-up, HTTP request, Run shell command, Switch page, Run another tile, Set tile appearance, Set setting, Lock screen, Sleep |
+| Logic    | If, Switch, Compare, Toggle, Changed?, Delay, Countdown, Repeat, Wait until                                                                                                                                                                          |
+| Data     | Get time, Get variable, Set variable, Math, Text, Random, Get clipboard, What's playing, Weather                                                                                                                                                     |
+
+**Sliders.** A slider tile shows a bar on the phone: drag it up and down on a tall key, or side to side on a wide one. **On slide** maps the position onto a range you set (0 to 100 for volume, -60 to 12 for a Voicemeeter fader) and keeps it in `{{state.value}}`, so the label can show it. Fast drags are merged, so the computer keeps up.
+
+**Live tiles** change on their own: pair **On schedule** (cron takes a seconds field, e.g. `*/2 * * * * *`) or **On page open** with **Weather** (Open-Meteo; a place you type, or the phone's location when **Share location** is on), **What's playing** (Spotify or Apple Music on macOS, the system player on Windows, MPRIS on Linux; title, artist and time left), **Countdown** (time left in tile state) or a plugin reading, and **Set tile appearance**.
+
+**Pop-ups.** **Show a pop-up** puts a message on the computer's screen above every window for a few seconds, without taking focus. With **Changed?** a live tile can pop up only when something changes: the **Pop up new songs** template shows each new song as it starts.
 
 **Triggers.** On press fires as soon as the phone commits the tap. If a tile also has **On long press**, the two take turns: a short tap fires On press when you lift, holding half a second fires On long press instead. **On release** fires when you lift. **On page open** fires when a phone shows the tile's page. **On schedule** takes a cron pattern (`0 9 * * 1-5` is 9:00 on weekdays; a sixth field adds seconds) and runs for the profile phones are using, in the computer's time zone; the editor shows the next three times.
 
@@ -165,7 +177,9 @@ Every tile is a small graph: a trigger, then blocks joined by wires. Flow wires 
 
 Plugins add blocks and triggers and run in their own processes; a crashing plugin is restarted with backoff and never takes Tessel down. The **Plugins** tab lists them with their status and permissions, turns them on and off, shows a settings form for each, and installs new ones from a folder or a zip. **Load for development** uses a folder in place and reloads it when files change. Before an installed plugin starts, Tessel shows the permissions it declares and asks; plugins still run with your account's rights, so install only ones you trust. Phones can't install or enable plugins.
 
-Write your own with `pnpm create-plugin my-plugin` (see [docs/plugins.md](docs/plugins.md)).
+**Your own blocks.** On the Plugins tab, **Create my blocks folder** makes a folder of TypeScript blocks that run as the **My blocks** plugin and reload when you save, with no build step. A block declares its settings, inputs, outputs and value outputs, and its `run` decides which way to go out. A `std` library covers dates, text, numbers, web requests and Home Assistant, and `npm install` in the folder adds packages. See [docs/custom-blocks.md](docs/custom-blocks.md).
+
+For a full plugin to share with others, run `pnpm create-plugin my-plugin` (see [docs/plugins.md](docs/plugins.md)).
 
 ### Voicemeeter (Windows)
 
@@ -174,6 +188,18 @@ Works with Voicemeeter Basic, Banana and Potato through VB-Audio's Remote API. T
 Blocks: Set gain, Mute (mute, unmute or toggle; strips or buses), Solo, Routing (A1–A5, B1–B3, as your version has them), Macro button, Load preset, Get level, Get parameter, Set parameter (any name, such as `Strip[0].Label`). Trigger: **On parameter change**, which polls Voicemeeter's change flag 20 times a second and fires once when the profile loads.
 
 A mute tile that turns red while muted: add **On parameter change** for `Strip[0].Mute` with _Keep as tile state named_ `muted`, wire it to nothing, add a press graph with **Mute** (toggle), and give the tile live appearance `Colour: {{state.muted ? "#F25C6E" : "#212833"}}`. On macOS and Linux its blocks say "Voicemeeter is Windows-only."
+
+### Home Assistant
+
+Set the address and a long-lived access token in its settings. Blocks: **toggle** (or turn on/off; goes out `on` or `off`), **call a service** (any service, with JSON data that can take a slider's value), **read a state** (state, one attribute, friendly name). Trigger: **when a state changes**, which keeps `{{state.on}}` and `{{state.state}}` on the tile, so a light switch tile lights up even when the light is switched elsewhere.
+
+### Soundpad (Windows)
+
+Controls [Soundpad](https://store.steampowered.com/app/629520/Soundpad/) through its remote-control pipe; Soundpad must be running. **Play sound** (by number, or part of a name; on speakers, mic or both), **Play a random sound** (optionally from a category), **Soundpad control** (stop, pause, play again, previous) and **Soundpad volume**.
+
+### Ollama and Google
+
+**Ollama** asks a model running locally in [Ollama](https://ollama.com) (address and default model in settings). **Google** builds search links for Google, Images, Maps, News, YouTube and Translate, and **Ask Gemini** uses your own API key. Both take text wired in from **Get clipboard**, so templates can work on the selected text: explain, rewrite, translate, summarise, search or map it.
 
 ### System info
 
@@ -201,16 +227,24 @@ docs/
 .github/workflows/  CI (all three OSes) and release builds
 ```
 
+## Running in the background and updates
+
+Closing the window keeps Tessel running in the menu bar (macOS) or tray (Windows, Linux), so phones keep working; Tessel says so the first time. With **Start on login**, it starts there without opening the window. A short tour shows the basics on first start; **Skip** ends it.
+
+Tessel checks GitHub releases every few hours (**Settings › Updates**, where you can also check now or turn it off). On Windows and Linux it downloads a new version in the background and installs it when you restart; on macOS it tells you and opens the download page.
+
 ## Data
 
 Stored as JSON in the OS app-data folder (`~/Library/Application Support/Tessel` on macOS, `%APPDATA%\Tessel` on Windows, `~/.config/Tessel` on Linux). Each file is `{ schemaVersion, data }`, written to a temp file, fsynced and renamed. Older versions are migrated on load; unreadable files are renamed to `*.corrupt-<time>` instead of being overwritten; files from a newer Tessel are refused.
 
-- `settings.json`: Allow phones, port
+- `settings.json`: Allow phones, port, phone settings, update checks, the last shared location
 - `devices.json`: paired devices (SHA-256 of each token, never the token)
 - `profiles/<id>.json`: one per profile, with pages, tiles, graphs and global variables. The editor saves layout and graphs; variables are left as tiles last set them.
 - `profiles/index.json`: profile order and which one phones use.
 - `plugins.json`: which plugins are on, their settings, and permissions you allowed.
 - `plugins/<id>/`: installed plugins. `plugin-data/<id>.json`: each plugin's storage.
+- `my-blocks/`: your own TypeScript blocks (see [docs/custom-blocks.md](docs/custom-blocks.md)).
+- `tls/`: the local certificate authority and server certificate, when Secure connection is on.
 
 Set `TESSEL_DATA_DIR` to use a different folder (handy for testing without touching your tiles).
 
@@ -254,7 +288,9 @@ Set `TESSEL_DATA_DIR` to use a different folder (handy for testing without touch
 ## Known limits
 
 - **Tested on macOS only.** The Windows and Linux adapters (apps, volume, brightness, dark mode, lock, sleep, Voicemeeter, ydotool) are covered by tests that mock the OS calls; CI runs the test suite on all three OSes, but the real calls haven't been tried on those systems yet.
-- **Voicemeeter** is tested against a mock of its API, not real Voicemeeter.
+- **Voicemeeter, Soundpad and Home Assistant** are tested against mocks of their APIs, not the real apps. Ollama and Gemini calls are tested against recorded-style responses.
+- **What's playing** on Windows asks PowerShell each time (about half a second); live tiles poll every 2 to 3 seconds.
+- **Updates on macOS** only tell you a new version is out: replacing the app in place needs a signed build. Windows and Linux (AppImage) download and install on restart.
 - **The iPhone app** was run in the iOS simulator (discovery, connecting, the phone page and its native bridge), not yet on a physical iPhone.
 - **Plugin network access** isn't limited: the Node in Electron 45 has no network permission yet. Tessel passes `--allow-net` for plugins that declare `network` once it does. Plugins declaring `native` aren't sandboxed.
 - **Secure connection** needs a one-time certificate install on each phone (iPhone also needs it turned on under Certificate Trust Settings), and phones pair again on the `https://` address. Without it, Safari over plain `http://` gives no Wake Lock. There is no service worker either way: the phone page needs the computer to be useful.

@@ -5,6 +5,7 @@ import { createVoicemeeterPlugin } from '../../../plugins/voicemeeter/src/plugin
 import { createOllamaPlugin } from '../../../plugins/ollama/src/plugin.ts'
 import { createGooglePlugin } from '../../../plugins/google/src/plugin.ts'
 import { createSoundpadPlugin } from '../../../plugins/soundpad/src/plugin.ts'
+import { createHomeAssistantPlugin } from '../../../plugins/home-assistant/src/plugin.ts'
 
 // Templates that use first-party plugin blocks, checked against the plugins' own definitions.
 describe('plugin templates', () => {
@@ -17,6 +18,7 @@ describe('plugin templates', () => {
     ollama: createOllamaPlugin(never),
     google: createGooglePlugin(never),
     soundpad: createSoundpadPlugin(never),
+    'home-assistant': createHomeAssistantPlugin(),
   }
   for (const [id, plugin] of Object.entries(plugins)) {
     for (const b of plugin.blocks ?? [])

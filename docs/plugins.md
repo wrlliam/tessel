@@ -1,5 +1,7 @@
 # Writing Tessel plugins
 
+> Just want a few blocks for yourself? [My blocks](custom-blocks.md) is quicker: TypeScript files in a folder, no project or build.
+
 A plugin adds blocks and triggers to the editor. It runs in its own process, talks to Tessel over messages, and can crash without taking Tessel down (Tessel restarts it with backoff, then gives up after repeated crashes).
 
 ## Start a plugin
@@ -82,6 +84,14 @@ export default definePlugin({
 - **Triggers** are told about each trigger block placed on a tile of the profile phones are using (`subscribe`), and stop watching when it goes away (the function you return). Call `sub.emit(values)` to start the tile; `values` appear on the trigger's value outputs and as `{{trigger.<name>}}`. `sub.setTileState` updates the tile between runs, which is how a status tile stays current.
 - **Storage:** `ctx.storage.get/set/delete` keeps small JSON values (up to 1 MB per plugin) in Tessel's data folder.
 - **Logging:** `ctx.log.info/warn/error` goes to Tessel's activity log, prefixed with the plugin name.
+
+### Slow blocks
+
+Runs stop after 30 seconds. A block that waits on purpose, such as one asking an AI model, can set `timeoutSeconds` (up to 600).
+
+### std
+
+`import { std } from '@tessel/plugin-sdk/std'` gives the same helpers as My blocks: `std.date`, `std.text`, `std.math`, `std.http`, `std.sleep` and `std.homeAssistant`.
 
 ## Testing
 

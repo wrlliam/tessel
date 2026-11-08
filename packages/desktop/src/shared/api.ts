@@ -61,6 +61,8 @@ export interface DesktopState {
   toured: boolean
   version: string
   update: UpdateState
+  /** The My blocks folder, once created. */
+  myBlocksDir?: string | undefined
   /** Changes when plugin blocks are added or removed. */
   blocksVersion: number
 }
@@ -123,6 +125,11 @@ export interface TesselApi {
   checkForUpdate(): Promise<void>
   /** Restarts into a downloaded update, or opens the download page. */
   installUpdate(): Promise<void>
+  /** Creates the My blocks folder (or refreshes it) and turns it on. */
+  createMyBlocks(): Promise<SaveResult>
+  openMyBlocks(): Promise<void>
+  /** Adds blocks/<name>.ts from the starter and opens it. */
+  newMyBlock(name: string): Promise<void>
 }
 
 export type SaveResult = { ok: true } | { ok: false; error: string }
@@ -159,4 +166,7 @@ export const Channel = {
   finishTour: 'app:tour-done',
   checkForUpdate: 'update:check',
   installUpdate: 'update:install',
+  createMyBlocks: 'my-blocks:create',
+  openMyBlocks: 'my-blocks:open',
+  newMyBlock: 'my-blocks:new',
 } as const

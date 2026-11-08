@@ -1,7 +1,7 @@
 import { TileIcon } from '@tessel/brand/icons'
 import { osName, type OS } from '@tessel/core'
 import { PERMISSION_TEXT, type SettingField } from '@tessel/plugin-sdk'
-import { FolderOpen, FolderCode, Package, RotateCw } from 'lucide-react'
+import { Code, FilePlus, FolderOpen, FolderCode, Package, RotateCw } from 'lucide-react'
 import { useState } from 'react'
 import type { DesktopState, PluginInfo } from '../../shared/api.ts'
 import { cn } from './lib/cn.ts'
@@ -45,9 +45,8 @@ export function PluginsView({ state }: { state: DesktopState }) {
           </div>
           <p className="text-sm text-muted">
             Plugins add blocks and triggers. Each runs in its own process, so a crash can't take
-            Tessel down. They still run with your account's rights: Tessel shows the permissions a
-            plugin declares before it starts, but can't fully sandbox it. Only install plugins you
-            trust. Phones can never install or turn on plugins.
+            Tessel down, and is held to the permissions it declares, except plugins that load native
+            code. Only install plugins you trust. Phones can never install or turn on plugins.
           </p>
           {message && (
             <p role="alert" className="text-sm text-signal">
@@ -55,6 +54,7 @@ export function PluginsView({ state }: { state: DesktopState }) {
             </p>
           )}
         </header>
+        <MyBlocksCard state={state} onError={setMessage} />
         {state.plugins.length === 0 && <p className="text-sm text-muted">No plugins yet.</p>}
         <ul className="space-y-3">
           {state.plugins.map((p) => (
@@ -210,5 +210,78 @@ function SettingInput({
         />
       )}
     </Field>
+  )
+}
+
+/** Blocks written in TypeScript in a folder on this computer. */
+function MyBlocksCard({ state, onError }: { state: DesktopState; onError: (m?: string) => void }) {
+  const [name, setName] = useState('')
+  const plugin = state.plugins.find((p) => p.id === 'my-blocks')
+  if (!state.myBlocksDir || !plugin) {
+    return (
+      <section className="rounded-2xl border border-line bg-surface p-5">
+        <div className="flex items-start gap-4">
+          <Code className="mt-1 size-5 shrink-0 text-muted" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <h3 className="font-medium">Write your own blocks</h3>
+            <p className="text-sm text-muted">
+              Make blocks in TypeScript: give them settings, inputs and several ways out, use npm
+              packages and Tessel's std library for dates, text, the web and Home Assistant. They
+              reload when you save, with no build step.
+            </p>
+            <Button
+              variant="primary"
+              onClick={async () => {
+                onError(undefined)
+                const r = await window.tessel.createMyBlocks()
+                if (!r.ok) onError(r.error)
+              }}
+            >
+              Create my blocks folder
+            </Button>
+          </div>
+        </div>
+      </section>
+    )
+  }
+  return (
+    <section className="rounded-2xl border border-line bg-surface p-5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Code className="size-5 text-muted" />
+        <h3 className="mr-auto font-medium">My blocks</h3>
+        <Button onClick={() => void window.tessel.openMyBlocks()}>
+          <FolderOpen /> Open folder
+        </Button>
+        <Button variant="ghost" onClick={() => void window.tessel.restartPlugin('my-blocks')}>
+          <RotateCw /> Reload
+        </Button>
+      </div>
+      <p className="mt-2 font-mono text-xs break-all text-muted">{state.myBlocksDir}</p>
+      <p className="mt-2 text-sm text-muted">
+        {plugin.status === 'running'
+          ? `${plugin.blockCount} blocks, under Plugins › My blocks in the palette. README.md in the folder explains how to write one.`
+          : plugin.error
+            ? `Not running: ${plugin.error}`
+            : `Status: ${plugin.status}`}
+      </p>
+      <form
+        className="mt-3 flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void window.tessel.newMyBlock(name.trim() || 'My block')
+          setName('')
+        }}
+      >
+        <Input
+          aria-label="New block name"
+          placeholder="Name for a new block"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <Button type="submit">
+          <FilePlus /> New block
+        </Button>
+      </form>
+    </section>
   )
 }
