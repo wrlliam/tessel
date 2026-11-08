@@ -17,7 +17,7 @@ Get the installer for your computer from the [latest release](https://github.com
 | OS                              | File                             |
 | ------------------------------- | -------------------------------- |
 | macOS (Apple silicon and Intel) | `Tessel-<version>-universal.dmg` |
-| Windows (x64)                   | `Tessel Setup <version>.exe`     |
+| Windows (x64)                   | `Tessel-Setup-<version>.exe`     |
 | Linux                           | `.AppImage` or `.deb`            |
 
 Builds aren't signed yet. On macOS, right-click Tessel, choose Open, then Open again. On Windows, choose More info, then Run anyway. Then open Tessel, go to **Phones**, and scan the QR code with your phone.

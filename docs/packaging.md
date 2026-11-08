@@ -13,7 +13,7 @@ Output goes to `bin/` at the repo root:
 | OS      | Output                                   | Notes                                                                    |
 | ------- | ---------------------------------------- | ------------------------------------------------------------------------ |
 | macOS   | `Tessel-<version>-universal.dmg`         | One app for Apple silicon and Intel.                                     |
-| Windows | `Tessel Setup <version>.exe` (NSIS, x64) | Per-user install; can choose the folder. ARM PCs run it under emulation. |
+| Windows | `Tessel-Setup-<version>.exe` (NSIS, x64) | Per-user install; can choose the folder. ARM PCs run it under emulation. |
 | Linux   | `.AppImage` and `.deb` (x64)             | The `.deb` depends on `libxtst6` for key simulation.                     |
 
 Each OS builds its own installers (native modules come from that OS); CI does all three. `pnpm package` runs `pnpm stage:plugins`, which copies the first-party plugins into `build/plugins/` with real, flat `node_modules` (via `pnpm deploy`), so the packaged app can load Voicemeeter's koffi binary for that platform.

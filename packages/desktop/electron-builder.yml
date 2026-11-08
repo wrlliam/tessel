@@ -51,6 +51,8 @@ win:
   icon: build/icon-square.png
   # Signing: set CSC_LINK and CSC_KEY_PASSWORD (or WIN_CSC_LINK) to a code-signing certificate.
 nsis:
+  # No spaces: GitHub release downloads would turn them into dots.
+  artifactName: Tessel-Setup-${version}.exe
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true

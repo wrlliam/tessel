@@ -26,7 +26,7 @@ if (files.length === 0) {
 const NOTES = `## Download
 
 - **macOS** (Apple silicon and Intel): \`Tessel-${version}-universal.dmg\`
-- **Windows** (x64): \`Tessel Setup ${version}.exe\`
+- **Windows** (x64): \`Tessel-Setup-${version}.exe\`
 
 These builds aren't signed yet. On macOS, right-click Tessel, choose Open, then Open again. On Windows, choose More info, then Run anyway.
 `
