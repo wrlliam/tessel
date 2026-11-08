@@ -382,4 +382,45 @@ export const changed = defineBlock({
   },
 })
 
-export const liveBlocks = [countdown, nowPlaying, weather, getClipboard, toast, changed]
+export const zxScript = defineBlock({
+  id: 'action.zx',
+  category: 'action',
+  name: 'Run a zx script',
+  description:
+    'Runs JavaScript with zx: $`command` runs a command, and fs, path, os, glob, sleep and YAML are ready to use. input is the wired-in value; what the script returns comes out of result. Follows the shell commands setting.',
+  inputs: [flowIn, { id: 'input', kind: 'value', type: 'any' }],
+  outputs: [
+    flowOut,
+    { id: 'result', kind: 'value', type: 'any' },
+    text('output', 'printed output'),
+  ],
+  paramsSchema: z.object({
+    script: z.string().min(1, 'Write a script').max(20_000),
+    cwd: z.string().max(500).default(''),
+    timeout: z.coerce.number().int().min(1).max(600).default(30),
+  }),
+  fields: [
+    {
+      key: 'script',
+      label: 'Script',
+      widget: 'textarea',
+      placeholder: 'const { stdout } = await $`git branch --show-current`\nreturn stdout.trim()',
+      help: 'Top-level await works. echo() or console.log() goes to the output value.',
+    },
+    { key: 'cwd', label: 'Run in folder', widget: 'text', placeholder: 'Your home folder' },
+    { key: 'timeout', label: 'Stop after (seconds)', widget: 'number' },
+  ],
+  defaults: { script: '', cwd: '', timeout: 30 },
+  run: async (ctx, p, input) => {
+    if (!ctx.platform.runZx) throw new UnsupportedError('zx scripts', ctx.platform.os)
+    ctx.extendTimeout(p.timeout * 1000)
+    const { result, output } = await ctx.platform.runZx(p.script, {
+      input: input['input'],
+      ...(p.cwd && { cwd: p.cwd }),
+      signal: ctx.signal,
+    })
+    return { values: { result, output } }
+  },
+})
+
+export const liveBlocks = [countdown, nowPlaying, weather, getClipboard, toast, changed, zxScript]

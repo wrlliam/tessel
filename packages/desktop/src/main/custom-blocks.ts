@@ -1,5 +1,5 @@
 // The "My blocks" folder: blocks people write in TypeScript, run as a local plugin.
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { access, mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 /** Files to place in the folder, by path relative to it. */
@@ -42,5 +42,32 @@ export async function newBlockFile(dir: string, name: string, starter: string): 
       starter.replace("name: 'My block'", `name: ${JSON.stringify(name || 'My block')}`),
     )
     return file
+  }
+}
+
+/**
+ * Puts a copy of an npm package Tessel ships (zx) into the folder's node_modules, so blocks can
+ * import it without npm. Skipped when the same version is already there.
+ */
+export async function ensurePackage(dir: string, name: string, source: string): Promise<void> {
+  const target = join(dir, 'node_modules', name)
+  const version = (path: string) =>
+    readFile(join(path, 'package.json'), 'utf8')
+      .then((t) => (JSON.parse(t) as { version?: string }).version)
+      .catch(() => undefined)
+  if ((await version(target)) === (await version(source))) return
+  await copyTree(source, target, (rel) => rel === 'package.json' || rel.startsWith('build'))
+}
+
+async function copyTree(from: string, to: string, keep: (rel: string) => boolean, rel = '') {
+  for (const entry of await readdir(join(from, rel), { withFileTypes: true })) {
+    const path = rel ? `${rel}/${entry.name}` : entry.name
+    if (!keep(path)) continue
+    if (entry.isDirectory()) await copyTree(from, to, keep, path)
+    else {
+      await mkdir(dirname(join(to, path)), { recursive: true })
+      // readFile, not cp: the source may sit inside the app's asar archive.
+      await writeFile(join(to, path), await readFile(join(from, path)))
+    }
   }
 }

@@ -26,7 +26,12 @@ describe('std', () => {
     const fetchMock = vi.fn(async (url: string) =>
       url.endsWith('/api/states/light.desk')
         ? new Response(
-            JSON.stringify({ entity_id: 'light.desk', state: 'on', attributes: {}, last_changed: '' }),
+            JSON.stringify({
+              entity_id: 'light.desk',
+              state: 'on',
+              attributes: {},
+              last_changed: '',
+            }),
           )
         : new Response('[]'),
     )

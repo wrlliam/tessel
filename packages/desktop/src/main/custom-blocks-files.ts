@@ -6,6 +6,7 @@ import countdownTo from '@tessel/plugin-sdk/custom/scaffold/blocks/countdown-to.
 import homeAssistantToggle from '@tessel/plugin-sdk/custom/scaffold/blocks/home-assistant-toggle.ts?raw'
 import pickOne from '@tessel/plugin-sdk/custom/scaffold/blocks/pick-one.ts?raw'
 import webJson from '@tessel/plugin-sdk/custom/scaffold/blocks/web-json.ts?raw'
+import gitBranch from '@tessel/plugin-sdk/custom/scaffold/blocks/git-branch.ts?raw'
 import starter from '@tessel/plugin-sdk/custom/scaffold/blocks/_starter.ts?raw'
 import entry from '@tessel/plugin-sdk/custom/scaffold/index.ts?raw'
 import manifest from '@tessel/plugin-sdk/custom/scaffold/manifest.json?raw'
@@ -30,4 +31,5 @@ export const MY_BLOCKS_FILES: BlockFiles = {
   'blocks/pick-one.ts': pickOne,
   'blocks/web-json.ts': webJson,
   'blocks/home-assistant-toggle.ts': homeAssistantToggle,
+  'blocks/git-branch.ts': gitBranch,
 }

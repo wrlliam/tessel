@@ -20,6 +20,10 @@ export interface CommonDeps {
   openPath: (path: string) => Promise<string>
   writeClipboard: (text: string) => Promise<void>
   readClipboard?: () => Promise<string>
+  zx?: (
+    script: string,
+    opts: { input?: unknown; cwd?: string; signal: AbortSignal },
+  ) => Promise<{ result: unknown; output: string }>
   notify: (title: string, body: string) => void
 }
 
@@ -69,6 +73,7 @@ export const expandHome = (path: string) =>
 
 /** Platform calls that work the same on every OS. */
 export function createCommon(deps: CommonDeps) {
+  const zx = deps.zx
   const doFetch = deps.fetch ?? fetch
   const doRun = deps.runCommand ?? runCommand
 
@@ -119,5 +124,22 @@ export function createCommon(deps: CommonDeps) {
       }
       return doRun(command, signal)
     },
+
+    // zx scripts can run any command, so they follow the shell setting too.
+    ...(zx && {
+      runZx: async (
+        script: string,
+        opts: { input?: unknown; cwd?: string; signal: AbortSignal },
+      ) => {
+        const policy = deps.shellPolicy()
+        if (policy === 'off')
+          throw new UserFacingError(
+            'Scripts and shell commands are turned off. Allow them in Settings if you trust this tile.',
+          )
+        if (policy === 'confirm' && !(await deps.confirmShell(script)))
+          throw new UserFacingError('You chose not to run the script.')
+        return zx(script, opts)
+      },
+    }),
   }
 }

@@ -11,7 +11,9 @@ import { addPluginWithDialog } from './plugins/dialogs.ts'
 import { exportWithDialog, importWithDialog } from './transfer-dialogs.ts'
 import { TesselTray } from './tray.ts'
 import { Updater } from './updater.ts'
-import { ensureMyBlocks, newBlockFile } from './custom-blocks.ts'
+import { ensureMyBlocks, ensurePackage, newBlockFile } from './custom-blocks.ts'
+import { createRequire } from 'node:module'
+import { dirname } from 'node:path'
 import { MY_BLOCKS_FILES, STARTER } from './custom-blocks-files.ts'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -157,7 +159,13 @@ async function start() {
   // My blocks: TypeScript blocks in a folder next to Tessel's data, run as a dev plugin.
   const myBlocksDir = join(app.getPath('userData'), 'my-blocks')
   const myBlocksReady = () => existsSync(join(myBlocksDir, 'manifest.json'))
-  if (myBlocksReady()) void ensureMyBlocks(myBlocksDir, MY_BLOCKS_FILES).catch(() => {})
+  // zx ships with Tessel; My blocks gets its own copy so blocks can import it without npm.
+  const zxDir = dirname(createRequire(import.meta.url).resolve('zx/package.json'))
+  const setUpMyBlocks = async () => {
+    await ensureMyBlocks(myBlocksDir, MY_BLOCKS_FILES)
+    await ensurePackage(myBlocksDir, 'zx', zxDir)
+  }
+  if (myBlocksReady()) void setUpMyBlocks().catch(() => {})
   ipcMain.handle(Channel.createMyBlocks, async () => {
     try {
       await ensureMyBlocks(myBlocksDir, MY_BLOCKS_FILES)

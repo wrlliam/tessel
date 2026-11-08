@@ -2,6 +2,8 @@
   "name": "my-tessel-blocks",
   "private": true,
   "type": "module",
-  "description": "Run `npm install <package>` here to use packages in your blocks.",
-  "dependencies": {}
+  "description": "Run `npm install <package>` here to use packages in your blocks. Tessel keeps zx in node_modules for you.",
+  "dependencies": {
+    "zx": "^8.8.5"
+  }
 }

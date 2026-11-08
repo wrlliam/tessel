@@ -11,6 +11,7 @@ export const phoneDir = () =>
 
 /** Built JS entry that plugin processes start from (an electron-vite main entry). */
 export const pluginRunner = () => join(import.meta.dirname, 'plugin-runner.js')
+export const zxRunner = () => join(import.meta.dirname, 'zx-runner.js')
 
 /** First-party plugins: the repo's plugins folder in development, bundled resources when packaged. */
 export const builtinPluginsDir = () =>

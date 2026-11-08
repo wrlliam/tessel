@@ -5,6 +5,8 @@ import { homedir } from 'node:os'
 import { createCommon, type ShellPolicy } from './common.ts'
 import { createNowPlaying } from './now-playing.ts'
 import { Toaster } from '../toast.ts'
+import { zxRunner } from '../paths.ts'
+import { runZx } from '../zx.ts'
 import { createDarwin } from './darwin.ts'
 import { launch, run } from './exec.ts'
 import { createInput, type Nut } from './input.ts'
@@ -76,6 +78,12 @@ export function createPlatform(shellPolicy: () => ShellPolicy): Platform {
   const common = createCommon({
     shellPolicy,
     confirmShell,
+    zx: (script, opts) =>
+      runZx(zxRunner(), script, {
+        ...opts,
+        execPath: process.execPath,
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      }),
     openExternal: (url) => shell.openExternal(url),
     openPath: (p) => shell.openPath(p),
     writeClipboard: (text) => clipboard.writeText(text),

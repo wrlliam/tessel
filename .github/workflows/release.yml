@@ -80,6 +80,8 @@ jobs:
         shell: bash
         working-directory: packages/desktop
         run: |
+          # Empty secrets arrive as empty strings, which electron-builder reads as a file path.
+          if [ -z "$CSC_LINK" ]; then unset CSC_LINK CSC_KEY_PASSWORD; fi
           # The release job publishes; electron-builder only builds here.
           extra=""
           if [ -n "$APPLE_ID" ] && [ "$RUNNER_OS" = "macOS" ]; then extra="--config.mac.notarize=true"; fi

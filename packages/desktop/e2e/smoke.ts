@@ -301,12 +301,14 @@ try {
     await window.tessel.testRun('default', 'lunch')
     return (await window.tessel.getProfile('default'))?.variables['lunch']
   })
-  if (custom !== 'Soup' && custom !== 'Ramen') throw new Error(`My blocks gave ${JSON.stringify(custom)}`)
+  if (custom !== 'Soup' && custom !== 'Ramen')
+    throw new Error(`My blocks gave ${JSON.stringify(custom)}`)
 
   step('the pop-up shows above other windows')
   const toastShown = await app.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows().some(
-      (w) => w.isVisible() && w.isAlwaysOnTop() && w.webContents.getURL().startsWith('data:text/html'),
+      (w) =>
+        w.isVisible() && w.isAlwaysOnTop() && w.webContents.getURL().startsWith('data:text/html'),
     ),
   )
   if (!toastShown) throw new Error('The pop-up window did not show')

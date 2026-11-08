@@ -3,7 +3,14 @@ import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ensureMyBlocks, newBlockFile, type BlockFiles } from '../src/main/custom-blocks.ts'
+import { createRequire } from 'node:module'
+import { dirname } from 'node:path'
+import {
+  ensureMyBlocks,
+  ensurePackage,
+  newBlockFile,
+  type BlockFiles,
+} from '../src/main/custom-blocks.ts'
 import { PluginManager } from '../src/main/plugins/manager.ts'
 import { forkSpawner } from '../src/main/plugins/process.ts'
 
@@ -32,6 +39,7 @@ afterEach(async () => {
 async function start() {
   const root = await mkdtemp(join(tmpdir(), 'tessel-myblocks-'))
   const dir = await ensureMyBlocks(join(root, 'my-blocks'), await files())
+  await ensurePackage(dir, 'zx', dirname(createRequire(import.meta.url).resolve('zx/package.json')))
   const registry = createRegistry()
   const logs: string[] = []
   const manager = new PluginManager({
@@ -81,6 +89,7 @@ describe('My blocks', () => {
         'my-blocks.pick-one',
         'my-blocks.web-json',
         'my-blocks.home-assistant-toggle',
+        'my-blocks.git-branch',
       ]),
     )
     expect(ids).not.toContain('my-blocks._starter')
@@ -110,6 +119,21 @@ describe('My blocks', () => {
       await engine.trigger(graph(12), { type: 'press' })
       expect(globals.get('way')).toBe('no')
     }
+  })
+
+  it('runs commands with zx from a block', async () => {
+    const { engine, globals } = await start()
+    const t = run('git-branch', { folder: join(import.meta.dirname, '..') }, [
+      { id: 's', type: 'data.setVariable', params: { name: 'branch' }, position: { x: 0, y: 0 } },
+    ])
+    t.graph.edges.push(
+      { id: 'e2', from: { nodeId: 'b', port: 'out' }, to: { nodeId: 's', port: 'in' } },
+      { id: 'e3', from: { nodeId: 'b', port: 'branch' }, to: { nodeId: 's', port: 'value' } },
+    )
+    const r = await engine.trigger(t, { type: 'press' })
+    expect(r?.error).toBeUndefined()
+    expect(typeof globals.get('branch')).toBe('string')
+    expect(String(globals.get('branch')).length).toBeGreaterThan(0)
   })
 
   it('checks params like the inspector shows them', async () => {

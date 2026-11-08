@@ -67,6 +67,8 @@ nsis:
   allowToChangeInstallationDirectory: true
 linux:
   target: [AppImage, deb]
+  # The package name (@tessel/desktop) isn't usable as a file name.
+  executableName: tessel
   category: Utility
   maintainer: William Banham <https://github.com/wrlliam/tessel>
   icon: build/icons

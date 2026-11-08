@@ -90,6 +90,11 @@ export interface Platform {
   /** The song playing in Spotify or the system's media player, if any. */
   nowPlaying?(): Promise<NowPlayingInfo | undefined>
   readClipboard?(): Promise<string>
+  /** Runs a zx script (JavaScript with $`command`); the desktop decides whether scripts may run. */
+  runZx?(
+    script: string,
+    opts: { input?: unknown; cwd?: string; signal: AbortSignal },
+  ): Promise<{ result: unknown; output: string }>
   /** Shows a pop-up message on the computer's screen. */
   toast?(toast: ToastSpec): Promise<void>
   /** Last known location, e.g. shared by a phone. */
