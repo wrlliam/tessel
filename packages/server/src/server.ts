@@ -54,6 +54,8 @@ export interface TesselServerOptions {
   onPress?: (event: PressEvent) => void
   onPageChange?: (deviceId: string, pageId: string) => void
   onPhonesChanged?: (phones: ConnectedPhone[]) => void
+  /** Sent to a phone right after its profile, e.g. live tile states. */
+  welcomeMessages?: () => ServerMessage[]
   /** Advertise _tessel._tcp over mDNS. Off in tests. */
   mdns?: boolean
 }
@@ -276,6 +278,7 @@ export class TesselServer {
         client.device = device
         void this.opts.devices.touch(device.id, msg.deviceName || undefined)
         send({ type: 'profile', profile: toPhoneProfile(this.profile) })
+        this.opts.welcomeMessages?.().forEach(send)
         this.emitPhones()
         return
       }

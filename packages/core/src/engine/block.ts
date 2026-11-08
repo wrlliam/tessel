@@ -29,7 +29,11 @@ export interface RunContext {
   locals: Map<string, unknown>
   signal: AbortSignal
   now(): Date
+  /** Changes how this tile looks on the phone until the next change or reset. */
+  setAppearance(change: AppearanceChange): void
 }
+
+export type AppearanceChange = { label?: string; colour?: string; icon?: string } | 'reset'
 
 export interface BlockResult {
   /** Flow output to follow. Defaults to the block's first flow output. */

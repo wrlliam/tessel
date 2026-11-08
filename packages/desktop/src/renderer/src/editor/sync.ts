@@ -6,7 +6,7 @@ const VALIDATE_DELAY_MS = 200
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined
 
-/** Saves the draft now. Test Run calls this so it always runs what you see. */
+/** Saves the draft now. Test Run and profile switches call this so nothing is lost. */
 export async function saveNow(): Promise<boolean> {
   clearTimeout(saveTimer)
   const { profile, save, setSave } = useEditor.getState()
@@ -19,15 +19,22 @@ export async function saveNow(): Promise<boolean> {
   return result.ok
 }
 
-/** Loads the profile and keeps the editor in step with the main process. */
-export function useEditorSync() {
+/** Saves the current profile, then loads another into the editor. */
+export async function openProfile(id: string) {
+  await saveNow()
+  const profile = await window.tessel.getProfile(id)
+  if (profile) useEditor.getState().open(profile)
+}
+
+/** Loads blocks and the starting profile, then keeps the editor in step with the main process. */
+export function useEditorSync(startProfileId: string) {
   useEffect(() => {
     let live = true
-    void Promise.all([window.tessel.getProfile(), window.tessel.getBlocks()]).then(
-      ([profile, blocks]) => {
-        if (live) useEditor.getState().load(profile, blocks)
-      },
-    )
+    void window.tessel.getBlocks().then((blocks) => {
+      if (!live) return
+      useEditor.getState().setBlocks(blocks)
+      if (!useEditor.getState().profile) void openProfile(startProfileId)
+    })
     const offEngine = window.tessel.onEngineEvent((e) => useEditor.getState().applyEngineEvent(e))
 
     const offSave = useEditor.subscribe((s, prev) => {
@@ -45,12 +52,8 @@ export function useEditorSync() {
       if (!graph) return
       validateTimer = setTimeout(() => {
         void window.tessel.validateGraph(graph).then((issues) => {
-          if (
-            findTile(useEditor.getState().profile, useEditor.getState().selectedTileId)?.graph ===
-            graph
-          ) {
-            useEditor.getState().setIssues(issues)
-          }
+          const now = useEditor.getState()
+          if (findTile(now.profile, now.selectedTileId)?.graph === graph) now.setIssues(issues)
         })
       }, VALIDATE_DELAY_MS)
     })
@@ -63,5 +66,7 @@ export function useEditorSync() {
       clearTimeout(validateTimer)
       void saveNow()
     }
+    // Only the first profile matters here; later switches go through openProfile.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 }

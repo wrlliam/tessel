@@ -36,7 +36,8 @@ try {
   await page.getByRole('button', { name: 'Test run' }).waitFor()
 
   step('add a tile in an empty slot; it starts with On press')
-  await page.getByRole('button', { name: 'Add a tile in row 5, column 1' }).click()
+  await page.getByRole('button', { name: 'Add something in row 5, column 1' }).click()
+  await page.getByRole('button', { name: 'Blank tile' }).click()
   await page.locator('.react-flow__node', { hasText: 'On press' }).waitFor()
 
   step('Space opens the block search; pick Delay')
@@ -99,6 +100,37 @@ try {
   await delay.click()
   await page.getByLabel('Connect out to').selectOption({ label: 'Open app › in' })
   await page.waitForFunction(() => document.querySelectorAll('.react-flow__edge').length === 2)
+
+  step('add a page and switch to it')
+  await page.getByRole('button', { name: 'Page', exact: true }).click()
+  await page.getByText('Tiles on “Page 2”').waitFor()
+
+  step('add a folder; its page gets a Back slot')
+  await page.getByRole('button', { name: 'Add something in row 1, column 2' }).click()
+  await page.getByRole('button', { name: 'Folder' }).click()
+  await page.getByRole('button', { name: /Open “Folder”/ }).click()
+  await page.getByLabel('Back tile, added by the phone').waitFor()
+
+  step('insert a template into the folder')
+  await page.getByRole('button', { name: 'Templates' }).click()
+  await page.getByRole('button', { name: /Counter/ }).click()
+  await page.getByRole('button', { name: 'Tile Count' }).waitFor()
+
+  step('drag a tile to another slot')
+  const tileBox = await page.getByRole('button', { name: 'Tile Count' }).boundingBox()
+  if (!tileBox) throw new Error('No tile')
+  await page.mouse.move(tileBox.x + 20, tileBox.y + 20)
+  await page.mouse.down()
+  await page.mouse.move(tileBox.x + 40, tileBox.y + 60, { steps: 4 })
+  await page.mouse.move(tileBox.x + 20, tileBox.y + 20 + 72, { steps: 4 })
+  await page.mouse.up()
+  await page.waitForTimeout(800)
+  const moved = await page.evaluate(async () => {
+    const p = await window.tessel.getProfile('default')
+    return p?.pages.flatMap((pg) => pg.tiles).find((x) => x.label === 'Count')?.position
+  })
+  if (moved?.col !== 1 || moved.row !== 1) throw new Error(`Tile landed at ${JSON.stringify(moved)}, expected col 1 row 1`)
+  if (shots) await page.screenshot({ path: join(shots, 'e2e-folder.png') })
 
   if (errors.length) throw new Error(`Renderer errors:\n${errors.join('\n')}`)
   console.log('Smoke test passed')

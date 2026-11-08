@@ -19,6 +19,7 @@ describe('orient', () => {
   const page: PhonePage = {
     id: 'p',
     name: 'P',
+    kind: 'page',
     cols: 3,
     rows: 5,
     tiles: [

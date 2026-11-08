@@ -7,7 +7,7 @@ import {
   type OS,
   type Tile,
 } from '@tessel/core'
-import { Copy, Trash2 } from 'lucide-react'
+import { Copy, FolderOpen, Plus, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { Switch } from '../Switch.tsx'
 import { Button } from '../ui/button.tsx'
@@ -15,7 +15,8 @@ import { Field } from '../ui/field.tsx'
 import { Input, Select, Textarea } from '../ui/input.tsx'
 import { ComboField } from './fields/ComboField.tsx'
 import { ConditionField } from './fields/ConditionField.tsx'
-import { useEditor } from './store.ts'
+import { IconPicker } from './IconPicker.tsx'
+import { pageOfTile, useEditor } from './store.ts'
 import { WiresSection } from './WiresSection.tsx'
 import { CATEGORY, TILE_COLOURS } from './theme.ts'
 
@@ -172,21 +173,41 @@ const CONCURRENCY: Array<{ value: Tile['concurrency']; label: string }> = [
   { value: 'restart', label: 'Stop and start over' },
 ]
 
+const range = (n: number) => Array.from({ length: n }, (_, i) => i)
+
 function TileSection({ tile }: { tile: Tile }) {
-  const { updateTile, duplicateTile, deleteTile } = useEditor.getState()
+  const { updateTile, duplicateTile, deleteTile, moveTile, resizeTile, selectPage } =
+    useEditor.getState()
+  const profile = useEditor((s) => s.profile)
+  const page = profile && pageOfTile(profile, tile.id)
   const [confirm, setConfirm] = useState(false)
+  const folder =
+    tile.kind === 'folder' ? profile?.pages.find((p) => p.id === tile.targetPageId) : undefined
+  if (!page) return null
+
   return (
     <section
       aria-label="Tile"
       className="space-y-4 border-t border-line pt-4 first:border-t-0 first:pt-0"
     >
-      <h2 className="font-display text-base font-semibold">Tile</h2>
+      <h2 className="font-display text-base font-semibold">{folder ? 'Folder tile' : 'Tile'}</h2>
+      {folder && (
+        <Button size="sm" variant="primary" onClick={() => selectPage(folder.id)}>
+          <FolderOpen /> Open “{folder.name}”
+        </Button>
+      )}
       <Field label="Label" htmlFor="tile-label">
         <Input
           id="tile-label"
           value={tile.label}
           maxLength={40}
           onChange={(e) => updateTile(tile.id, { label: e.target.value }, 'label')}
+        />
+      </Field>
+      <Field label="Icon">
+        <IconPicker
+          value={tile.icon ?? ''}
+          onChange={(icon) => updateTile(tile.id, icon ? { icon } : { icon: undefined })}
         />
       </Field>
       <Field label="Colour">
@@ -208,29 +229,86 @@ function TileSection({ tile }: { tile: Tile }) {
           />
         </div>
       </Field>
-      <Field label="Pressed while running" htmlFor="tile-concurrency">
-        <Select
-          id="tile-concurrency"
-          value={tile.concurrency}
-          onChange={(e) =>
-            updateTile(tile.id, { concurrency: e.target.value as Tile['concurrency'] })
-          }
-        >
-          {CONCURRENCY.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </Select>
-      </Field>
+      <div className="grid grid-cols-4 gap-2">
+        <Field label="Column" htmlFor="tile-col">
+          <Select
+            id="tile-col"
+            value={tile.position.col}
+            onChange={(e) => moveTile(tile.id, { ...tile.position, col: Number(e.target.value) })}
+          >
+            {range(page.cols).map((i) => (
+              <option key={i} value={i}>
+                {i + 1}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Row" htmlFor="tile-row">
+          <Select
+            id="tile-row"
+            value={tile.position.row}
+            onChange={(e) => moveTile(tile.id, { ...tile.position, row: Number(e.target.value) })}
+          >
+            {range(page.rows).map((i) => (
+              <option key={i} value={i}>
+                {i + 1}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Wide" htmlFor="tile-w">
+          <Select
+            id="tile-w"
+            value={tile.span.w}
+            onChange={(e) => resizeTile(tile.id, { ...tile.span, w: Number(e.target.value) })}
+          >
+            {range(page.cols).map((i) => (
+              <option key={i}>{i + 1}</option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Tall" htmlFor="tile-h">
+          <Select
+            id="tile-h"
+            value={tile.span.h}
+            onChange={(e) => resizeTile(tile.id, { ...tile.span, h: Number(e.target.value) })}
+          >
+            {range(page.rows).map((i) => (
+              <option key={i}>{i + 1}</option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+      {!folder && (
+        <>
+          <Field label="Pressed while running" htmlFor="tile-concurrency">
+            <Select
+              id="tile-concurrency"
+              value={tile.concurrency}
+              onChange={(e) =>
+                updateTile(tile.id, { concurrency: e.target.value as Tile['concurrency'] })
+              }
+            >
+              {CONCURRENCY.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <BindingsEditor tile={tile} />
+        </>
+      )}
       <div className="flex gap-2">
-        <Button size="sm" onClick={() => duplicateTile(tile.id)}>
-          <Copy /> Duplicate
-        </Button>
+        {!folder && (
+          <Button size="sm" onClick={() => duplicateTile(tile.id)}>
+            <Copy /> Duplicate
+          </Button>
+        )}
         {confirm ? (
           <>
             <Button size="sm" variant="danger" onClick={() => deleteTile(tile.id)}>
-              Delete tile
+              {folder ? 'Delete folder and its tiles' : 'Delete tile'}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setConfirm(false)}>
               Keep
@@ -243,6 +321,79 @@ function TileSection({ tile }: { tile: Tile }) {
         )}
       </div>
     </section>
+  )
+}
+
+const FIELDS = [
+  { value: 'label', label: 'Label' },
+  { value: 'colour', label: 'Colour' },
+  { value: 'icon', label: 'Icon' },
+] as const
+
+/** Live appearance: label, colour or icon worked out from variables whenever they change. */
+function BindingsEditor({ tile }: { tile: Tile }) {
+  const { updateTile } = useEditor.getState()
+  const bindings = tile.appearanceBindings
+  const set = (next: Tile['appearanceBindings'], key?: string) =>
+    updateTile(tile.id, { appearanceBindings: next }, key)
+  return (
+    <Field
+      label="Live appearance"
+      help="Shown on the phone instead of the settings above, e.g. Label: Count {{var.count}}. Colour must work out to a value like #F25C6E."
+    >
+      <div className="space-y-2">
+        {bindings.map((b, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <Select
+              aria-label="Shows"
+              className="w-24 shrink-0"
+              value={b.field}
+              onChange={(e) =>
+                set(
+                  bindings.map((x, j) =>
+                    j === i ? { ...x, field: e.target.value as typeof b.field } : x,
+                  ),
+                )
+              }
+            >
+              {FIELDS.map((f) => (
+                <option key={f.value} value={f.value}>
+                  {f.label}
+                </option>
+              ))}
+            </Select>
+            <Input
+              aria-label="Template"
+              className="font-mono"
+              value={b.expression}
+              placeholder="{{var.status}}"
+              onChange={(e) =>
+                set(
+                  bindings.map((x, j) => (j === i ? { ...x, expression: e.target.value } : x)),
+                  `binding:${i}`,
+                )
+              }
+            />
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-7 shrink-0"
+              aria-label="Remove"
+              onClick={() => set(bindings.filter((_, j) => j !== i))}
+            >
+              <X />
+            </Button>
+          </div>
+        ))}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => set([...bindings, { field: 'label', expression: '' }])}
+        >
+          <Plus /> Add
+        </Button>
+      </div>
+    </Field>
   )
 }
 

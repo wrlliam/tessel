@@ -17,12 +17,15 @@ export const PhoneTile = z.object({
   position: z.object({ col: z.int(), row: z.int() }),
   span: z.object({ w: z.int(), h: z.int() }),
   kind: z.enum(['action', 'folder']),
+  /** Folder tiles: the folder page they open. */
+  targetPageId: z.string().optional(),
 })
 export type PhoneTile = z.infer<typeof PhoneTile>
 
 export const PhonePage = z.object({
   id: z.string(),
   name: z.string(),
+  kind: z.enum(['page', 'folder']),
   cols: z.int(),
   rows: z.int(),
   tiles: z.array(PhoneTile),
@@ -43,6 +46,7 @@ export function toPhoneProfile(profile: Profile): PhoneProfile {
     pages: profile.pages.map((page) => ({
       id: page.id,
       name: page.name,
+      kind: page.kind,
       cols: page.cols,
       rows: page.rows,
       tiles: page.tiles.map((t) => {
@@ -55,6 +59,7 @@ export function toPhoneProfile(profile: Profile): PhoneProfile {
           kind: t.kind,
         }
         if (t.icon !== undefined) tile.icon = t.icon
+        if (t.kind === 'folder' && t.targetPageId) tile.targetPageId = t.targetPageId
         return tile
       }),
     })),
@@ -94,6 +99,7 @@ export const TileStateMessage = z.object({
   tileId: TileId,
   label: z.string().optional(),
   colour: HexColour.optional(),
+  /** An empty string removes the icon. */
   icon: z.string().optional(),
 })
 export const PongMessage = z.object({ type: z.literal('pong'), t: z.number() })

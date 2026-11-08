@@ -67,3 +67,9 @@ JSON text frames, max 4 KB from the phone, max 40 messages per second (more clos
 ### Liveness
 
 The desktop sends WebSocket pings every 15 s and drops sockets that miss one. The phone sends `ping` every 10 s and reconnects if no `pong` arrives within 4 s, which catches sockets that died while the phone slept.
+
+## Pages and folders
+
+Pages with `kind: 'page'` are swiped between in profile order. Folder pages are opened by a folder tile and are not part of the swipe order. The phone draws a Back tile in the top-left slot of every folder page, so desktops never put a tile there. Folder navigation happens on the phone; the desktop only hears about it through `pageChange`.
+
+Taps fire when the finger lifts, or after 150 ms of holding still, so a swipe that starts on a tile never presses it. The phone sends `press down` and `press up` together for quick taps.

@@ -31,6 +31,7 @@ beforeEach(async () => {
     logger: silent,
     mdns: false,
     onPress: (e) => presses.push(e),
+    welcomeMessages: () => [{ type: 'tileState', tileId: 'discord', label: 'Live' }],
   })
   const port = await server.start(0, '127.0.0.1')
   base = `http://127.0.0.1:${port}`
@@ -164,6 +165,7 @@ describe('websocket', () => {
     const profile = await c.next()
     expect(profile.type).toBe('profile')
     expect(JSON.stringify(profile)).not.toContain('graph')
+    expect(await c.next()).toEqual({ type: 'tileState', tileId: 'discord', label: 'Live' })
     expect(server.phones()).toHaveLength(1)
 
     c.send({ type: 'press', tileId: 'discord', phase: 'down' })
@@ -180,6 +182,7 @@ describe('websocket', () => {
     await c.opened
     c.send({ type: 'hello', protocol: PROTOCOL_VERSION, token, deviceName: 'iPhone' })
     await c.next()
+    await c.next()
     c.send({ type: 'shell', command: 'whoami' })
     expect(await c.next()).toMatchObject({ type: 'error', code: 'bad-message' })
     c.ws.close()
@@ -191,6 +194,7 @@ describe('websocket', () => {
     await c.opened
     c.send({ type: 'hello', protocol: PROTOCOL_VERSION, token, deviceName: 'iPhone' })
     await c.next()
+    await c.next()
     await devices.revoke(devices.list()[0]?.id ?? '')
     expect(await c.closed).toBe(CloseCode.revoked)
   })
@@ -200,6 +204,7 @@ describe('websocket', () => {
     const c = connect()
     await c.opened
     c.send({ type: 'hello', protocol: PROTOCOL_VERSION, token, deviceName: 'iPhone' })
+    await c.next()
     await c.next()
     server.setProfile({ ...sampleProfile, name: 'Gaming' })
     expect(await c.next()).toMatchObject({ type: 'profile', profile: { name: 'Gaming' } })
@@ -211,6 +216,7 @@ describe('websocket', () => {
     const c = connect()
     await c.opened
     c.send({ type: 'hello', protocol: PROTOCOL_VERSION, token, deviceName: 'iPhone' })
+    await c.next()
     await c.next()
     await server.stop()
     expect(await c.closed).toBe(CloseCode.serverStopping)

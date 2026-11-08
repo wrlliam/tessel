@@ -3,6 +3,7 @@ import {
   describeBlock,
   sampleProfile,
   type Condition,
+  type EngineEvent,
   type Graph,
 } from '@tessel/core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,12 +12,12 @@ import { describeCombo } from '../src/renderer/src/editor/fields/ComboField.tsx'
 import {
   connectionProblem,
   copyNodes,
-  freeCells,
   pasteNodes,
   removeNodes,
   summarise,
 } from '../src/renderer/src/editor/graph-utils.ts'
-import { findTile, useEditor } from '../src/renderer/src/editor/store.ts'
+import { fits, foldersUnder, freeCells } from '../src/renderer/src/editor/layout.ts'
+import { findPage, findTile, useEditor } from '../src/renderer/src/editor/store.ts'
 
 const descriptors = builtinBlocks.map(describeBlock)
 const blocks = new Map(descriptors.map((b) => [b.id, b]))
@@ -163,7 +164,8 @@ describe('condition builder', () => {
 describe('editor store', () => {
   beforeEach(() => {
     useEditor.setState(useEditor.getInitialState(), true)
-    useEditor.getState().load(structuredClone(sampleProfile), descriptors)
+    useEditor.getState().setBlocks(descriptors)
+    useEditor.getState().open(structuredClone(sampleProfile))
   })
   const s = () => useEditor.getState()
   const tile = () => findTile(s().profile, s().selectedTileId)
@@ -239,15 +241,68 @@ describe('editor store', () => {
     expect(copy?.graph.edges).toHaveLength(4)
   })
 
+  it('moves and resizes tiles only into free space', () => {
+    s().moveTile('discord', { col: 2, row: 4 })
+    expect(findTile(s().profile, 'discord')?.position).toEqual({ col: 2, row: 4 })
+    s().moveTile('discord', { col: 0, row: 2 })
+    expect(s().notice).toMatch(/isn't free/)
+    s().resizeTile('lock', { w: 1, h: 2 })
+    expect(findTile(s().profile, 'lock')?.span).toEqual({ w: 1, h: 2 })
+  })
+
+  it('adds a folder with its own page and deletes both together', () => {
+    s().addFolder({ col: 2, row: 4 })
+    const folderTile = findTile(s().profile, s().selectedTileId)
+    const folder = findPage(s().profile, folderTile?.targetPageId ?? null)
+    expect(folder).toMatchObject({ kind: 'folder', name: 'Folder' })
+    s().deleteTile(folderTile?.id ?? '')
+    expect(s().profile?.pages).toHaveLength(1)
+  })
+
+  it('adds, reorders and deletes pages but keeps at least one', () => {
+    s().addPage()
+    const added = s().selectedPageId
+    expect(s().profile?.pages.map((p) => p.name)).toEqual(['Home', 'Page 2'])
+    s().movePage(added ?? '', -1)
+    expect(s().profile?.pages[0]?.id).toBe(added)
+    s().deletePage(added ?? '')
+    s().deletePage('home')
+    expect(s().notice).toMatch(/at least one page/)
+    expect(s().profile?.pages).toHaveLength(1)
+  })
+
+  it('refuses to shrink a page past its tiles', () => {
+    s().updatePage('home', { rows: 2 })
+    expect(s().notice).toMatch(/fall off/)
+    expect(findPage(s().profile, 'home')?.rows).toBe(5)
+  })
+
+  it('inserts a template into the first free slot', async () => {
+    const { templates } = await import('@tessel/core')
+    const counter = templates.find((t) => t.id === 'counter')
+    expect(counter && s().insertTemplate(counter)).toBe(true)
+    expect(findTile(s().profile, s().selectedTileId)).toMatchObject({
+      label: 'Count',
+      position: { col: 2, row: 3 },
+    })
+  })
+
   it('clears selection when undo removes the selected tile', () => {
     s().addTile({ col: 2, row: 4 })
     s().undo()
     expect(s().selectedTileId).toBeNull()
+    expect(s().selectedPageId).toBe('home')
   })
 
-  it('tracks engine events per tile', () => {
-    s().applyEngineEvent({ type: 'run:start', runId: 'r', tileId: 'discord', trigger: 'press' })
+  it('tracks engine events for the open profile only', () => {
     s().applyEngineEvent({
+      profileId: 'other',
+      event: { type: 'run:start', runId: 'x', tileId: 'discord', trigger: 'press' },
+    })
+    expect(s().runs).toHaveLength(0)
+    const ev = (event: EngineEvent) => s().applyEngineEvent({ profileId: 'default', event })
+    ev({ type: 'run:start', runId: 'r', tileId: 'discord', trigger: 'press' })
+    ev({
       type: 'node',
       runId: 'r',
       tileId: 'discord',
@@ -256,7 +311,7 @@ describe('editor store', () => {
       error: 'Nope',
     })
     expect(s().runningTiles['discord']).toBe(true)
-    s().applyEngineEvent({
+    ev({
       type: 'run:end',
       runId: 'r',
       tileId: 'discord',
@@ -269,5 +324,45 @@ describe('editor store', () => {
     expect(s().nodeRuns['discord']?.['action']).toEqual({ status: 'error', error: 'Nope' })
     expect(s().runs.at(-1)).toMatchObject({ status: 'error', failedNodeId: 'action', ms: 5 })
     expect(s().runningTiles['discord']).toBeUndefined()
+  })
+})
+
+describe('layout', () => {
+  const page = structuredClone(sampleProfile.pages[0]!)
+  it('checks fits against bounds and other tiles', () => {
+    expect(fits(page, { col: 2, row: 4 }, { w: 1, h: 1 })).toBe(true)
+    expect(fits(page, { col: 2, row: 4 }, { w: 2, h: 1 })).toBe(false)
+    expect(fits(page, { col: 0, row: 0 }, { w: 1, h: 1 })).toBe(false)
+    expect(fits(page, { col: 0, row: 0 }, { w: 1, h: 1 }, 'discord')).toBe(true)
+  })
+
+  it('keeps the Back slot free in folders', () => {
+    const folder = { ...page, kind: 'folder' as const, tiles: [] }
+    expect(fits(folder, { col: 0, row: 0 }, { w: 1, h: 1 })).toBe(false)
+    expect(freeCells(folder)[0]).toEqual({ col: 1, row: 0 })
+  })
+
+  it('finds nested folders', () => {
+    const profile = {
+      ...sampleProfile,
+      pages: [
+        { ...page, tiles: [{ ...page.tiles[0]!, kind: 'folder' as const, targetPageId: 'f1' }] },
+        {
+          ...page,
+          id: 'f1',
+          kind: 'folder' as const,
+          tiles: [
+            {
+              ...page.tiles[1]!,
+              position: { col: 1, row: 0 },
+              kind: 'folder' as const,
+              targetPageId: 'f2',
+            },
+          ],
+        },
+        { ...page, id: 'f2', kind: 'folder' as const, tiles: [] },
+      ],
+    }
+    expect(foldersUnder(profile, 'home')).toEqual(['f1', 'f2'])
   })
 })

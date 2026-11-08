@@ -66,6 +66,7 @@ function CanvasInner({ tile }: { tile: Tile }) {
   const [selectedEdges, setSelectedEdges] = useState<string[]>([])
   const [hint, setHint] = useState<string>()
   const graph = tile.graph
+  const profileId = useEditor((s) => s.profile?.id ?? '')
 
   // Nodes are derived from the store; only the sizes React Flow measures are kept locally.
   const [measured, setMeasured] = useState<ReadonlyMap<string, { width: number; height: number }>>(
@@ -199,7 +200,7 @@ function CanvasInner({ tile }: { tile: Tile }) {
   }
 
   async function testRun() {
-    if (await saveNow()) await window.tessel.testRun(tile.id)
+    if (await saveNow()) await window.tessel.testRun(profileId, tile.id)
   }
 
   useEffect(() => {
@@ -293,7 +294,7 @@ function CanvasInner({ tile }: { tile: Tile }) {
               <Redo2 />
             </Button>
             {running ? (
-              <Button onClick={() => void window.tessel.stopTile(tile.id)}>
+              <Button onClick={() => void window.tessel.stopTile(profileId, tile.id)}>
                 <Square /> Stop
               </Button>
             ) : (

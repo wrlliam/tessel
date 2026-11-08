@@ -52,7 +52,12 @@ export function App() {
         className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
         forceMount
       >
-        <Editor os={state.platform as OS} />
+        <Editor
+          os={state.platform as OS}
+          profiles={state.profiles}
+          activeProfileId={state.activeProfileId}
+          liveAppearance={state.liveAppearance}
+        />
       </Tabs.Content>
       <Tabs.Content value="phones" className="flex min-h-0 flex-1 flex-col">
         <PhonesView state={state} />

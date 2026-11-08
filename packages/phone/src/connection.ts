@@ -23,6 +23,8 @@ export interface ConnectionState {
   status: Status
   profile?: PhoneProfile
   overrides: Record<string, TileOverride>
+  /** Page the desktop asked to show, with a counter so asking twice still counts. */
+  requestedPage?: { pageId: string; seq: number }
 }
 
 const PING_EVERY_MS = 10_000
@@ -121,7 +123,8 @@ export class Connection {
       case 'profile':
         this.attempt = 0
         this.startPing()
-        this.set({ status: { kind: 'live' }, profile: msg.profile })
+        // Live looks are resent after every profile, so start clean.
+        this.set({ status: { kind: 'live' }, profile: msg.profile, overrides: {} })
         return
       case 'tileState': {
         const { type: _, tileId, ...override } = msg
@@ -138,6 +141,9 @@ export class Connection {
         }
         return
       case 'pageChange':
+        this.set({
+          requestedPage: { pageId: msg.pageId, seq: (this.state.requestedPage?.seq ?? 0) + 1 },
+        })
         return
     }
   }

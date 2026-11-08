@@ -4,7 +4,7 @@
 
 The desktop app is the brain. The phone is a remote that only ever says "tile X pressed".
 
-> Status: **Phase 3 (editor).** Build tiles visually and test them from the desktop. Pages, folders and profiles come in phase 4.
+> Status: **Phase 4 (pages, folders, profiles).** Several profiles, swipeable pages, folders, icons, live tile state, templates and `.tessel` import/export. System settings blocks and the remaining built-ins come in phase 5.
 
 ## Requirements
 
@@ -20,6 +20,10 @@ pnpm dev        # builds the phone client, then starts the desktop app with hot 
 ```
 
 The first `pnpm dev` downloads the Electron binary.
+
+## On the phone
+
+Swipe sideways or tap the dots to change page. Folder tiles open their page; Back returns. A tap fires when you lift your finger (or after a short hold), so starting a swipe on a tile never presses it. The **⋯** menu has **Dim screen** (a dark overlay for OLED phones; tiles still work) and **Forget this computer**.
 
 ## Connect your iPhone
 
@@ -44,10 +48,20 @@ Paired phones are listed in the window. **Remove** disconnects one immediately a
 
 The window has two tabs: **Editor** and **Phones** (pairing and devices).
 
-- **Left:** the page as your phone shows it. Click a tile to edit it; click an empty slot to add one (it starts with an On press block).
+- **Left:** the profile, its pages and the page as your phone shows it.
+  - **Profiles** (e.g. Work, Gaming): create, duplicate, rename, delete, import and export. **Use on phones** picks the one phones see; the tray menu has a Profile submenu too. Each profile has its own variables.
+  - **Pages:** add, rename, reorder, set columns and rows. Phones swipe between pages in this order.
+  - **Tiles:** click an empty slot to add a blank tile, a folder or a template. Drag tiles to move them and drag the corner of the selected tile to resize; the inspector has the same controls for the keyboard.
+  - **Folders** are tiles that open their own page. The phone adds a Back tile in its top-left slot.
 - **Centre:** the block canvas, with a categorised palette beside it. Drag blocks in, or press `Space` or right-click on the canvas to search. Drag from a port to another to wire them; ports only accept compatible wires, and loops are refused.
-- **Right:** the inspector for the selected block's settings, its wires (connect and disconnect without a mouse), and the tile's label, colour and what a press does while it is still running.
+- **Right:** the inspector for the selected block's settings, its wires (connect and disconnect without a mouse), and the tile: label, icon (a named icon or one emoji), colour, position, size, what a press does while it is still running, and **live appearance**.
 - **Bottom:** the run log. Click a failed run to jump to the block that failed.
+
+**Live appearance.** A tile's label, colour or icon can follow variables, e.g. label `Count: {{var.count ?? 0}}`, and the **Set tile appearance** block can change them while a tile runs (use it for status, like a mute tile turning red). The phone and the editor's grid show the live look.
+
+**Templates:** Open an app, Mute mic in Discord, Dark mode by time of day, Type my email, Counter.
+
+**Import and export.** A profile exports as a `.tessel` file (a zip of JSON, including its variables, so check them before sharing). Importing shows which blocks the profile uses and asks before adding it as a new profile.
 
 **Test run** saves and runs the tile; blocks show their status as they run (time taken, failed, skipped). Presses from your phone light up the canvas too. Edits save automatically.
 
@@ -94,7 +108,8 @@ Stored as JSON in the OS app-data folder (`~/Library/Application Support/Tessel`
 
 - `settings.json`: Allow phones, port
 - `devices.json`: paired devices (SHA-256 of each token, never the token)
-- `profiles/default.json`: pages, tiles, graphs and global variables. Created from the starter profile on first run; delete it to reset. The editor saves layout and graphs; variables are left as tiles last set them.
+- `profiles/<id>.json`: one per profile, with pages, tiles, graphs and global variables. The editor saves layout and graphs; variables are left as tiles last set them.
+- `profiles/index.json`: profile order and which one phones use.
 
 Set `TESSEL_DATA_DIR` to use a different folder (handy for testing without touching your tiles).
 

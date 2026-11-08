@@ -1,70 +1,281 @@
-import type { Page } from '@tessel/core'
-import { Plus } from 'lucide-react'
+import {
+  DndContext,
+  PointerSensor,
+  useDraggable,
+  useSensor,
+  useSensors,
+  type DragMoveEvent,
+} from '@dnd-kit/core'
+import type { Appearance, Page, Tile } from '@tessel/core'
+import { Folder, LayoutTemplate, Plus } from 'lucide-react'
+import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { cn } from '../lib/cn.ts'
-import { freeCells } from './graph-utils.ts'
+import { Popover, PopoverAnchor, PopoverContent } from '../ui/popover.tsx'
+import { fits, freeCells, type Cell } from './layout.ts'
 import { useEditor } from './store.ts'
+import { TileFace, textOn } from './TileFace.tsx'
 
 const CELL = 64
 const GAP = 8
+const STEP = CELL + GAP
 
-/** Phone-shaped preview of the page. Click a tile to edit it, or an empty slot to add one. */
-export function TileGrid({ page }: { page: Page }) {
+const place = (col: number, row: number, w = 1, h = 1) => ({
+  left: col * STEP,
+  top: row * STEP,
+  width: w * STEP - GAP,
+  height: h * STEP - GAP,
+  borderRadius: Math.min(w, h) * CELL * 0.2,
+})
+
+interface Props {
+  page: Page
+  live: Record<string, Appearance>
+  onTemplates: (cell: Cell) => void
+}
+
+/** Phone-shaped preview of a page. Drag tiles to move them; drag the corner of the selected tile to resize. */
+export function TileGrid({ page, live, onTemplates }: Props) {
   const selected = useEditor((s) => s.selectedTileId)
   const running = useEditor((s) => s.runningTiles)
-  const { selectTile, addTile } = useEditor.getState()
-  const step = CELL + GAP
-  const place = (col: number, row: number, w = 1, h = 1) => ({
-    left: col * step,
-    top: row * step,
-    width: w * step - GAP,
-    height: h * step - GAP,
-    borderRadius: Math.min(w, h) * CELL * 0.2,
+  const { moveTile, resizeTile, addTile, addFolder } = useEditor.getState()
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+  const [ghost, setGhost] = useState<{
+    col: number
+    row: number
+    w: number
+    h: number
+    ok: boolean
+  }>()
+  const [menu, setMenu] = useState<Cell>()
+  const grid = useRef<HTMLDivElement>(null)
+  // Anchors the slot menu to the clicked cell.
+  const anchor = useRef({
+    getBoundingClientRect: () => {
+      const box = grid.current?.getBoundingClientRect()
+      const cell = menuRef.current
+      if (!box || !cell) return new DOMRect()
+      return new DOMRect(box.left + cell.col * STEP, box.top + cell.row * STEP, CELL, CELL)
+    },
   })
+  const menuRef = useRef<Cell | undefined>(undefined)
+  const openMenu = (cell: Cell) => {
+    menuRef.current = cell
+    setMenu(cell)
+  }
+
+  const target = (tile: Tile, dx: number, dy: number) => ({
+    col: tile.position.col + Math.round(dx / STEP),
+    row: tile.position.row + Math.round(dy / STEP),
+  })
+
+  function onDragMove(e: DragMoveEvent) {
+    const tile = page.tiles.find((t) => t.id === e.active.id)
+    if (!tile) return
+    const to = target(tile, e.delta.x, e.delta.y)
+    setGhost({ ...to, w: tile.span.w, h: tile.span.h, ok: fits(page, to, tile.span, tile.id) })
+  }
 
   return (
     <div className="mx-auto w-fit rounded-[32px] border border-line bg-bg p-4">
-      <div
-        className="relative"
-        style={{ width: page.cols * step - GAP, height: page.rows * step - GAP }}
+      <DndContext
+        sensors={sensors}
+        // The column scrolling under a drag would add to the drop distance.
+        autoScroll={false}
+        onDragMove={onDragMove}
+        onDragCancel={() => setGhost(undefined)}
+        onDragEnd={(e) => {
+          setGhost(undefined)
+          const tile = page.tiles.find((t) => t.id === e.active.id)
+          if (!tile) return
+          const to = target(tile, e.delta.x, e.delta.y)
+          if (to.col !== tile.position.col || to.row !== tile.position.row) moveTile(tile.id, to)
+        }}
       >
-        {freeCells(page).map(({ col, row }) => (
-          <button
-            key={`${col},${row}`}
-            type="button"
-            aria-label={`Add a tile in row ${row + 1}, column ${col + 1}`}
-            onClick={() => addTile({ col, row })}
-            className="group absolute flex items-center justify-center border border-dashed border-line text-muted/0 hover:border-muted hover:text-muted focus-visible:text-muted"
-            style={place(col, row)}
-          >
-            <Plus className="size-4" />
-          </button>
-        ))}
-        {page.tiles.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            aria-pressed={t.id === selected}
-            onClick={() => selectTile(t.id)}
-            className={cn(
-              'absolute flex items-end overflow-hidden p-2 text-left text-[11px] leading-tight font-semibold',
-              t.id === selected && 'ring-2 ring-glaze ring-offset-2 ring-offset-bg',
-              running[t.id] && 'ring-2 ring-ember',
-            )}
-            style={{
-              ...place(t.position.col, t.position.row, t.span.w, t.span.h),
-              background: t.colour,
-              color: textOn(t.colour),
-            }}
-          >
-            <span className="line-clamp-2">{t.label || 'Untitled'}</span>
-          </button>
-        ))}
-      </div>
+        <div
+          ref={grid}
+          className="relative"
+          style={{ width: page.cols * STEP - GAP, height: page.rows * STEP - GAP }}
+        >
+          {freeCells(page).map(({ col, row }) => (
+            <button
+              key={`${col},${row}`}
+              type="button"
+              aria-label={`Add something in row ${row + 1}, column ${col + 1}`}
+              onClick={() => openMenu({ col, row })}
+              className="absolute flex items-center justify-center border border-dashed border-line text-muted/0 hover:border-muted hover:text-muted focus-visible:text-muted"
+              style={place(col, row)}
+            >
+              <Plus className="size-4" />
+            </button>
+          ))}
+          {page.kind === 'folder' && (
+            <div
+              aria-label="Back tile, added by the phone"
+              className="absolute flex flex-col justify-between bg-line p-2 text-[11px] font-semibold text-muted"
+              style={place(0, 0)}
+            >
+              <span aria-hidden>←</span>
+              Back
+            </div>
+          )}
+          {ghost && (
+            <div
+              aria-hidden
+              className={cn(
+                'absolute border-2 border-dashed',
+                ghost.ok ? 'border-glaze' : 'border-signal',
+              )}
+              style={place(ghost.col, ghost.row, ghost.w, ghost.h)}
+            />
+          )}
+          {page.tiles.map((t) => (
+            <GridTile
+              key={t.id}
+              page={page}
+              tile={t}
+              look={live[t.id] ?? { label: t.label, colour: t.colour, icon: t.icon ?? '' }}
+              selected={t.id === selected}
+              running={running[t.id] === true}
+              onResize={(span) => resizeTile(t.id, span)}
+            />
+          ))}
+        </div>
+      </DndContext>
+      <Popover open={menu !== undefined} onOpenChange={(open) => !open && setMenu(undefined)}>
+        <PopoverAnchor virtualRef={anchor} />
+        <PopoverContent className="w-48 p-1" aria-label="Add to this slot">
+          {menu && (
+            <>
+              <MenuItem
+                onClick={() => {
+                  addTile(menu)
+                  setMenu(undefined)
+                }}
+              >
+                <Plus /> Blank tile
+              </MenuItem>
+              {page.kind === 'page' && (
+                <MenuItem
+                  onClick={() => {
+                    addFolder(menu)
+                    setMenu(undefined)
+                  }}
+                >
+                  <Folder /> Folder
+                </MenuItem>
+              )}
+              <MenuItem
+                onClick={() => {
+                  onTemplates(menu)
+                  setMenu(undefined)
+                }}
+              >
+                <LayoutTemplate /> From a template…
+              </MenuItem>
+            </>
+          )}
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }
 
-function textOn(hex: string) {
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
-  return 0.299 * (r ?? 0) + 0.587 * (g ?? 0) + 0.114 * (b ?? 0) > 150 ? '#0E1116' : '#F4F6F8'
+function MenuItem({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-line [&_svg]:size-4"
+    >
+      {children}
+    </button>
+  )
+}
+
+interface TileProps {
+  page: Page
+  tile: Tile
+  look: Appearance
+  selected: boolean
+  running: boolean
+  onResize: (span: { w: number; h: number }) => void
+}
+
+function GridTile({ page, tile, look, selected, running, onResize }: TileProps) {
+  const { selectTile } = useEditor.getState()
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: tile.id })
+  const [resize, setResize] = useState<{
+    x: number
+    y: number
+    span: { w: number; h: number }
+  } | null>(null)
+  const shown = resize ? resize.span : tile.span
+
+  function startResize(e: ReactPointerEvent) {
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setResize({ x: e.clientX, y: e.clientY, span: tile.span })
+  }
+
+  function moveResize(e: ReactPointerEvent) {
+    if (!resize) return
+    const w = Math.max(1, tile.span.w + Math.round((e.clientX - resize.x) / STEP))
+    const h = Math.max(1, tile.span.h + Math.round((e.clientY - resize.y) / STEP))
+    if (
+      (w !== resize.span.w || h !== resize.span.h) &&
+      fits(page, tile.position, { w, h }, tile.id)
+    ) {
+      setResize({ ...resize, span: { w, h } })
+    }
+  }
+
+  function endResize() {
+    if (!resize) return
+    setResize(null)
+    onResize(resize.span)
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn('absolute', isDragging && 'z-10 opacity-80')}
+      style={{
+        ...place(tile.position.col, tile.position.row, shown.w, shown.h),
+        transform: transform ? `translate(${transform.x}px, ${transform.y}px)` : undefined,
+      }}
+    >
+      <button
+        type="button"
+        {...listeners}
+        {...attributes}
+        role="button"
+        aria-pressed={selected}
+        aria-label={`${tile.kind === 'folder' ? 'Folder' : 'Tile'} ${look.label || 'Untitled'}`}
+        onClick={() => selectTile(tile.id)}
+        className={cn(
+          'flex size-full flex-col justify-between overflow-hidden p-2 text-left text-[11px] leading-tight font-semibold',
+          selected && 'ring-2 ring-glaze ring-offset-2 ring-offset-bg',
+          running && 'ring-2 ring-ember',
+        )}
+        style={{ borderRadius: 'inherit', background: look.colour, color: textOn(look.colour) }}
+      >
+        <TileFace
+          look={look}
+          size={Math.min(shown.w, shown.h) * CELL}
+          folder={tile.kind === 'folder'}
+        />
+      </button>
+      {selected && (
+        <div
+          role="presentation"
+          title="Drag to resize"
+          onPointerDown={startResize}
+          onPointerMove={moveResize}
+          onPointerUp={endResize}
+          onPointerCancel={endResize}
+          className="absolute -right-1.5 -bottom-1.5 size-3.5 cursor-nwse-resize rounded-sm border-2 border-bg bg-glaze"
+        />
+      )}
+    </div>
+  )
 }

@@ -4,6 +4,7 @@ import { Channel, type DesktopState } from '../shared/api.ts'
 import { Hub } from './hub.ts'
 import { phoneDir } from './paths.ts'
 import { createPlatform } from './platform/index.ts'
+import { exportWithDialog, importWithDialog } from './transfer-dialogs.ts'
 import { TesselTray } from './tray.ts'
 import { currentWindow, markQuitting, showWindow } from './window.ts'
 
@@ -54,6 +55,7 @@ async function start() {
     setAllowPhones: (on) => void hub.setAllowPhones(on),
     setPaused: (on) => hub.setPaused(on),
     setStartOnLogin,
+    setActiveProfile: (id) => void hub.setActiveProfile(id),
     quit,
   })
 
@@ -73,15 +75,44 @@ async function start() {
   ipcMain.handle(Channel.revokeDevice, (_e, id: unknown) => {
     if (typeof id === 'string') return hub.revokeDevice(id)
   })
+  const str = (v: unknown): v is string => typeof v === 'string'
   ipcMain.handle(Channel.getBlocks, () => hub.blocks())
-  ipcMain.handle(Channel.getProfile, () => hub.getProfile())
+  ipcMain.handle(Channel.getProfile, (_e, id: unknown) =>
+    str(id) ? hub.getProfile(id) : undefined,
+  )
   ipcMain.handle(Channel.saveProfile, (_e, profile: unknown) => hub.saveProfile(profile))
-  ipcMain.handle(Channel.validateGraph, (_e, graph: unknown) => hub.checkGraph(graph))
-  ipcMain.handle(Channel.testRun, (_e, id: unknown) => {
-    if (typeof id === 'string') return hub.testRun(id)
+  ipcMain.handle(Channel.createProfile, (_e, name: unknown) =>
+    hub.createProfile(str(name) ? name : ''),
+  )
+  ipcMain.handle(Channel.duplicateProfile, (_e, id: unknown) =>
+    str(id) ? hub.duplicateProfile(id) : undefined,
+  )
+  ipcMain.handle(Channel.deleteProfile, (_e, id: unknown) =>
+    str(id) ? hub.deleteProfile(id) : false,
+  )
+  ipcMain.handle(Channel.setActiveProfile, (_e, id: unknown) =>
+    str(id) ? hub.setActiveProfile(id) : undefined,
+  )
+  ipcMain.handle(Channel.exportProfile, (_e, id: unknown) =>
+    str(id) ? exportWithDialog(hub, currentWindow(), id) : false,
+  )
+  ipcMain.handle(Channel.importProfile, () => importWithDialog(hub, currentWindow()))
+  ipcMain.handle(Channel.addVariables, (_e, profileId: unknown, values: unknown) => {
+    if (str(profileId) && values && typeof values === 'object') {
+      const safe = Object.fromEntries(
+        Object.entries(values).filter(
+          ([, v]) => v === null || ['string', 'number', 'boolean'].includes(typeof v),
+        ),
+      )
+      hub.addVariables(profileId, safe)
+    }
   })
-  ipcMain.handle(Channel.stopTile, (_e, id: unknown) => {
-    if (typeof id === 'string') hub.stopTile(id)
+  ipcMain.handle(Channel.validateGraph, (_e, graph: unknown) => hub.checkGraph(graph))
+  ipcMain.handle(Channel.testRun, (_e, profileId: unknown, tileId: unknown) => {
+    if (str(profileId) && str(tileId)) return hub.testRun(profileId, tileId)
+  })
+  ipcMain.handle(Channel.stopTile, (_e, profileId: unknown, tileId: unknown) => {
+    if (str(profileId) && str(tileId)) hub.stopTile(profileId, tileId)
   })
 
   await hub.init()

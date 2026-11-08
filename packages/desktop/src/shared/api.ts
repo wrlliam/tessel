@@ -1,4 +1,12 @@
-import type { BlockDescriptor, EngineEvent, Graph, GraphIssue, Profile } from '@tessel/core'
+import type {
+  Appearance,
+  BlockDescriptor,
+  EngineEvent,
+  Graph,
+  GraphIssue,
+  JsonValue,
+  Profile,
+} from '@tessel/core'
 import type { PairingCode } from '@tessel/server'
 
 export interface LogEntry {
@@ -30,7 +38,20 @@ export interface DesktopState {
   paused: boolean
   startOnLogin: boolean | null
   log: LogEntry[]
+  profiles: Array<{ id: string; name: string }>
+  /** The profile phones see and press. */
+  activeProfileId: string
+  /** Tiles in the active profile that currently look different from their settings. */
+  liveAppearance: Record<string, Appearance>
 }
+
+export interface ProfileEngineEvent {
+  profileId: string
+  event: EngineEvent
+}
+
+export type ImportResult =
+  { ok: true; id: string } | { ok: false; error: string } | { ok: false; cancelled: true }
 
 /** Everything the renderer may ask the main process to do. */
 export interface TesselApi {
@@ -42,13 +63,22 @@ export interface TesselApi {
   newPairingCode(): Promise<void>
   revokeDevice(id: string): Promise<void>
   getBlocks(): Promise<BlockDescriptor[]>
-  getProfile(): Promise<Profile>
+  getProfile(id: string): Promise<Profile | undefined>
   saveProfile(profile: Profile): Promise<SaveResult>
+  createProfile(name: string): Promise<string>
+  duplicateProfile(id: string): Promise<string | undefined>
+  deleteProfile(id: string): Promise<boolean>
+  setActiveProfile(id: string): Promise<void>
+  /** Opens a save dialog. Resolves false if cancelled. */
+  exportProfile(id: string): Promise<boolean>
+  /** Opens a file dialog, shows what the profile can do and asks before adding it. */
+  importProfile(): Promise<ImportResult>
+  addVariables(profileId: string, values: Record<string, JsonValue>): Promise<void>
   validateGraph(graph: Graph): Promise<GraphIssue[]>
   /** Runs the saved tile as if it were pressed. */
-  testRun(tileId: string): Promise<void>
-  stopTile(tileId: string): Promise<void>
-  onEngineEvent(listener: (event: EngineEvent) => void): () => void
+  testRun(profileId: string, tileId: string): Promise<void>
+  stopTile(profileId: string, tileId: string): Promise<void>
+  onEngineEvent(listener: (event: ProfileEngineEvent) => void): () => void
 }
 
 export type SaveResult = { ok: true } | { ok: false; error: string }
@@ -64,6 +94,13 @@ export const Channel = {
   getBlocks: 'blocks:list',
   getProfile: 'profile:get',
   saveProfile: 'profile:save',
+  createProfile: 'profile:create',
+  duplicateProfile: 'profile:duplicate',
+  deleteProfile: 'profile:delete',
+  setActiveProfile: 'profile:activate',
+  exportProfile: 'profile:export',
+  importProfile: 'profile:import',
+  addVariables: 'profile:add-variables',
   validateGraph: 'graph:validate',
   testRun: 'tile:test-run',
   stopTile: 'tile:stop',

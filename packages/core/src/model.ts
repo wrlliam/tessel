@@ -64,12 +64,16 @@ export const Page = z
   .object({
     id: Id,
     name: z.string().min(1).max(40),
+    /** 'page' pages are swiped between; 'folder' pages open from a folder tile. */
+    kind: z.enum(['page', 'folder']).default('page'),
     cols: z.int().min(1).max(12).default(3),
     rows: z.int().min(1).max(12).default(5),
     tiles: z.array(Tile).default([]),
   })
   .superRefine((page, ctx) => {
     const taken = new Map<string, string>()
+    // Phones draw the Back tile in the top-left slot of every folder.
+    if (page.kind === 'folder') taken.set('0,0', 'Back')
     page.tiles.forEach((tile, i) => {
       const { col, row } = tile.position
       const { w, h } = tile.span
@@ -111,6 +115,14 @@ export const Profile = z
     if (pageIds.size !== profile.pages.length) {
       ctx.addIssue({ code: 'custom', message: 'Page ids must be unique', path: ['pages'] })
     }
+    if (!profile.pages.some((p) => p.kind === 'page')) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'A profile needs at least one page',
+        path: ['pages'],
+      })
+    }
+    const folderPages = new Set(profile.pages.filter((p) => p.kind === 'folder').map((p) => p.id))
     const tileIds = new Set<string>()
     profile.pages.forEach((page, pi) =>
       page.tiles.forEach((tile, ti) => {
@@ -122,10 +134,10 @@ export const Profile = z
           })
         }
         tileIds.add(tile.id)
-        if (tile.targetPageId && !pageIds.has(tile.targetPageId)) {
+        if (tile.kind === 'folder' && tile.targetPageId && !folderPages.has(tile.targetPageId)) {
           ctx.addIssue({
             code: 'custom',
-            message: `Folder tile "${tile.id}" points at missing page "${tile.targetPageId}"`,
+            message: `Folder tile "${tile.id}" points at "${tile.targetPageId}", which is not a folder page`,
             path: ['pages', pi, 'tiles', ti, 'targetPageId'],
           })
         }

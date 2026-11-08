@@ -1,6 +1,7 @@
 import type { Graph, GraphEdge, GraphNode } from '../model.ts'
 import {
   isDataBlock,
+  type AppearanceChange,
   type BlockDefinition,
   type BlockRegistry,
   type RunContext,
@@ -58,6 +59,7 @@ export interface EngineOptions {
   platform: Platform
   globals: VariableStore
   onEvent?: (event: EngineEvent) => void
+  onAppearance?: (tileId: string, change: AppearanceChange) => void
   now?: () => Date
   /** Most blocks one run may execute. */
   maxSteps?: number
@@ -295,6 +297,7 @@ class Run {
         locals: this.locals,
         signal,
         now: () => this.engine.opts.now?.() ?? new Date(),
+        setAppearance: (change) => this.engine.opts.onAppearance?.(this.tile.id, change),
       }
       const result = (await raceAbort(Promise.resolve(def.run(ctx, params, input)), signal)) ?? {}
       this.outputs.set(node.id, result.values ?? {})

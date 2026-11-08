@@ -19,6 +19,10 @@ export default defineConfig([
     },
   },
   {
+    files: ['**/test/**', '**/e2e/**'],
+    rules: { '@typescript-eslint/no-non-null-assertion': 'off' },
+  },
+  {
     files: ['packages/phone/**/*.{ts,tsx}', 'packages/desktop/src/renderer/**/*.{ts,tsx}'],
     extends: [reactHooks.configs.flat.recommended],
     languageOptions: { globals: { ...globals.browser } },

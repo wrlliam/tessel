@@ -1,22 +1,23 @@
 import {
+  applyChange,
   createRegistry,
   describeBlock,
-  Engine,
   Graph,
-  validateGraph,
-  type BlockDescriptor,
-  type GraphIssue,
   Profile,
-  PROFILE_SCHEMA_VERSION,
-  sampleProfile,
+  resolveAppearance,
+  sameAppearance,
+  validateGraph,
+  type Appearance,
+  type AppearanceChange,
+  type BlockDescriptor,
   type EngineEvent,
+  type GraphIssue,
   type JsonValue,
   type Platform,
+  type ServerMessage,
   type Tile,
-  type VariableStore,
 } from '@tessel/core'
 import {
-  createJsonStore,
   DeviceRegistry,
   PairingCodes,
   TesselServer,
@@ -29,12 +30,14 @@ import {
 } from '@tessel/server'
 import { join } from 'node:path'
 import QRCode from 'qrcode'
-import type { DesktopState, LogEntry, SaveResult } from '../shared/api.ts'
+import type { DesktopState, LogEntry, ProfileEngineEvent, SaveResult } from '../shared/api.ts'
+import { newProfileId, ProfileLibrary } from './profiles.ts'
+import { ProfileRuntime } from './runtime.ts'
 import { settingsStore, type Settings } from './settings.ts'
+import { blocksUsed, packProfile, unpackProfile } from './transfer.ts'
 
 const LOG_LIMIT = 200
 const NETWORK_POLL_MS = 10_000
-const VARIABLE_SAVE_DELAY_MS = 500
 
 export type HubState = Omit<DesktopState, 'platform' | 'startOnLogin'>
 
@@ -49,18 +52,23 @@ export interface HubOptions {
   mdns?: boolean
 }
 
-/** Owns the server, pairing and devices. Electron-free so it can be unit-tested. */
+const tilesOf = (p: Profile) => p.pages.flatMap((pg) => pg.tiles)
+const baseLook = (t: Tile): Appearance => ({ label: t.label, colour: t.colour, icon: t.icon ?? '' })
+
+/** Owns the server, pairing, devices, profiles and engines. Electron-free so it can be unit-tested. */
 export class Hub {
   private settings!: Settings
   private store: JsonStore<Settings>
   private devices: DeviceRegistry
   private pairing = new PairingCodes()
   private server: TesselServer
-  private profile: Profile = sampleProfile
-  private profileStore: JsonStore<Profile>
-  private saveTimer?: NodeJS.Timeout
+  private library: ProfileLibrary
+  private runtimes = new Map<string, ProfileRuntime>()
   private registry = createRegistry()
-  private engine: Engine
+  /** Run-time look changes from Set tile appearance, for the active profile. */
+  private overrides = new Map<string, Partial<Appearance>>()
+  /** What phones currently show for tiles that differ from their own look. */
+  private live = new Map<string, Appearance>()
   private phones: ConnectedPhone[] = []
   private paused = false
   private listening = false
@@ -70,7 +78,7 @@ export class Hub {
   private log: LogEntry[] = []
   private logId = 0
   private listeners = new Set<() => void>()
-  private engineListeners = new Set<(event: EngineEvent) => void>()
+  private engineListeners = new Set<(event: ProfileEngineEvent) => void>()
   private codeTimer?: NodeJS.Timeout
   private networkTimer?: NodeJS.Timeout
   readonly logger: Logger = {
@@ -82,18 +90,7 @@ export class Hub {
   constructor(private opts: HubOptions) {
     this.store = settingsStore(join(opts.dataDir, 'settings.json'))
     this.devices = new DeviceRegistry(join(opts.dataDir, 'devices.json'))
-    this.profileStore = createJsonStore({
-      file: join(opts.dataDir, 'profiles', 'default.json'),
-      schemaVersion: PROFILE_SCHEMA_VERSION,
-      schema: Profile,
-      defaults: () => sampleProfile,
-    })
-    this.engine = new Engine({
-      registry: this.registry,
-      platform: opts.platform,
-      globals: this.globals,
-      onEvent: (e) => this.handleEngineEvent(e),
-    })
+    this.library = new ProfileLibrary(join(opts.dataDir, 'profiles'), (m) => this.logger.warn(m))
     this.devices.onChange(() => this.emit())
     this.pairing.onChange(() => {
       this.scheduleCodeRotation()
@@ -102,7 +99,11 @@ export class Hub {
     this.server = new TesselServer({
       devices: this.devices,
       pairing: this.pairing,
-      profile: this.profile,
+      profile: Profile.parse({
+        id: 'loading',
+        name: 'Loading',
+        pages: [{ id: 'p', name: 'Loading' }],
+      }),
       phoneDir: opts.phoneDir,
       logger: this.logger,
       mdns: opts.mdns ?? true,
@@ -111,16 +112,15 @@ export class Hub {
         this.phones = phones
         this.emit()
       },
+      welcomeMessages: () => [...this.live].map(([tileId, look]) => tileStateMessage(tileId, look)),
     })
   }
 
   async init() {
     this.settings = await this.store.load()
     await this.devices.load()
-    this.profile = await this.profileStore.load()
-    // Write it back so a fresh install has a file to inspect, and older files get migrated on disk.
-    await this.profileStore.save(this.profile)
-    this.server.setProfile(this.profile)
+    await this.library.load()
+    this.activate()
     this.scheduleCodeRotation()
     this.networkTimer = setInterval(() => void this.refreshNetwork(), NETWORK_POLL_MS)
     if (this.settings.allowPhones) await this.startServer()
@@ -138,6 +138,9 @@ export class Hub {
       devices: this.devices.list().map((d) => ({ ...d, online: online.has(d.id) })),
       paused: this.paused,
       log: this.log,
+      profiles: this.library.list(),
+      activeProfileId: this.library.activeId,
+      liveAppearance: Object.fromEntries(this.live),
     }
     if (this.serverError) state.serverError = this.serverError
     return state
@@ -148,7 +151,7 @@ export class Hub {
     return () => this.listeners.delete(listener)
   }
 
-  onEngineEvent(listener: (event: EngineEvent) => void): () => void {
+  onEngineEvent(listener: (event: ProfileEngineEvent) => void): () => void {
     this.engineListeners.add(listener)
     return () => this.engineListeners.delete(listener)
   }
@@ -157,8 +160,8 @@ export class Hub {
     return this.registry.list().map(describeBlock)
   }
 
-  getProfile(): Profile {
-    return this.profile
+  getProfile(id: string): Profile | undefined {
+    return this.library.get(id)
   }
 
   /** Saves the editor's layout and graphs. Variables stay as the engine left them. */
@@ -168,12 +171,91 @@ export class Hub {
       const issue = parsed.error.issues[0]
       return { ok: false, error: issue?.message ?? 'The profile is not valid' }
     }
-    this.profile = { ...parsed.data, variables: this.profile.variables }
-    clearTimeout(this.saveTimer)
-    this.saveTimer = undefined
-    await this.profileStore.save(this.profile)
-    this.server.setProfile(this.profile)
+    const current = this.library.get(parsed.data.id)
+    if (!current) return { ok: false, error: 'That profile no longer exists' }
+    await this.library.save({ ...parsed.data, variables: current.variables })
+    if (parsed.data.id === this.library.activeId) this.refreshActive()
+    this.emit()
     return { ok: true }
+  }
+
+  async createProfile(name: string): Promise<string> {
+    const id = newProfileId()
+    await this.library.save(
+      Profile.parse({
+        id,
+        name: this.library.uniqueName(name.trim() || 'New profile'),
+        pages: [{ id: 'home', name: 'Home' }],
+      }),
+    )
+    this.emit()
+    return id
+  }
+
+  async duplicateProfile(id: string): Promise<string | undefined> {
+    const source = this.library.get(id)
+    if (!source) return undefined
+    await this.runtimes.get(id)?.flush()
+    const copy = {
+      ...structuredClone(source),
+      id: newProfileId(),
+      name: this.library.uniqueName(source.name),
+    }
+    await this.library.save(copy)
+    this.emit()
+    return copy.id
+  }
+
+  async deleteProfile(id: string): Promise<boolean> {
+    const wasActive = id === this.library.activeId
+    await this.runtimes.get(id)?.dispose()
+    this.runtimes.delete(id)
+    const removed = await this.library.remove(id)
+    if (removed && wasActive) this.activate()
+    this.emit()
+    return removed
+  }
+
+  async setActiveProfile(id: string) {
+    if (!this.library.has(id) || id === this.library.activeId) return
+    await this.library.setActive(id)
+    this.activate()
+    this.logger.info(`Phones now use "${this.library.active().name}"`)
+  }
+
+  /** Adds variables a template needs, keeping any that already exist. */
+  addVariables(profileId: string, values: Record<string, JsonValue>) {
+    const profile = this.library.get(profileId)
+    if (!profile) return
+    const missing = Object.fromEntries(
+      Object.entries(values).filter(([k]) => !Object.hasOwn(profile.variables, k)),
+    )
+    if (Object.keys(missing).length) this.runtime(profileId).setVariables(missing)
+  }
+
+  async exportProfile(id: string): Promise<Uint8Array | undefined> {
+    const profile = this.library.get(id)
+    if (!profile) return undefined
+    await this.runtimes.get(id)?.flush()
+    return packProfile(this.library.get(id) ?? profile)
+  }
+
+  /** Reads a .tessel file. Throws ImportError with a readable message. */
+  previewImport(bytes: Uint8Array): { name: string; blocks: string[]; profile: Profile } {
+    const profile = unpackProfile(bytes)
+    return {
+      name: profile.name,
+      blocks: blocksUsed(profile, (t) => this.registry.get(t)?.name),
+      profile,
+    }
+  }
+
+  async addImported(profile: Profile): Promise<string> {
+    const id = newProfileId()
+    await this.library.save({ ...profile, id, name: this.library.uniqueName(profile.name) })
+    this.logger.info(`Imported "${profile.name}"`)
+    this.emit()
+    return id
   }
 
   checkGraph(input: unknown): GraphIssue[] {
@@ -182,13 +264,13 @@ export class Hub {
     return validateGraph(graph.data, this.registry)
   }
 
-  async testRun(tileId: string) {
-    const tile = this.findTile(tileId)
-    if (tile) await this.engine.trigger(tile, { type: 'press' })
+  async testRun(profileId: string, tileId: string) {
+    const tile = this.findTile(profileId, tileId)
+    if (tile) await this.runtime(profileId).engine.trigger(tile, { type: 'press' })
   }
 
-  stopTile(tileId: string) {
-    this.engine.cancel(tileId)
+  stopTile(profileId: string, tileId: string) {
+    this.runtimes.get(profileId)?.engine.cancel(tileId)
   }
 
   async setAllowPhones(on: boolean) {
@@ -200,7 +282,7 @@ export class Hub {
 
   setPaused(on: boolean) {
     this.paused = on
-    if (on) this.engine.cancelAll()
+    if (on) for (const r of this.runtimes.values()) r.engine.cancelAll()
     this.logger.info(on ? 'Paused all tiles' : 'Resumed tiles')
   }
 
@@ -213,15 +295,105 @@ export class Hub {
     if (await this.devices.revoke(id)) this.logger.info(`Removed "${name}"`)
   }
 
+  async press({ deviceId, tileId, phase }: PressEvent): Promise<void> {
+    const profileId = this.library.activeId
+    const tile = this.findTile(profileId, tileId)
+    if (!tile || tile.kind === 'folder') return
+    const label = tile.label || tileId
+    if (this.paused) {
+      if (phase === 'down') {
+        const device = this.devices.list().find((d) => d.id === deviceId)
+        this.logger.info(`Ignored "${label}" from ${device?.name ?? 'a phone'}: tiles are paused`)
+      }
+      return
+    }
+    if (tile.graph.nodes.length === 0) {
+      if (phase === 'down') this.logger.info(`"${label}" has no blocks yet`)
+      return
+    }
+    await this.runtime(profileId).engine.trigger(tile, {
+      type: phase === 'down' ? 'press' : 'release',
+    })
+  }
+
   async dispose() {
     clearTimeout(this.codeTimer)
     clearInterval(this.networkTimer)
-    this.engine.cancelAll()
     await this.server.dispose()
-    if (this.saveTimer) {
-      clearTimeout(this.saveTimer)
-      await this.profileStore.save(this.profile)
+    await Promise.all([...this.runtimes.values()].map((r) => r.dispose()))
+  }
+
+  private runtime(profileId: string): ProfileRuntime {
+    let runtime = this.runtimes.get(profileId)
+    if (!runtime) {
+      runtime = new ProfileRuntime({
+        registry: this.registry,
+        platform: this.opts.platform,
+        get: () => this.library.get(profileId) as Profile,
+        replace: (p) => this.library.put(p),
+        persist: (p) => this.library.save(p),
+        onEvent: (e) => this.handleEngineEvent(profileId, e),
+        onAppearance: (tileId, change) => this.changeAppearance(profileId, tileId, change),
+        onVariablesChanged: () => {
+          if (profileId === this.library.activeId) this.pushAppearances()
+        },
+        onSaveError: (err) => this.logger.error(`Couldn't save variables: ${err.message}`),
+      })
+      this.runtimes.set(profileId, runtime)
     }
+    return runtime
+  }
+
+  /** Points phones at the active profile with fresh run-time looks. */
+  private activate() {
+    this.overrides.clear()
+    this.live.clear()
+    this.server.setProfile(this.library.active())
+    this.pushAppearances()
+    this.emit()
+  }
+
+  /** The active profile was edited: resend it and recompute looks. */
+  private refreshActive() {
+    const ids = new Set(tilesOf(this.library.active()).map((t) => t.id))
+    for (const id of this.overrides.keys()) if (!ids.has(id)) this.overrides.delete(id)
+    this.live.clear()
+    this.server.setProfile(this.library.active())
+    this.pushAppearances()
+  }
+
+  private changeAppearance(profileId: string, tileId: string, change: AppearanceChange) {
+    if (profileId !== this.library.activeId) return
+    const next = applyChange(this.overrides.get(tileId), change)
+    if (next) this.overrides.set(tileId, next)
+    else this.overrides.delete(tileId)
+    this.pushAppearances()
+  }
+
+  /** Sends phones every tile whose look changed since the last push. */
+  private pushAppearances() {
+    const profile = this.library.active()
+    const scope = { var: profile.variables }
+    let changed = false
+    for (const tile of tilesOf(profile)) {
+      const look = resolveAppearance(
+        tile,
+        { ...scope, tile: { id: tile.id } },
+        this.overrides.get(tile.id),
+      )
+      const shown = this.live.get(tile.id) ?? baseLook(tile)
+      if (sameAppearance(look, shown)) continue
+      if (sameAppearance(look, baseLook(tile))) this.live.delete(tile.id)
+      else this.live.set(tile.id, look)
+      this.server.broadcast(tileStateMessage(tile.id, look))
+      changed = true
+    }
+    if (changed) this.emit()
+  }
+
+  private findTile(profileId: string, tileId: string): Tile | undefined {
+    const profile = this.library.get(profileId)
+    return profile && tilesOf(profile).find((t) => t.id === tileId)
   }
 
   private async startServer() {
@@ -263,49 +435,10 @@ export class Hub {
     this.emit()
   }
 
-  /** Global variables live in the profile and are saved shortly after they change. */
-  private globals: VariableStore = {
-    get: (name) =>
-      Object.hasOwn(this.profile.variables, name) ? this.profile.variables[name] : undefined,
-    set: (name: string, value: JsonValue) => {
-      this.profile = { ...this.profile, variables: { ...this.profile.variables, [name]: value } }
-      clearTimeout(this.saveTimer)
-      this.saveTimer = setTimeout(() => {
-        this.saveTimer = undefined
-        void this.profileStore
-          .save(this.profile)
-          .catch((err: Error) => this.logger.error(`Couldn't save variables: ${err.message}`))
-      }, VARIABLE_SAVE_DELAY_MS)
-    },
-    all: () => ({ ...this.profile.variables }),
-  }
-
-  private findTile(tileId: string): Tile | undefined {
-    return this.profile.pages.flatMap((p) => p.tiles).find((t) => t.id === tileId)
-  }
-
-  async press({ deviceId, tileId, phase }: PressEvent): Promise<void> {
-    const tile = this.findTile(tileId)
-    if (!tile) return
-    const label = tile.label || tileId
-    if (this.paused) {
-      if (phase === 'down') {
-        const device = this.devices.list().find((d) => d.id === deviceId)
-        this.logger.info(`Ignored "${label}" from ${device?.name ?? 'a phone'}: tiles are paused`)
-      }
-      return
-    }
-    if (tile.graph.nodes.length === 0) {
-      if (phase === 'down') this.logger.info(`"${label}" has no blocks yet`)
-      return
-    }
-    await this.engine.trigger(tile, { type: phase === 'down' ? 'press' : 'release' })
-  }
-
-  private handleEngineEvent(e: EngineEvent) {
-    this.engineListeners.forEach((l) => l(e))
+  private handleEngineEvent(profileId: string, e: EngineEvent) {
+    this.engineListeners.forEach((l) => l({ profileId, event: e }))
     if (e.type !== 'run:end') return
-    const tile = this.findTile(e.tileId)
+    const tile = this.findTile(profileId, e.tileId)
     const label = `"${tile?.label || e.tileId}"`
     switch (e.status) {
       case 'ok':
@@ -343,6 +476,14 @@ export class Hub {
     this.listeners.forEach((l) => l())
   }
 }
+
+const tileStateMessage = (tileId: string, look: Appearance): ServerMessage => ({
+  type: 'tileState',
+  tileId,
+  label: look.label,
+  colour: look.colour,
+  icon: look.icon,
+})
 
 function describeListenError(err: unknown, port: number): string {
   const code = (err as NodeJS.ErrnoException).code

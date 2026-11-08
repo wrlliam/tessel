@@ -1,14 +1,17 @@
 import type {
   BlockDescriptor,
-  EngineEvent,
   Graph,
   GraphIssue,
   NodeStatus,
+  Page,
   Profile,
   Tile,
+  TileTemplate,
 } from '@tessel/core'
 import { create } from 'zustand'
-import { copyNodes, freeCells, pasteNodes, uid, type Clip, type PortRef } from './graph-utils.ts'
+import type { ProfileEngineEvent } from '../../../shared/api.ts'
+import { copyNodes, pasteNodes, uid, type Clip, type PortRef } from './graph-utils.ts'
+import { fits, foldersUnder, freeCells, type Cell } from './layout.ts'
 
 const HISTORY_LIMIT = 100
 /** Edits with the same key inside this window (typing, dragging) undo as one step. */
@@ -36,6 +39,7 @@ export type SaveState = { kind: 'saved' } | { kind: 'pending' } | { kind: 'error
 interface EditorState {
   profile: Profile | null
   blocks: Map<string, BlockDescriptor>
+  selectedPageId: string | null
   selectedTileId: string | null
   selectedNodeIds: string[]
   issues: GraphIssue[]
@@ -47,16 +51,34 @@ interface EditorState {
   nodeRuns: Record<string, Record<string, NodeRunState>>
   runs: RunEntry[]
   runningTiles: Record<string, true>
+  /** A short message about the last edit that couldn't be made. */
+  notice?: string
 }
 
 interface EditorActions {
-  load(profile: Profile, blocks: BlockDescriptor[]): void
+  setBlocks(blocks: BlockDescriptor[]): void
+  open(profile: Profile): void
+  selectPage(id: string): void
   selectTile(id: string | null): void
   selectNodes(ids: string[]): void
   setIssues(issues: GraphIssue[]): void
+  setNotice(notice?: string): void
+  renameProfile(name: string): void
+  addPage(): void
+  updatePage(
+    pageId: string,
+    patch: Partial<Pick<Page, 'name' | 'cols' | 'rows'>>,
+    coalesceKey?: string,
+  ): void
+  movePage(pageId: string, by: -1 | 1): void
+  deletePage(pageId: string): void
   updateTile(tileId: string, patch: Partial<Tile>, coalesceKey?: string): void
+  moveTile(tileId: string, to: Cell): void
+  resizeTile(tileId: string, span: { w: number; h: number }): void
   updateGraph(tileId: string, change: (graph: Graph) => Graph, coalesceKey?: string): void
-  addTile(cell: { col: number; row: number }): void
+  addTile(cell: Cell): void
+  addFolder(cell: Cell): void
+  insertTemplate(template: TileTemplate, cell?: Cell): boolean
   duplicateTile(tileId: string): void
   deleteTile(tileId: string): void
   addNode(type: string, position: { x: number; y: number }): void
@@ -67,16 +89,18 @@ interface EditorActions {
   undo(): void
   redo(): void
   setSave(state: SaveState): void
-  applyEngineEvent(event: EngineEvent): void
+  applyEngineEvent(event: ProfileEngineEvent): void
 }
 
 export type Editor = EditorState & EditorActions
 
-const pageOf = (p: Profile, tileId: string) =>
+const allTiles = (p: Profile) => p.pages.flatMap((pg) => pg.tiles)
+export const pageOfTile = (p: Profile, tileId: string) =>
   p.pages.find((pg) => pg.tiles.some((t) => t.id === tileId))
-
 export const findTile = (p: Profile | null, tileId: string | null) =>
-  p?.pages.flatMap((pg) => pg.tiles).find((t) => t.id === tileId)
+  p ? allTiles(p).find((t) => t.id === tileId) : undefined
+export const findPage = (p: Profile | null, pageId: string | null) =>
+  p?.pages.find((pg) => pg.id === pageId)
 
 function mapTile(p: Profile, tileId: string, change: (t: Tile) => Tile): Profile {
   return {
@@ -85,6 +109,29 @@ function mapTile(p: Profile, tileId: string, change: (t: Tile) => Tile): Profile
       ...pg,
       tiles: pg.tiles.map((t) => (t.id === tileId ? change(t) : t)),
     })),
+  }
+}
+
+function mapPage(p: Profile, pageId: string, change: (pg: Page) => Page): Profile {
+  return { ...p, pages: p.pages.map((pg) => (pg.id === pageId ? change(pg) : pg)) }
+}
+
+function newTile(cell: Cell, patch: Partial<Tile> = {}): Tile {
+  return {
+    id: uid('t'),
+    label: 'New tile',
+    colour: '#212833',
+    position: cell,
+    span: { w: 1, h: 1 },
+    kind: 'action',
+    concurrency: 'queue',
+    appearanceBindings: [],
+    // Every action tile starts with a trigger so there's something to wire from.
+    graph: {
+      nodes: [{ id: uid('n'), type: 'trigger.press', params: {}, position: { x: 0, y: 0 } }],
+      edges: [],
+    },
+    ...patch,
   }
 }
 
@@ -102,14 +149,38 @@ export const useEditor = create<Editor>()((set, get) => {
       future: [],
       lastEdit: coalesceKey === undefined ? undefined : { key: coalesceKey, at: now },
       save: { kind: 'pending' },
+      notice: undefined,
     })
   }
 
+  const selectedPage = () => findPage(get().profile, get().selectedPageId)
   const selectedGraph = () => findTile(get().profile, get().selectedTileId)?.graph
+
+  function placeOnSelectedPage(tile: Tile) {
+    const p = get().profile
+    const page = selectedPage()
+    if (!p || !page) return
+    commit(mapPage(p, page.id, (pg) => ({ ...pg, tiles: [...pg.tiles, tile] })))
+    set({ selectedTileId: tile.id, selectedNodeIds: [] })
+  }
+
+  function keepSelectionValid() {
+    const { profile, selectedPageId, selectedTileId, selectedNodeIds } = get()
+    if (!profile) return
+    const page = findPage(profile, selectedPageId) ?? profile.pages[0]
+    const tile = page?.tiles.find((t) => t.id === selectedTileId)
+    const ids = new Set(tile?.graph.nodes.map((n) => n.id))
+    set({
+      selectedPageId: page?.id ?? null,
+      selectedTileId: tile?.id ?? null,
+      selectedNodeIds: selectedNodeIds.filter((id) => ids.has(id)),
+    })
+  }
 
   return {
     profile: null,
     blocks: new Map(),
+    selectedPageId: null,
     selectedTileId: null,
     selectedNodeIds: [],
     issues: [],
@@ -121,22 +192,125 @@ export const useEditor = create<Editor>()((set, get) => {
     runs: [],
     runningTiles: {},
 
-    load: (profile, blocks) =>
+    setBlocks: (blocks) => set({ blocks: new Map(blocks.map((b) => [b.id, b])) }),
+
+    open: (profile) => {
+      const page = profile.pages.find((p) => p.kind === 'page') ?? profile.pages[0]
       set({
         profile,
-        blocks: new Map(blocks.map((b) => [b.id, b])),
-        selectedTileId: profile.pages[0]?.tiles[0]?.id ?? null,
+        selectedPageId: page?.id ?? null,
+        selectedTileId: page?.tiles[0]?.id ?? null,
+        selectedNodeIds: [],
+        issues: [],
         past: [],
         future: [],
-      }),
+        lastEdit: undefined,
+        save: { kind: 'saved' },
+        nodeRuns: {},
+        runningTiles: {},
+        notice: undefined,
+      })
+    },
 
-    selectTile: (id) => set({ selectedTileId: id, selectedNodeIds: [], issues: [] }),
+    selectPage: (id) =>
+      set({ selectedPageId: id, selectedTileId: null, selectedNodeIds: [], issues: [] }),
+    selectTile: (id) => {
+      const page = id && get().profile ? pageOfTile(get().profile as Profile, id) : undefined
+      set({
+        selectedTileId: id,
+        selectedNodeIds: [],
+        issues: [],
+        ...(page && { selectedPageId: page.id }),
+      })
+    },
     selectNodes: (ids) => {
       const current = get().selectedNodeIds
       if (ids.length !== current.length || ids.some((id, i) => id !== current[i]))
         set({ selectedNodeIds: ids })
     },
     setIssues: (issues) => set({ issues }),
+    setNotice: (notice) => set({ notice }),
+
+    renameProfile: (name) => {
+      const p = get().profile
+      if (p) commit({ ...p, name }, 'profile-name')
+    },
+
+    addPage: () => {
+      const p = get().profile
+      if (!p) return
+      const count = p.pages.filter((pg) => pg.kind === 'page').length
+      const like = selectedPage()
+      const page: Page = {
+        id: uid('pg'),
+        name: `Page ${count + 1}`,
+        kind: 'page',
+        cols: like?.cols ?? 3,
+        rows: like?.rows ?? 5,
+        tiles: [],
+      }
+      commit({ ...p, pages: [...p.pages, page] })
+      set({ selectedPageId: page.id, selectedTileId: null, selectedNodeIds: [] })
+    },
+
+    updatePage: (pageId, patch, key) => {
+      const p = get().profile
+      const page = findPage(p, pageId)
+      if (!p || !page) return
+      const next = { ...page, ...patch }
+      if (
+        (patch.cols !== undefined || patch.rows !== undefined) &&
+        !next.tiles.every((t) => fits({ ...next, tiles: [] }, t.position, t.span))
+      ) {
+        set({ notice: 'Move or shrink tiles first: some would fall off the grid.' })
+        return
+      }
+      if (
+        next.kind === 'folder' &&
+        next.tiles.some((t) => t.position.col === 0 && t.position.row === 0)
+      )
+        return
+      commit(
+        mapPage(p, pageId, () => next),
+        key && `page:${pageId}:${key}`,
+      )
+    },
+
+    movePage: (pageId, by) => {
+      const p = get().profile
+      if (!p) return
+      const order = p.pages.filter((pg) => pg.kind === 'page')
+      const i = order.findIndex((pg) => pg.id === pageId)
+      const j = i + by
+      if (i < 0 || j < 0 || j >= order.length) return
+      ;[order[i], order[j]] = [order[j] as Page, order[i] as Page]
+      commit({ ...p, pages: [...order, ...p.pages.filter((pg) => pg.kind === 'folder')] })
+    },
+
+    deletePage: (pageId) => {
+      const p = get().profile
+      const page = findPage(p, pageId)
+      if (!p || !page) return
+      if (page.kind === 'page' && p.pages.filter((pg) => pg.kind === 'page').length === 1) {
+        set({ notice: 'A profile needs at least one page.' })
+        return
+      }
+      const gone = new Set([pageId, ...foldersUnder(p, pageId)])
+      commit({
+        ...p,
+        pages: p.pages
+          .filter((pg) => !gone.has(pg.id))
+          // Folder tiles that opened a removed folder go too.
+          .map((pg) => ({
+            ...pg,
+            tiles: pg.tiles.filter(
+              (t) => !(t.kind === 'folder' && t.targetPageId && gone.has(t.targetPageId)),
+            ),
+          })),
+      })
+      set({ selectedPageId: null })
+      keepSelectionValid()
+    },
 
     updateTile: (tileId, patch, key) => {
       const p = get().profile
@@ -145,6 +319,30 @@ export const useEditor = create<Editor>()((set, get) => {
           mapTile(p, tileId, (t) => ({ ...t, ...patch })),
           key && `${tileId}:${key}`,
         )
+    },
+
+    moveTile: (tileId, to) => {
+      const p = get().profile
+      const page = p && pageOfTile(p, tileId)
+      const tile = findTile(p, tileId)
+      if (!p || !page || !tile) return
+      if (!fits(page, to, tile.span, tileId)) {
+        set({ notice: "That spot isn't free." })
+        return
+      }
+      commit(mapTile(p, tileId, (t) => ({ ...t, position: to })))
+    },
+
+    resizeTile: (tileId, span) => {
+      const p = get().profile
+      const page = p && pageOfTile(p, tileId)
+      const tile = findTile(p, tileId)
+      if (!p || !page || !tile || (span.w === tile.span.w && span.h === tile.span.h)) return
+      if (!fits(page, tile.position, span, tileId)) {
+        set({ notice: 'Not enough room to make it that size.' })
+        return
+      }
+      commit(mapTile(p, tileId, (t) => ({ ...t, span })))
     },
 
     updateGraph: (tileId, change, key) => {
@@ -156,67 +354,89 @@ export const useEditor = create<Editor>()((set, get) => {
         )
     },
 
-    addTile: (cell) => {
+    addTile: (cell) => placeOnSelectedPage(newTile(cell)),
+
+    addFolder: (cell) => {
       const p = get().profile
-      const page = p?.pages[0]
+      const page = selectedPage()
       if (!p || !page) return
-      const id = uid('t')
-      const tile: Tile = {
-        id,
-        label: 'New tile',
-        colour: '#212833',
-        position: cell,
-        span: { w: 1, h: 1 },
-        kind: 'action',
-        concurrency: 'queue',
-        appearanceBindings: [],
-        // Every tile starts with a trigger so there's something to wire from.
-        graph: {
-          nodes: [{ id: uid('n'), type: 'trigger.press', params: {}, position: { x: 0, y: 0 } }],
-          edges: [],
-        },
+      const folder: Page = {
+        id: uid('pg'),
+        name: 'Folder',
+        kind: 'folder',
+        cols: page.cols,
+        rows: page.rows,
+        tiles: [],
       }
-      commit({
-        ...p,
-        pages: p.pages.map((pg) => (pg === page ? { ...pg, tiles: [...pg.tiles, tile] } : pg)),
+      const tile = newTile(cell, {
+        label: 'Folder',
+        icon: 'folder',
+        kind: 'folder',
+        targetPageId: folder.id,
+        graph: { nodes: [], edges: [] },
       })
-      set({ selectedTileId: id, selectedNodeIds: [] })
+      const withTile = mapPage(p, page.id, (pg) => ({ ...pg, tiles: [...pg.tiles, tile] }))
+      commit({ ...withTile, pages: [...withTile.pages, folder] })
+      set({ selectedTileId: tile.id, selectedNodeIds: [] })
+    },
+
+    insertTemplate: (template, cell) => {
+      const page = selectedPage()
+      const at = cell ?? (page && freeCells(page)[0])
+      if (!page || !at) {
+        set({ notice: 'This page is full. Free a slot first.' })
+        return false
+      }
+      placeOnSelectedPage(newTile(at, structuredClone(template.tile)))
+      return true
     },
 
     duplicateTile: (tileId) => {
       const p = get().profile
-      const page = p && pageOf(p, tileId)
+      const page = p && pageOfTile(p, tileId)
       const source = findTile(p, tileId)
-      const cell = page && freeCells(page)[0]
-      if (!p || !page || !source || !cell) return
-      const pasted = pasteNodes(
-        copyNodes(
-          source.graph,
-          source.graph.nodes.map((n) => n.id),
-        ),
-        0,
-      )
+      if (!p || !page || !source) return
+      if (source.kind === 'folder') {
+        set({ notice: "Folders can't be duplicated yet." })
+        return
+      }
+      const cell = freeCells(page)[0]
+      if (!cell) {
+        set({ notice: 'This page is full. Free a slot first.' })
+        return
+      }
       const copy: Tile = {
         ...structuredClone(source),
         id: uid('t'),
         label: `${source.label} copy`.slice(0, 40),
         position: cell,
         span: { w: 1, h: 1 },
-        graph: pasted,
+        graph: pasteNodes(
+          copyNodes(
+            source.graph,
+            source.graph.nodes.map((n) => n.id),
+          ),
+          0,
+        ),
       }
-      commit({
-        ...p,
-        pages: p.pages.map((pg) => (pg === page ? { ...pg, tiles: [...pg.tiles, copy] } : pg)),
-      })
+      commit(mapPage(p, page.id, (pg) => ({ ...pg, tiles: [...pg.tiles, copy] })))
       set({ selectedTileId: copy.id, selectedNodeIds: [] })
     },
 
     deleteTile: (tileId) => {
       const p = get().profile
-      if (!p) return
+      const tile = findTile(p, tileId)
+      if (!p || !tile) return
+      const gone = new Set(
+        tile.kind === 'folder' && tile.targetPageId
+          ? [tile.targetPageId, ...foldersUnder(p, tile.targetPageId)]
+          : [],
+      )
       commit({
         ...p,
-        pages: p.pages.map((pg) => ({ ...pg, tiles: pg.tiles.filter((t) => t.id !== tileId) })),
+        pages: p.pages
+          .filter((pg) => !gone.has(pg.id))
+          .map((pg) => ({ ...pg, tiles: pg.tiles.filter((t) => t.id !== tileId) })),
       })
       set({ selectedTileId: null, selectedNodeIds: [] })
     },
@@ -305,8 +525,9 @@ export const useEditor = create<Editor>()((set, get) => {
 
     setSave: (save) => set({ save }),
 
-    applyEngineEvent: (e) => {
-      const { nodeRuns, runs, runningTiles } = get()
+    applyEngineEvent: ({ profileId, event: e }) => {
+      const { nodeRuns, runs, runningTiles, profile } = get()
+      if (profileId !== profile?.id) return
       switch (e.type) {
         case 'run:start':
           set({
@@ -347,14 +568,7 @@ export const useEditor = create<Editor>()((set, get) => {
       }
     },
   }
-
-  function keepSelectionValid() {
-    const { profile, selectedTileId, selectedNodeIds } = get()
-    const tile = findTile(profile, selectedTileId)
-    if (!tile) return set({ selectedTileId: null, selectedNodeIds: [] })
-    const ids = new Set(tile.graph.nodes.map((n) => n.id))
-    set({ selectedNodeIds: selectedNodeIds.filter((id) => ids.has(id)) })
-  }
 })
 
 export const useSelectedTile = () => useEditor((s) => findTile(s.profile, s.selectedTileId))
+export const useSelectedPage = () => useEditor((s) => findPage(s.profile, s.selectedPageId))

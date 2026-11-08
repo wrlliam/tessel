@@ -7,6 +7,7 @@ export interface TrayActions {
   setAllowPhones(on: boolean): void
   setPaused(on: boolean): void
   setStartOnLogin(on: boolean): void
+  setActiveProfile(id: string): void
   quit(): void
 }
 
@@ -58,6 +59,15 @@ export class TesselTray {
         type: 'checkbox',
         checked: state.allowPhones,
         click: (item) => actions.setAllowPhones(item.checked),
+      },
+      {
+        label: 'Profile',
+        submenu: state.profiles.map((p) => ({
+          label: p.name,
+          type: 'radio' as const,
+          checked: p.id === state.activeProfileId,
+          click: () => actions.setActiveProfile(p.id),
+        })),
       },
       {
         label: 'Pause all tiles',

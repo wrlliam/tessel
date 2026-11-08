@@ -1,4 +1,4 @@
-import type { BlockDescriptor, Graph, GraphEdge, GraphNode, Page, PortDef } from '@tessel/core'
+import type { BlockDescriptor, Graph, GraphEdge, GraphNode, PortDef } from '@tessel/core'
 
 export const uid = (prefix: string) =>
   `${prefix}_${Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(36).padStart(2, '0')).join('')}`
@@ -103,21 +103,6 @@ export function removeNodes(
       (e) => !edges.has(e.id) && !nodes.has(e.from.nodeId) && !nodes.has(e.to.nodeId),
     ),
   }
-}
-
-export function freeCells(page: Page): Array<{ col: number; row: number }> {
-  const taken = new Set<string>()
-  for (const t of page.tiles) {
-    for (let c = t.position.col; c < t.position.col + t.span.w; c++) {
-      for (let r = t.position.row; r < t.position.row + t.span.h; r++) taken.add(`${c},${r}`)
-    }
-  }
-  const out: Array<{ col: number; row: number }> = []
-  for (let row = 0; row < page.rows; row++) {
-    for (let col = 0; col < page.cols; col++)
-      if (!taken.has(`${col},${row}`)) out.push({ col, row })
-  }
-  return out
 }
 
 /** One-line summary shown on a block, e.g. the app name. */

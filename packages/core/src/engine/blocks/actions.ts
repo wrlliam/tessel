@@ -85,4 +85,49 @@ export const setSetting = defineBlock({
   run: (ctx, { value }) => ctx.platform.setDarkMode(value),
 })
 
-export const actionBlocks = [openApp, typeText, keyCombo, setSetting]
+const optionalText = z.preprocess(
+  (v) => (v === null || v === undefined ? '' : String(v)),
+  z.string().max(64),
+)
+
+export const setTileAppearance = defineBlock({
+  id: 'action.setTileAppearance',
+  category: 'action',
+  name: 'Set tile appearance',
+  description:
+    'Changes how this tile looks on the phone, e.g. to show a status. Leave a field empty to keep it.',
+  inputs: [flowIn, { id: 'label', kind: 'value', type: 'string' }],
+  outputs: [flowOut],
+  paramsSchema: z.object({
+    label: optionalText,
+    colour: z.union([
+      z.literal(''),
+      z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Use a colour like #22D3C5'),
+    ]),
+    icon: optionalText,
+    reset: bool,
+  }),
+  fields: [
+    { key: 'label', label: 'Label', widget: 'text', placeholder: '{{var.count}}' },
+    { key: 'colour', label: 'Colour', widget: 'text', placeholder: '#F25C6E' },
+    {
+      key: 'icon',
+      label: 'Icon',
+      widget: 'text',
+      placeholder: 'mic-off',
+      help: 'An icon name from the tile icon picker, or one emoji.',
+    },
+    { key: 'reset', label: 'Reset to the tile’s own look', widget: 'toggle' },
+  ],
+  defaults: { label: '', colour: '', icon: '', reset: false },
+  run: (ctx, { label, colour, icon, reset }) => {
+    if (reset) return ctx.setAppearance('reset')
+    ctx.setAppearance({
+      ...(label !== '' && { label }),
+      ...(colour !== '' && { colour }),
+      ...(icon !== '' && { icon }),
+    })
+  },
+})
+
+export const actionBlocks = [openApp, typeText, keyCombo, setSetting, setTileAppearance]

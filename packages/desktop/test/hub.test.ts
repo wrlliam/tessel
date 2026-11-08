@@ -213,7 +213,7 @@ describe('Hub editor API', () => {
 
   it('saves an edited profile but keeps variables set by tiles', async () => {
     const { hub, dataDir } = await makeHub()
-    const edited = structuredClone(hub.getProfile())
+    const edited = structuredClone(hub.getProfile('default')!)
     const tile = edited.pages[0]?.tiles[0]
     if (tile) tile.label = 'Chat'
     edited.variables = { email: 'stale@example.com' }
@@ -225,12 +225,12 @@ describe('Hub editor API', () => {
 
   it('rejects an invalid profile', async () => {
     const { hub } = await makeHub()
-    const broken = structuredClone(hub.getProfile())
+    const broken = structuredClone(hub.getProfile('default')!)
     const tile = broken.pages[0]?.tiles[0]
     if (tile) tile.position = { col: 9, row: 9 }
     const result = await hub.saveProfile(broken)
     expect(result.ok).toBe(false)
-    expect(hub.getProfile().pages[0]?.tiles[0]?.position).toEqual({ col: 0, row: 0 })
+    expect(hub.getProfile('default')?.pages[0]?.tiles[0]?.position).toEqual({ col: 0, row: 0 })
   })
 
   it('validates graphs', async () => {
@@ -246,11 +246,94 @@ describe('Hub editor API', () => {
   it('test runs a tile and streams engine events', async () => {
     const { hub, platform } = await makeHub()
     const events: string[] = []
-    hub.onEngineEvent((e) => events.push(e.type))
+    hub.onEngineEvent((e) => events.push(e.event.type))
     hub.setPaused(true)
-    await hub.testRun('calculator')
+    await hub.testRun('default', 'calculator')
     expect(platform.openApp).toHaveBeenCalledWith('Calculator')
     expect(events[0]).toBe('run:start')
     expect(events.at(-1)).toBe('run:end')
+  })
+})
+
+describe('Hub profiles', () => {
+  it('creates, activates and deletes profiles, keeping one', async () => {
+    const { hub } = await makeHub()
+    const id = await hub.createProfile('Gaming')
+    expect(hub.state().profiles.map((p) => p.name)).toEqual(['Default', 'Gaming'])
+    await hub.setActiveProfile(id)
+    expect(hub.state().activeProfileId).toBe(id)
+    expect(await hub.deleteProfile(id)).toBe(true)
+    expect(hub.state().activeProfileId).toBe('default')
+    expect(await hub.deleteProfile('default')).toBe(false)
+  })
+
+  it('runs presses against the active profile only', async () => {
+    const { hub, platform } = await makeHub()
+    const id = await hub.createProfile('Empty')
+    await hub.setActiveProfile(id)
+    await hub.press({ deviceId: 'd', tileId: 'calculator', phase: 'down' })
+    expect(platform.openApp).not.toHaveBeenCalled()
+  })
+
+  it('keeps variables separate per profile', async () => {
+    const { hub } = await makeHub()
+    const copy = await hub.duplicateProfile('default')
+    hub.addVariables(copy as string, { email: 'other@example.com', extra: 1 })
+    expect(hub.getProfile(copy as string)?.variables).toEqual({
+      email: 'you@example.com',
+      extra: 1,
+    })
+    expect(hub.getProfile('default')?.variables).toEqual({ email: 'you@example.com' })
+  })
+
+  it('round-trips a profile through export and import as a new profile', async () => {
+    const { hub } = await makeHub()
+    const bytes = await hub.exportProfile('default')
+    const preview = hub.previewImport(bytes as Uint8Array)
+    expect(preview.blocks).toContain('Open app')
+    const id = await hub.addImported(preview.profile)
+    expect(id).not.toBe('default')
+    expect(hub.state().profiles.find((p) => p.id === id)?.name).toBe('Default (2)')
+  })
+
+  it('pushes live appearance from bindings when variables change', async () => {
+    const { hub } = await makeHub()
+    const profile = structuredClone(hub.getProfile('default')!)
+    const tile = profile.pages[0]!.tiles.find((t) => t.id === 'email')!
+    tile.appearanceBindings = [{ field: 'label', expression: 'Count {{var.n ?? 0}}' }]
+    await hub.saveProfile(profile)
+    expect(hub.state().liveAppearance['email']?.label).toBe('Count 0')
+    hub.addVariables('default', { n: 5 })
+    expect(hub.state().liveAppearance['email']?.label).toBe('Count 5')
+  })
+
+  it('applies Set tile appearance to the pressed tile and resets it', async () => {
+    const { hub } = await makeHub()
+    const profile = structuredClone(hub.getProfile('default')!)
+    const tile = profile.pages[0]!.tiles.find((t) => t.id === 'lock')!
+    tile.graph = {
+      nodes: [
+        { id: 'p', type: 'trigger.press', params: {}, position: { x: 0, y: 0 } },
+        {
+          id: 's',
+          type: 'action.setTileAppearance',
+          params: { label: 'Locked', colour: '#F25C6E', icon: 'lock', reset: false },
+          position: { x: 0, y: 0 },
+        },
+      ],
+      edges: [{ id: 'e', from: { nodeId: 'p', port: 'out' }, to: { nodeId: 's', port: 'in' } }],
+    }
+    await hub.saveProfile(profile)
+    await hub.press({ deviceId: 'd', tileId: 'lock', phase: 'down' })
+    expect(hub.state().liveAppearance['lock']).toEqual({
+      label: 'Locked',
+      colour: '#F25C6E',
+      icon: 'lock',
+    })
+    tile.graph.nodes[1]!.params = { label: '', colour: '', icon: '', reset: true }
+    await hub.saveProfile(profile)
+    expect(hub.state().liveAppearance['lock']).toBeDefined()
+    await hub.press({ deviceId: 'd', tileId: 'lock', phase: 'down' })
+    expect(hub.state().liveAppearance['lock']).toBeUndefined()
   })
 })

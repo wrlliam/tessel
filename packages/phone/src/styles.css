@@ -26,6 +26,7 @@ input {
 }
 
 .tile {
+  cursor: default;
   transition:
     transform 90ms ease-out,
     box-shadow 90ms ease-out;
