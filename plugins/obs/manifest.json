@@ -1,0 +1,36 @@
+{
+  "id": "obs",
+  "name": "OBS Studio",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Switch scenes, start and stop recording or streaming, mute sources, and show whether you are live, through OBS WebSocket.",
+  "author": "Tessel",
+  "main": "dist/index.js",
+  "permissions": ["network"],
+  "icon": "video",
+  "settingsSchema": {
+    "type": "object",
+    "properties": {
+      "host": {
+        "type": "string",
+        "title": "OBS address",
+        "default": "127.0.0.1",
+        "description": "The computer running OBS. Turn on Tools \u203a WebSocket Server Settings in OBS."
+      },
+      "port": {
+        "type": "number",
+        "title": "Port",
+        "default": 4455,
+        "minimum": 1,
+        "maximum": 65535
+      },
+      "password": {
+        "type": "string",
+        "title": "Password",
+        "secret": true,
+        "default": "",
+        "description": "From OBS \u203a Tools \u203a WebSocket Server Settings \u203a Show Connect Info."
+      }
+    }
+  }
+}

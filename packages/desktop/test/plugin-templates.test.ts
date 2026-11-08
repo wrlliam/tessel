@@ -6,6 +6,13 @@ import { createOllamaPlugin } from '../../../plugins/ollama/src/plugin.ts'
 import { createGooglePlugin } from '../../../plugins/google/src/plugin.ts'
 import { createSoundpadPlugin } from '../../../plugins/soundpad/src/plugin.ts'
 import { createHomeAssistantPlugin } from '../../../plugins/home-assistant/src/plugin.ts'
+import { createObsPlugin } from '../../../plugins/obs/src/plugin.ts'
+import { createHuePlugin } from '../../../plugins/hue/src/plugin.ts'
+import { createKeyLightPlugin } from '../../../plugins/keylight/src/plugin.ts'
+import { createSlackPlugin } from '../../../plugins/slack/src/plugin.ts'
+import { createAudioOutputPlugin } from '../../../plugins/audio-output/src/plugin.ts'
+import { createSpotifyPlugin } from '../../../plugins/spotify/src/plugin.ts'
+import { createShortcutsPlugin } from '../../../plugins/mac-shortcuts/src/plugin.ts'
 
 // Templates that use first-party plugin blocks, checked against the plugins' own definitions.
 describe('plugin templates', () => {
@@ -19,6 +26,13 @@ describe('plugin templates', () => {
     google: createGooglePlugin(never),
     soundpad: createSoundpadPlugin(never),
     'home-assistant': createHomeAssistantPlugin(),
+    obs: createObsPlugin(never as never),
+    hue: createHuePlugin(never),
+    keylight: createKeyLightPlugin(never),
+    slack: createSlackPlugin(never),
+    'audio-output': createAudioOutputPlugin(never, () => 'darwin'),
+    spotify: createSpotifyPlugin(never, () => 'darwin'),
+    'mac-shortcuts': createShortcutsPlugin(never, { temp: never }),
   }
   for (const [id, plugin] of Object.entries(plugins)) {
     for (const b of plugin.blocks ?? [])

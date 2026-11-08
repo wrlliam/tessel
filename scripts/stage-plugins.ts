@@ -15,7 +15,10 @@ for (const dir of await readdir(join(root, 'plugins'))) {
   const pkg = JSON.parse(await readFile(join(src, 'package.json'), 'utf8')) as {
     name: string
     dependencies?: object
+    tessel?: { bundled?: boolean }
   }
+  // Optional plugins ship through the plugin catalog instead (scripts/pack-catalog.ts).
+  if (pkg.tessel?.bundled === false) continue
   const target = join(out, manifest.id)
   if (pkg.dependencies && Object.keys(pkg.dependencies).length) {
     // pnpm deploy writes the package with a flat, real node_modules of its production dependencies.

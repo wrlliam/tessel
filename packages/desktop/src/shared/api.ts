@@ -13,6 +13,7 @@ import type { PairingCode } from '@tessel/server'
 import type { PluginInfo } from '../main/plugins/manager.ts'
 import type { UpdateState } from '../main/updater.ts'
 import type { PhoneEdit } from '../main/hub.ts'
+import type { CatalogEntry } from '../main/catalog.ts'
 
 export type { PhoneEdit, PluginInfo, UpdateState }
 
@@ -155,6 +156,10 @@ export interface TesselApi {
     tileId: string,
   ): Promise<{ id: string; urls: string[]; qr: string } | undefined>
   deleteShortcut(id: string): Promise<void>
+  /** Optional plugins to download, with what's installed here. */
+  getCatalog(force?: boolean): Promise<CatalogResult>
+  /** Downloads a plugin from the catalog, checks it, and installs it after asking. */
+  installFromCatalog(id: string): Promise<SaveResult | { ok: false; cancelled: true }>
   /** A phone changed a key's look or swapped two keys. */
   onPhoneEdit(listener: (edit: PhoneEdit) => void): () => void
   /** The path of a file dropped on the window. */
@@ -179,6 +184,13 @@ export type TelImport =
     }
   | { ok: false; error: string }
   | { ok: false; cancelled: true }
+
+export type CatalogResult =
+  | {
+      ok: true
+      plugins: Array<CatalogEntry & { installed?: string; update: boolean; supported: boolean }>
+    }
+  | { ok: false; error: string }
 
 export type SaveResult = { ok: true } | { ok: false; error: string }
 
@@ -223,5 +235,7 @@ export const Channel = {
   telOpened: 'tel:opened',
   phoneEdit: 'phone:edit',
   createShortcut: 'shortcut:create',
+  getCatalog: 'catalog:list',
+  installFromCatalog: 'catalog:install',
   deleteShortcut: 'shortcut:delete',
 } as const

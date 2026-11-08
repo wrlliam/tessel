@@ -109,6 +109,10 @@ The harness runs blocks and triggers in your test process, with in-memory storag
 
 Tessel starts each enabled plugin with Electron's `utilityProcess` (Node's `fork` in tests), passing the plugin folder to a small runner from the SDK. Messages are JSON-RPC style (`packages/plugin-sdk/src/protocol.ts`): Tessel sends `init`, `describe`, `run`, `cancel`, `subscribe`, `settings` and `shutdown`; the plugin sends `storage.*` requests and `log`, `event` and `tileState` notifications. Calls time out after 10 s, except block runs, which follow the tile's own 30 s limit.
 
+## Optional plugins (the catalog)
+
+A plugin in `plugins/` whose `package.json` has `"tessel": { "bundled": false }` isn't shipped inside Tessel. On every push to `main`, CI builds it, zips `manifest.json` and `dist/`, and uploads the zip with `catalog.json` (name, version, permissions, size and SHA-256) to the `plugins` pre-release. Tessel's **Get more plugins** reads that list, downloads the zip, checks its size and hash, and installs it like a zip you picked. `pnpm build:plugins && pnpm pack:catalog` builds the same files into `build/catalog/` locally.
+
 ## Trust
 
 Permissions are what a plugin declares. Tessel shows them, and asks, before an installed or development plugin starts, then holds the plugin to them with Node's permission model:

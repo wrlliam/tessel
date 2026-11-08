@@ -5,6 +5,7 @@ import { Dialog } from 'radix-ui'
 import { useState } from 'react'
 import { Button } from '../ui/button.tsx'
 import { Input } from '../ui/input.tsx'
+import { useEditor } from './store.ts'
 
 interface Props {
   open: boolean
@@ -14,6 +15,14 @@ interface Props {
 }
 
 export function TemplateGallery({ open, onOpenChange, onPick, keyStyle }: Props) {
+  const blocks = useEditor((s) => s.blocks)
+  const hasPlugin = (id: string) => [...blocks.keys()].some((b) => b.startsWith(`${id}.`))
+  const [getting, setGetting] = useState<string>()
+  const missing = [
+    ...new Set(
+      templates.filter((t) => t.plugin && !hasPlugin(t.plugin)).map((t) => t.plugin as string),
+    ),
+  ]
   const [query, setQuery] = useState('')
   const q = query.trim().toLowerCase()
   const shown = templates.filter(
@@ -33,6 +42,27 @@ export function TemplateGallery({ open, onOpenChange, onPick, keyStyle }: Props)
               <Dialog.Description className="text-sm text-muted">
                 Each one is an ordinary tile you can change afterwards
               </Dialog.Description>
+              {missing.length > 0 && (
+                <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                  Some need a plugin:
+                  {missing.map((id) => (
+                    <button
+                      key={id}
+                      type="button"
+                      disabled={getting !== undefined}
+                      onClick={async () => {
+                        setGetting(id)
+                        const r = await window.tessel.installFromCatalog(id)
+                        setGetting(undefined)
+                        if (!r.ok && 'error' in r) useEditor.setState({ notice: r.error })
+                      }}
+                      className="rounded-md border border-line px-2 py-0.5 font-mono text-text hover:bg-line/60 disabled:opacity-50"
+                    >
+                      {getting === id ? `Getting ${id}…` : `Get ${id}`}
+                    </button>
+                  ))}
+                </p>
+              )}
             </div>
             <Input
               autoFocus
@@ -83,7 +113,7 @@ export function TemplateGallery({ open, onOpenChange, onPick, keyStyle }: Props)
                             <span className="line-clamp-2 block text-xs text-muted">
                               {t.description}
                             </span>
-                            {t.plugin && (
+                            {t.plugin && !hasPlugin(t.plugin) && (
                               <span className="block font-mono text-[11px] text-muted">
                                 Needs the {t.plugin} plugin
                               </span>

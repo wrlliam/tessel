@@ -57,6 +57,8 @@ const api: TesselApi = {
   createShortcut: (profileId, tileId) =>
     ipcRenderer.invoke(Channel.createShortcut, profileId, tileId),
   deleteShortcut: (id) => ipcRenderer.invoke(Channel.deleteShortcut, id),
+  getCatalog: (force) => ipcRenderer.invoke(Channel.getCatalog, force),
+  installFromCatalog: (id) => ipcRenderer.invoke(Channel.installFromCatalog, id),
   onPhoneEdit: (listener) => {
     const handler = (_: unknown, edit: PhoneEdit) => listener(edit)
     ipcRenderer.on(Channel.phoneEdit, handler)

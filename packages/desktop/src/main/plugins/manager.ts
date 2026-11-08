@@ -138,7 +138,9 @@ export class PluginManager {
     this.state = (await this.store.load()).plugins
     const found: Array<{ dir: string; source: PluginSource }> = []
     for (const base of this.opts.builtinDirs)
-      found.push(...(await subfolders(base)).map((dir) => ({ dir, source: 'built-in' as const })))
+      for (const dir of await subfolders(base))
+        // Optional plugins sit next to built-in ones in the repo, but come from the catalog.
+        if (!(await optional(dir))) found.push({ dir, source: 'built-in' as const })
     found.push(
       ...(await subfolders(this.installDir)).map((dir) => ({ dir, source: 'installed' as const })),
     )
@@ -611,6 +613,18 @@ export class PluginManager {
         }, 300)
       })
     }
+  }
+}
+
+/** package.json says "tessel": { "bundled": false }: the plugin is offered in the catalog instead. */
+async function optional(dir: string): Promise<boolean> {
+  try {
+    const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')) as {
+      tessel?: { bundled?: boolean }
+    }
+    return pkg.tessel?.bundled === false
+  } catch {
+    return false
   }
 }
 

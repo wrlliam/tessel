@@ -1,0 +1,29 @@
+{
+  "id": "hue",
+  "name": "Philips Hue",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Turn Hue lights on and off, set brightness from a slider, and recall scenes, through the bridge on your network.",
+  "author": "Tessel",
+  "main": "dist/index.js",
+  "permissions": ["network"],
+  "icon": "lightbulb",
+  "settingsSchema": {
+    "type": "object",
+    "properties": {
+      "bridge": {
+        "type": "string",
+        "title": "Bridge address",
+        "default": "",
+        "description": "The Hue bridge IP address, from the Hue app \u203a Settings \u203a Bridges."
+      },
+      "appKey": {
+        "type": "string",
+        "title": "App key",
+        "secret": true,
+        "default": "",
+        "description": "Leave empty, press the bridge button, then run the \"Hue: connect\" block once."
+      }
+    }
+  }
+}

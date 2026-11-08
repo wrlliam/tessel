@@ -1,0 +1,12 @@
+{
+  "id": "audio-output",
+  "name": "Audio output",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Switch the computer\u2019s sound between speakers, headphones and other outputs.",
+  "author": "Tessel",
+  "main": "dist/index.js",
+  "platforms": ["darwin", "win32"],
+  "permissions": ["shell"],
+  "icon": "headphones"
+}

@@ -92,6 +92,29 @@ jobs:
           path: ${{ matrix.files }}
           if-no-files-found: error
 
+  plugins:
+    name: Publish the plugin catalog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:plugins && pnpm pack:catalog
+      - name: Upload to the plugins release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A pre-release, so installed copies of Tessel never mistake it for an app update.
+          if ! gh release view plugins >/dev/null 2>&1; then
+            gh release create plugins --prerelease --latest=false --title "Plugins" \
+              --notes "Optional plugins for Tessel. Install them from Tessel's Plugins tab, under Get more plugins."
+          fi
+          gh release upload plugins build/catalog/* --clobber
+
   release:
     name: Publish v${{ needs.version.outputs.version }}
     needs: [version, package]

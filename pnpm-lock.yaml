@@ -184,6 +184,9 @@ importers:
       eslint-plugin-react-hooks:
         specifier: ^7.1.1
         version: 7.1.1(eslint@10.14.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      fflate:
+        specifier: 0.8.3
+        version: 0.8.3
       globals:
         specifier: ^17.14.0
         version: 17.14.0
@@ -476,6 +479,18 @@ importers:
         specifier: ^8.22.1
         version: 8.22.1
 
+  plugins/audio-output:
+    devDependencies:
+      '@tessel/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
   plugins/google:
     devDependencies:
       '@tessel/plugin-sdk':
@@ -500,6 +515,54 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
 
+  plugins/hue:
+    devDependencies:
+      '@tessel/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
+  plugins/keylight:
+    devDependencies:
+      '@tessel/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
+  plugins/mac-shortcuts:
+    devDependencies:
+      '@tessel/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
+  plugins/obs:
+    devDependencies:
+      '@tessel/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
   plugins/ollama:
     devDependencies:
       '@tessel/plugin-sdk':
@@ -512,7 +575,31 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
 
+  plugins/slack:
+    devDependencies:
+      '@tessel/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
   plugins/soundpad:
+    devDependencies:
+      '@tessel/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
+  plugins/spotify:
     devDependencies:
       '@tessel/plugin-sdk':
         specifier: workspace:*

@@ -1,0 +1,12 @@
+{
+  "id": "mac-shortcuts",
+  "name": "Shortcuts (macOS)",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Run any shortcut from the macOS Shortcuts app, with text in and out.",
+  "author": "Tessel",
+  "main": "dist/index.js",
+  "platforms": ["darwin"],
+  "permissions": ["shell", "filesystem"],
+  "icon": "zap"
+}

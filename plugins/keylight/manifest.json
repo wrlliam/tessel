@@ -1,0 +1,22 @@
+{
+  "id": "keylight",
+  "name": "Elgato Key Light",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Turn Elgato Key Lights on and off and set brightness and warmth, over your network.",
+  "author": "Tessel",
+  "main": "dist/index.js",
+  "permissions": ["network"],
+  "icon": "sun",
+  "settingsSchema": {
+    "type": "object",
+    "properties": {
+      "lights": {
+        "type": "string",
+        "title": "Light addresses",
+        "default": "",
+        "description": "IP addresses of your Key Lights, separated by commas (Control Center \u203a Light \u203a Settings)."
+      }
+    }
+  }
+}

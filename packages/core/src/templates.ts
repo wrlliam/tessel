@@ -7,6 +7,8 @@ export type TemplateCategory =
   | 'Live tiles'
   | 'Voicemeeter'
   | 'Soundpad'
+  | 'Streaming'
+  | 'Lights'
   | 'Home'
   | 'AI and search'
   | 'Apps'
@@ -290,6 +292,54 @@ const ollama = (prompt: string) => ({
 })
 const gemini = (prompt: string) => ({ type: 'google.gemini', params: { prompt, model: '' } })
 const showAnswer = { type: 'action.notify', params: { title: 'Tessel', body: '' }, port: 'body' }
+
+/** An OBS scene key that lights up while its scene is on air. */
+function obsScene(id: string, scene: string, icon: string): TileTemplate {
+  return {
+    id,
+    category: 'Streaming',
+    plugin: 'obs',
+    name: `OBS scene: ${scene}`,
+    description: `Switches OBS to the "${scene}" scene and lights up while it's live. Rename the scene in the block to match yours.`,
+    tile: {
+      label: scene,
+      icon,
+      colour: '#212833',
+      appearanceBindings: [bind('colour', `{{state.scene == "${scene}" ? "#22D3C5" : "#212833"}}`)],
+      graph: {
+        nodes: [
+          press,
+          node('action', 'obs.scene', { scene }, 288),
+          node('watch', 'obs.watch', { input: '' }, 0, 160),
+        ],
+        edges: [wire('press', 'out', 'action')],
+      },
+    },
+  }
+}
+
+/** Sets a Slack status from a key. */
+function slackStatus(
+  id: string,
+  text: string,
+  emoji: string,
+  minutes: number,
+  icon: string,
+): TileTemplate {
+  return {
+    id,
+    category: 'Meetings',
+    plugin: 'slack',
+    name: `Slack status: ${text}`,
+    description: `Sets your Slack status to "${text}"${minutes ? ` for ${minutes} minutes` : ''}.`,
+    tile: {
+      label: text,
+      icon,
+      colour: '#4A154B',
+      graph: simple('slack.status', { text, emoji, minutes }),
+    },
+  }
+}
 
 export const templates: TileTemplate[] = [
   // Meetings
@@ -1336,6 +1386,435 @@ export const templates: TileTemplate[] = [
       },
     },
   },
+
+  // Streaming (OBS)
+  obsScene('obs-scene-camera', 'Camera', 'camera'),
+  obsScene('obs-scene-screen', 'Screen', 'monitor'),
+  obsScene('obs-scene-brb', 'Be right back', 'coffee'),
+  {
+    id: 'obs-record',
+    category: 'Streaming',
+    plugin: 'obs',
+    name: 'OBS: record',
+    description: 'Starts or stops recording, and turns red while OBS records.',
+    tile: {
+      label: 'Record',
+      icon: 'video',
+      colour: '#212833',
+      appearanceBindings: [
+        bind('colour', '{{state.recording ? "#F25C6E" : "#212833"}}'),
+        bind('label', '{{state.recording ? "Recording" : "Record"}}'),
+      ],
+      graph: {
+        nodes: [
+          press,
+          node('action', 'obs.output', { what: 'record', action: 'toggle' }, 288),
+          node('watch', 'obs.watch', { input: '' }, 0, 160),
+        ],
+        edges: [wire('press', 'out', 'action')],
+      },
+    },
+  },
+  {
+    id: 'obs-stream',
+    category: 'Streaming',
+    plugin: 'obs',
+    name: 'OBS: go live',
+    description:
+      'Starts or stops streaming. Hold it, so you never go live by accident; it turns red while live.',
+    tile: {
+      label: 'Go live',
+      icon: 'radio',
+      colour: '#212833',
+      appearanceBindings: [
+        bind('colour', '{{state.live ? "#F25C6E" : "#212833"}}'),
+        bind('label', '{{state.live ? "Live" : "Go live"}}'),
+      ],
+      graph: {
+        nodes: [
+          node('hold', 'trigger.longPress', {}, 0),
+          node('action', 'obs.output', { what: 'stream', action: 'toggle' }, 288),
+          node('watch', 'obs.watch', { input: '' }, 0, 160),
+        ],
+        edges: [wire('hold', 'out', 'action')],
+      },
+    },
+  },
+  {
+    id: 'obs-mic',
+    category: 'Streaming',
+    plugin: 'obs',
+    name: 'OBS: mute mic',
+    description:
+      'Mutes the Mic/Aux source in OBS and turns red while muted, even when you mute in OBS.',
+    tile: {
+      label: 'Mic',
+      icon: 'mic',
+      colour: '#212833',
+      appearanceBindings: [
+        bind('colour', '{{state.muted ? "#F25C6E" : "#212833"}}'),
+        bind('icon', '{{state.muted ? "mic-off" : "mic"}}'),
+      ],
+      graph: {
+        nodes: [
+          press,
+          node('action', 'obs.mute', { input: 'Mic/Aux', action: 'toggle' }, 288),
+          node('watch', 'obs.watch', { input: 'Mic/Aux' }, 0, 160),
+        ],
+        edges: [wire('press', 'out', 'action')],
+      },
+    },
+  },
+  {
+    id: 'obs-replay',
+    category: 'Streaming',
+    plugin: 'obs',
+    name: 'OBS: save replay',
+    description: 'Saves the last moments from the replay buffer (turn it on in OBS first).',
+    tile: {
+      label: 'Clip it',
+      icon: 'save',
+      colour: '#8B7CF6',
+      graph: simple('obs.output', { what: 'replay', action: 'toggle' }),
+    },
+  },
+
+  // Lights
+  {
+    id: 'keylight-toggle',
+    category: 'Lights',
+    plugin: 'keylight',
+    name: 'Key Light on and off',
+    description:
+      'Turns your Elgato Key Lights on or off together, and lights up while they are on.',
+    tile: {
+      label: 'Key Light',
+      icon: 'sun',
+      colour: '#212833',
+      appearanceBindings: [bind('colour', '{{state.on ? "#F5B63D" : "#212833"}}')],
+      graph: simple('keylight.power', { light: 'all', action: 'toggle' }),
+    },
+  },
+  {
+    id: 'keylight-brightness',
+    category: 'Lights',
+    plugin: 'keylight',
+    name: 'Key Light brightness',
+    description: 'Drag to set Key Light brightness.',
+    tile: {
+      label: 'Key Light',
+      icon: 'sun-dim',
+      colour: '#F5B63D',
+      kind: 'slider',
+      concurrency: 'restart',
+      appearanceBindings: [bind('label', 'Key Light {{state.value ?? 50}}%')],
+      graph: slider('keylight.set', { light: 'all', level: 50, kelvin: 0 }, 'level', {
+        min: 0,
+        max: 100,
+        step: 5,
+      }),
+    },
+  },
+  {
+    id: 'keylight-warm',
+    category: 'Lights',
+    plugin: 'keylight',
+    name: 'Key Light warm',
+    description: 'Sets Key Lights to a warm 3200 K at 40%, for evenings.',
+    tile: {
+      label: 'Warm',
+      icon: 'moon',
+      colour: '#FF7A59',
+      graph: simple('keylight.set', { light: 'all', level: 40, kelvin: 3200 }),
+    },
+  },
+  {
+    id: 'hue-toggle',
+    category: 'Lights',
+    plugin: 'hue',
+    name: 'Hue room on and off',
+    description: 'Turns a Hue room on or off. Type your room’s name in the block.',
+    tile: {
+      label: 'Living room',
+      icon: 'lightbulb',
+      colour: '#212833',
+      appearanceBindings: [bind('colour', '{{state.on ? "#F5B63D" : "#212833"}}')],
+      graph: simple('hue.light', { target: 'room', name: 'Living room', action: 'toggle' }),
+    },
+  },
+  {
+    id: 'hue-brightness',
+    category: 'Lights',
+    plugin: 'hue',
+    name: 'Hue brightness',
+    description: 'Drag to dim or brighten a Hue room.',
+    tile: {
+      label: 'Living room',
+      icon: 'sun-dim',
+      colour: '#F5B63D',
+      kind: 'slider',
+      concurrency: 'restart',
+      appearanceBindings: [bind('label', 'Lights {{state.value ?? 70}}%')],
+      graph: slider('hue.brightness', { target: 'room', name: 'Living room', level: 70 }, 'level', {
+        min: 0,
+        max: 100,
+        step: 5,
+      }),
+    },
+  },
+  {
+    id: 'hue-scene',
+    category: 'Lights',
+    plugin: 'hue',
+    name: 'Hue scene',
+    description: 'Recalls a Hue scene, e.g. Relax in the living room.',
+    tile: {
+      label: 'Relax',
+      icon: 'palette',
+      colour: '#8B7CF6',
+      graph: simple('hue.scene', { room: 'Living room', scene: 'Relax' }),
+    },
+  },
+  {
+    id: 'hue-connect',
+    category: 'Lights',
+    plugin: 'hue',
+    name: 'Connect to the Hue bridge',
+    description: 'Press the button on your Hue bridge, then this tile, once, to connect Tessel.',
+    tile: {
+      label: 'Connect Hue',
+      icon: 'link',
+      colour: '#212833',
+      graph: simple('hue.connect', {}),
+    },
+  },
+
+  // Status, sound and apps (optional plugins)
+  slackStatus('slack-meeting', 'In a meeting', ':calendar:', 60, 'calendar'),
+  slackStatus('slack-lunch', 'Lunch', ':sandwich:', 45, 'coffee'),
+  slackStatus('slack-focus', 'Focusing', ':headphones:', 120, 'headphones'),
+  {
+    id: 'slack-clear',
+    category: 'Meetings',
+    plugin: 'slack',
+    name: 'Slack status: clear',
+    description: 'Clears your Slack status.',
+    tile: {
+      label: 'Clear status',
+      icon: 'x',
+      colour: '#4A154B',
+      graph: simple('slack.status', { text: '', emoji: '', minutes: 0 }),
+    },
+  },
+  {
+    id: 'slack-dnd',
+    category: 'Meetings',
+    plugin: 'slack',
+    name: 'Slack: pause notifications for an hour',
+    description: 'Pauses Slack notifications for 60 minutes.',
+    tile: {
+      label: 'Do not disturb',
+      icon: 'bell',
+      colour: '#4A154B',
+      graph: simple('slack.dnd', { action: 'pause', minutes: 60 }),
+    },
+  },
+  {
+    id: 'audio-switch',
+    category: 'Media and sound',
+    plugin: 'audio-output',
+    name: 'Switch speakers and headphones',
+    description:
+      'Sends sound to your headphones, or back to the speakers when it already goes there. Change the names to match yours.',
+    tile: {
+      label: 'Output',
+      icon: 'headphones',
+      colour: '#212833',
+      appearanceBindings: [bind('label', '{{state.output || "Output"}}')],
+      graph: simple('audio-output.use', { output: 'Headphones', other: 'Speakers' }),
+    },
+  },
+  {
+    id: 'spotify-playlist',
+    category: 'Media and sound',
+    plugin: 'spotify',
+    name: 'Play a Spotify playlist',
+    description: 'Plays a playlist, album or song. Paste its Spotify share link into the block.',
+    tile: {
+      label: 'Playlist',
+      icon: 'music',
+      colour: '#1DB954',
+      graph: simple('spotify.play', {
+        link: 'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M',
+      }),
+    },
+  },
+  {
+    id: 'spotify-shuffle',
+    category: 'Media and sound',
+    plugin: 'spotify',
+    name: 'Spotify shuffle',
+    description: 'Turns shuffle on or off in Spotify (macOS), and lights up while it is on.',
+    tile: {
+      label: 'Shuffle',
+      icon: 'shuffle',
+      colour: '#212833',
+      appearanceBindings: [bind('colour', '{{state.shuffle ? "#1DB954" : "#212833"}}')],
+      graph: simple('spotify.shuffle', { what: 'shuffling', action: 'toggle' }),
+    },
+  },
+  {
+    id: 'mac-shortcut',
+    category: 'Apps',
+    plugin: 'mac-shortcuts',
+    name: 'Run a Shortcut (macOS)',
+    description: 'Runs one of your shortcuts from the Shortcuts app. Type its name in the block.',
+    tile: {
+      label: 'Shortcut',
+      icon: 'zap',
+      colour: '#4FA3F7',
+      graph: simple('mac-shortcuts.run', { name: 'My shortcut' }),
+    },
+  },
+
+  // More everyday tiles (no plugins needed)
+  {
+    id: 'reminder-water',
+    category: 'Productivity',
+    name: 'Drink water reminder',
+    description:
+      'Pops up a reminder every hour from 9 to 5 on weekdays. Press it to snooze one round.',
+    tile: {
+      label: 'Water',
+      icon: 'coffee',
+      colour: '#4FA3F7',
+      graph: {
+        nodes: [
+          node('tick', 'trigger.schedule', { cron: '0 9-17 * * 1-5' }, 0),
+          node(
+            'toast',
+            'action.toast',
+            {
+              title: 'Time for some water',
+              body: 'A glass now keeps the afternoon slump away.',
+              icon: '💧',
+              colour: '#4FA3F7',
+              seconds: 8,
+              position: 'top-right',
+            },
+            288,
+          ),
+        ],
+        edges: [wire('tick', 'out', 'toast')],
+      },
+    },
+  },
+  {
+    id: 'reminder-stand',
+    category: 'Productivity',
+    name: 'Stand up reminder',
+    description: 'Every 50 minutes in working hours, pops up a reminder to stand and stretch.',
+    tile: {
+      label: 'Stand up',
+      icon: 'zap',
+      colour: '#22D3C5',
+      graph: {
+        nodes: [
+          node('tick', 'trigger.schedule', { cron: '50 9-17 * * 1-5' }, 0),
+          node(
+            'toast',
+            'action.toast',
+            {
+              title: 'Stand up',
+              body: 'Stretch for a minute; your back will thank you.',
+              icon: '🧍',
+              colour: '#22D3C5',
+              seconds: 8,
+              position: 'top-right',
+            },
+            288,
+          ),
+        ],
+        edges: [wire('tick', 'out', 'toast')],
+      },
+    },
+  },
+  {
+    id: 'night-mode',
+    category: 'System',
+    name: 'Night mode',
+    description:
+      'Turns on dark mode and dims the screen to 30%. Press again in the morning with the Day mode tile.',
+    tile: {
+      label: 'Night',
+      icon: 'moon',
+      colour: '#8B7CF6',
+      graph: {
+        nodes: [
+          press,
+          node('dark', 'action.setSetting', { setting: 'darkMode', value: true }, 288),
+          node('dim', 'action.setSetting', { setting: 'brightness', level: 30 }, 576),
+        ],
+        edges: [wire('press', 'out', 'dark'), wire('dark', 'out', 'dim')],
+      },
+    },
+  },
+  {
+    id: 'day-mode',
+    category: 'System',
+    name: 'Day mode',
+    description: 'Turns off dark mode and sets the screen to full brightness.',
+    tile: {
+      label: 'Day',
+      icon: 'sun',
+      colour: '#F5B63D',
+      graph: {
+        nodes: [
+          press,
+          node('light', 'action.setSetting', { setting: 'darkMode', value: false }, 288),
+          node('bright', 'action.setSetting', { setting: 'brightness', level: 100 }, 576),
+        ],
+        edges: [wire('press', 'out', 'light'), wire('light', 'out', 'bright')],
+      },
+    },
+  },
+  {
+    id: 'meeting-ready',
+    category: 'Meetings',
+    name: 'Ready for a meeting',
+    description:
+      'Turns the sound up to 60%, pauses music and pops up a reminder to check your camera.',
+    tile: {
+      label: 'Meeting',
+      icon: 'video',
+      colour: '#4FA3F7',
+      graph: {
+        nodes: [
+          press,
+          node('pause', 'action.mediaKey', { key: 'playPause' }, 288),
+          node('vol', 'action.setSetting', { setting: 'volume', level: 60 }, 576),
+          node(
+            'toast',
+            'action.toast',
+            {
+              title: 'Ready',
+              body: 'Check your camera and lighting.',
+              icon: '🎥',
+              colour: '#4FA3F7',
+              seconds: 5,
+              position: 'top-center',
+            },
+            864,
+          ),
+        ],
+        edges: [
+          wire('press', 'out', 'pause'),
+          wire('pause', 'out', 'vol'),
+          wire('vol', 'out', 'toast'),
+        ],
+      },
+    },
+  },
 ]
 
 export const TEMPLATE_CATEGORIES: TemplateCategory[] = [
@@ -1345,6 +1824,8 @@ export const TEMPLATE_CATEGORIES: TemplateCategory[] = [
   'Live tiles',
   'Voicemeeter',
   'Soundpad',
+  'Streaming',
+  'Lights',
   'Home',
   'AI and search',
   'Apps',
@@ -1480,6 +1961,64 @@ export const pageTemplates: PageTemplate[] = [
       { template: 'popup-date', col: 1, row: 1 },
       { template: 'live-weather', col: 2, row: 1 },
       { template: 'ha-brightness', col: 0, row: 2, w: 3 },
+    ],
+  },
+  {
+    id: 'page-streaming',
+    name: 'Streaming',
+    description:
+      'OBS scenes that light up when live, record, go live (hold), mic mute, clip it and your Key Light. Needs the OBS Studio plugin.',
+    cols: 3,
+    rows: 4,
+    tiles: [
+      { template: 'obs-scene-camera', col: 0, row: 0 },
+      { template: 'obs-scene-screen', col: 1, row: 0 },
+      { template: 'obs-scene-brb', col: 2, row: 0 },
+      { template: 'obs-mic', col: 0, row: 1 },
+      { template: 'obs-record', col: 1, row: 1 },
+      { template: 'obs-stream', col: 2, row: 1 },
+      { template: 'obs-replay', col: 0, row: 2 },
+      { template: 'live-now-playing', col: 1, row: 2, w: 2 },
+      { template: 'keylight-brightness', col: 0, row: 3, w: 3 },
+    ],
+  },
+  {
+    id: 'page-lights',
+    name: 'Lights',
+    description: 'Key Lights and Hue: on and off, brightness sliders, warm light and a scene.',
+    cols: 3,
+    rows: 4,
+    tiles: [
+      { template: 'keylight-toggle', col: 0, row: 0 },
+      { template: 'keylight-warm', col: 1, row: 0 },
+      { template: 'hue-toggle', col: 2, row: 0 },
+      { template: 'hue-scene', col: 0, row: 1 },
+      { template: 'hue-connect', col: 1, row: 1 },
+      { template: 'night-mode', col: 2, row: 1 },
+      { template: 'keylight-brightness', col: 0, row: 2, w: 3 },
+      { template: 'hue-brightness', col: 0, row: 3, w: 3 },
+    ],
+  },
+  {
+    id: 'page-work',
+    name: 'Workday',
+    description:
+      'Slack status and pausing, meeting prep, focus timer, reminders and output switching.',
+    cols: 3,
+    rows: 4,
+    tiles: [
+      { template: 'slack-meeting', col: 0, row: 0 },
+      { template: 'slack-focus', col: 1, row: 0 },
+      { template: 'slack-lunch', col: 2, row: 0 },
+      { template: 'slack-dnd', col: 0, row: 1 },
+      { template: 'slack-clear', col: 1, row: 1 },
+      { template: 'meeting-ready', col: 2, row: 1 },
+      { template: 'timer-25', col: 0, row: 2 },
+      { template: 'audio-switch', col: 1, row: 2 },
+      { template: 'reminder-water', col: 2, row: 2 },
+      { template: 'day-mode', col: 0, row: 3 },
+      { template: 'night-mode', col: 1, row: 3 },
+      { template: 'reminder-stand', col: 2, row: 3 },
     ],
   },
   {

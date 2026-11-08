@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Get more plugins:** OBS Studio, Philips Hue, Elgato Key Light, macOS Shortcuts, audio output switching, Slack status and Spotify, downloaded on demand and checked before installing.
+- **More templates:** OBS scenes, record and go-live keys that light up while live; light switches and sliders; Slack statuses; water and stand-up reminders; night and day mode; meeting prep. New pages: Streaming, Lights and Workday.
 - **Pair by scanning** the QR code; no code to type.
 - **First run asks what Tessel is for** and adds matching ready-made pages.
 - **Edit keys on the phone:** name, colour, icon and swapping places (never what keys do).

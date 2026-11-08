@@ -22,7 +22,8 @@
     "package:mac-win": "pnpm build:plugins && pnpm stage:plugins && pnpm --filter @tessel/phone build && pnpm --filter @tessel/desktop build && pnpm --filter @tessel/desktop exec electron-builder --mac --win",
     "release": "node scripts/release.ts",
     "package:dir": "pnpm build:plugins && pnpm stage:plugins && pnpm --filter @tessel/phone build && pnpm --filter @tessel/desktop build && pnpm --filter @tessel/desktop exec electron-builder --dir",
-    "ios:open": "pnpm --filter @tessel/ios-shell open"
+    "ios:open": "pnpm --filter @tessel/ios-shell open",
+    "pack:catalog": "node scripts/pack-catalog.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -31,6 +32,7 @@
     "esbuild": "^0.28.2",
     "eslint": "^10.14.0",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "fflate": "0.8.3",
     "globals": "^17.14.0",
     "prettier": "^3.9.10",
     "typescript": "6.0.3",

@@ -11,6 +11,7 @@ import { addPluginWithDialog } from './plugins/dialogs.ts'
 import { exportWithDialog, importWithDialog } from './transfer-dialogs.ts'
 import { TesselTray } from './tray.ts'
 import { Updater } from './updater.ts'
+import { newer, PluginCatalog } from './catalog.ts'
 import QRCode from 'qrcode'
 import { ensureMyBlocks, ensurePackage, newBlockFile } from './custom-blocks.ts'
 import { createRequire } from 'node:module'
@@ -227,6 +228,45 @@ async function start() {
   ipcMain.handle(Channel.deleteShortcut, (_e, id: unknown) =>
     typeof id === 'string' ? hub.deleteShortcut(id) : undefined,
   )
+  const catalog = new PluginCatalog()
+  ipcMain.handle(Channel.getCatalog, async (_e, force: unknown) => {
+    try {
+      const entries = await catalog.list(force === true)
+      const installed = new Map(
+        hub
+          .plugin()
+          .list()
+          .map((p) => [p.id, p.version]),
+      )
+      return {
+        ok: true,
+        plugins: entries.map((e) => {
+          const have = installed.get(e.id)
+          return {
+            ...e,
+            ...(have && { installed: have }),
+            update: have !== undefined && newer(e.version, have),
+            supported: !e.platforms || e.platforms.includes(process.platform as 'darwin'),
+          }
+        }),
+      }
+    } catch (err) {
+      return { ok: false, error: (err as Error).message }
+    }
+  })
+  ipcMain.handle(Channel.installFromCatalog, async (_e, id: unknown) => {
+    try {
+      const entry = (await catalog.list()).find((p) => p.id === id)
+      if (!entry) return { ok: false, error: 'That plugin isn’t in the list any more.' }
+      await hub.plugin().installZip(await catalog.download(entry))
+      return { ok: true }
+    } catch (err) {
+      const message = (err as Error).message
+      return /cancelled/i.test(message)
+        ? { ok: false, cancelled: true }
+        : { ok: false, error: message }
+    }
+  })
   ipcMain.handle(Channel.exportTel, (_e, req: unknown) => {
     const r = req as SharedTiles | undefined
     if (!r || typeof r.name !== 'string' || !Array.isArray(r.tiles))

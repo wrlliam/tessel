@@ -1,9 +1,9 @@
 import { TileIcon } from '@tessel/brand/icons'
 import { osName, type OS } from '@tessel/core'
 import { PERMISSION_TEXT, type SettingField } from '@tessel/plugin-sdk'
-import { Code, FilePlus, FolderOpen, FolderCode, Package, RotateCw } from 'lucide-react'
-import { useState } from 'react'
-import type { DesktopState, PluginInfo } from '../../shared/api.ts'
+import { Download, Code, FilePlus, FolderOpen, FolderCode, Package, RotateCw } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import type { CatalogResult, DesktopState, PluginInfo } from '../../shared/api.ts'
 import { cn } from './lib/cn.ts'
 import { Switch } from './Switch.tsx'
 import { Button } from './ui/button.tsx'
@@ -55,6 +55,10 @@ export function PluginsView({ state }: { state: DesktopState }) {
           )}
         </header>
         <MyBlocksCard state={state} onError={setMessage} />
+        <CatalogSection
+          onError={setMessage}
+          installedIds={state.plugins.map((p) => `${p.id}@${p.version}`).join()}
+        />
         {state.plugins.length === 0 && <p className="text-sm text-muted">No plugins yet.</p>}
         <ul className="space-y-3">
           {state.plugins.map((p) => (
@@ -282,6 +286,104 @@ function MyBlocksCard({ state, onError }: { state: DesktopState; onError: (m?: s
           <FilePlus /> New block
         </Button>
       </form>
+    </section>
+  )
+}
+
+/** Optional plugins to download from Tessel's plugin list. */
+function CatalogSection({
+  onError,
+  installedIds,
+}: {
+  onError: (m?: string) => void
+  /** Changes when plugins come or go, to refresh what's installed. */
+  installedIds: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [list, setList] = useState<Extract<CatalogResult, { ok: true }>['plugins']>()
+  const [error, setError] = useState<string>()
+  const [busy, setBusy] = useState<string>()
+
+  const load = async (force = false) => {
+    const r = await window.tessel.getCatalog(force)
+    if (r.ok) {
+      setList(r.plugins)
+      setError(undefined)
+    } else setError(r.error)
+  }
+  useEffect(() => {
+    if (!open) return
+    let live = true
+    void window.tessel.getCatalog().then((r) => {
+      if (!live) return
+      if (r.ok) {
+        setList(r.plugins)
+        setError(undefined)
+      } else setError(r.error)
+    })
+    return () => {
+      live = false
+    }
+  }, [open, installedIds])
+
+  return (
+    <section className="rounded-2xl border border-line bg-surface p-5">
+      <div className="flex items-center gap-2">
+        <Download className="size-5 text-muted" />
+        <h3 className="mr-auto font-medium">Get more plugins</h3>
+        <Button variant={open ? 'ghost' : 'primary'} onClick={() => setOpen(!open)}>
+          {open ? 'Hide' : 'Browse'}
+        </Button>
+      </div>
+      {!open && (
+        <p className="mt-2 text-sm text-muted">
+          OBS Studio, Philips Hue, Elgato Key Light, Shortcuts, sound outputs, Slack and Spotify.
+          Install only the ones you use.
+        </p>
+      )}
+      {open && error && <p className="mt-3 text-sm text-signal">{error}</p>}
+      {open && !list && !error && <p className="mt-3 text-sm text-muted">Loading…</p>}
+      {open && list && (
+        <ul className="mt-3 divide-y divide-line">
+          {list.map((p) => (
+            <li key={p.id} className="flex items-start gap-3 py-3">
+              <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-line/60 text-muted">
+                <TileIcon icon={p.icon ?? 'zap'} size={18} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">
+                  {p.name} <span className="font-mono text-xs text-muted">{p.version}</span>
+                </p>
+                <p className="text-sm text-muted">{p.description}</p>
+                <p className="mt-1 text-xs text-muted">
+                  {p.platforms ? p.platforms.map((o) => osName[o as OS]).join(', ') : 'All systems'}
+                  {p.permissions.length > 0 &&
+                    ` · ${p.permissions.map((x) => PERMISSION_TEXT[x as keyof typeof PERMISSION_TEXT] ?? x).join(', ')}`}
+                </p>
+              </div>
+              {p.installed && !p.update ? (
+                <span className="text-xs text-muted">Installed</span>
+              ) : (
+                <Button
+                  size="sm"
+                  disabled={busy !== undefined || !p.supported}
+                  title={p.supported ? undefined : 'Not for this computer’s system'}
+                  onClick={async () => {
+                    setBusy(p.id)
+                    onError(undefined)
+                    const r = await window.tessel.installFromCatalog(p.id)
+                    setBusy(undefined)
+                    if (!r.ok && 'error' in r) onError(r.error)
+                    void load()
+                  }}
+                >
+                  {busy === p.id ? 'Installing…' : p.update ? 'Update' : 'Install'}
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }

@@ -1,0 +1,23 @@
+{
+  "id": "slack",
+  "name": "Slack status",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Set your Slack status and pause notifications from a key.",
+  "author": "Tessel",
+  "main": "dist/index.js",
+  "permissions": ["network"],
+  "icon": "message-circle",
+  "settingsSchema": {
+    "type": "object",
+    "properties": {
+      "token": {
+        "type": "string",
+        "title": "User token",
+        "secret": true,
+        "default": "",
+        "description": "A Slack user token (xoxp-\u2026) with users.profile:write and dnd:write. See the plugin docs."
+      }
+    }
+  }
+}

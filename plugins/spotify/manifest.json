@@ -1,0 +1,11 @@
+{
+  "id": "spotify",
+  "name": "Spotify",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Play a playlist, album or song by its link, and on macOS set Spotify\u2019s volume and shuffle.",
+  "author": "Tessel",
+  "main": "dist/index.js",
+  "permissions": ["shell"],
+  "icon": "music"
+}
