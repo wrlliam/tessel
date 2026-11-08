@@ -117,10 +117,19 @@ jobs:
             echo "- **Linux**: \`.AppImage\` or \`.deb\`"
             echo
             echo "Builds aren't signed yet. On macOS, right-click Tessel, choose Open, then Open again. On Windows, choose More info, then Run anyway. Installed copies update themselves (macOS shows a download link)."
+            # What changed since the previous release, one line per commit.
+            prev=$(gh release list --limit 1 --exclude-drafts --json tagName --jq '.[0].tagName // empty')
+            echo
+            echo "## Changes"
+            echo
+            if [ -n "$prev" ] && git rev-parse -q --verify "refs/tags/$prev" >/dev/null; then
+              git log --no-merges --pretty='- %s (%h)' "$prev..$GITHUB_SHA"
+            else
+              git log --no-merges --pretty='- %s (%h)' -20 "$GITHUB_SHA"
+            fi
           } > notes.md
           gh release create "v${VERSION}" dist/* \
             --target "${GITHUB_SHA}" \
             --title "Tessel ${VERSION}" \
             --notes-file notes.md \
-            --generate-notes \
             --latest
