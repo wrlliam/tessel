@@ -5,7 +5,7 @@ import { Channel, type DesktopState } from '../shared/api.ts'
 import { Hub } from './hub.ts'
 import { phoneDir } from './paths.ts'
 import { createPlatform, isWayland } from './platform/index.ts'
-import { confirmPermissions, utilitySpawner, watchFolder } from './plugins/electron.ts'
+import { confirmPermissions, pluginSpawner, watchFolder } from './plugins/electron.ts'
 import { pluginRunner, builtinPluginsDir } from './paths.ts'
 import { addPluginWithDialog } from './plugins/dialogs.ts'
 import { exportWithDialog, importWithDialog } from './transfer-dialogs.ts'
@@ -33,7 +33,7 @@ async function start() {
     // Read when a shell block runs, after the hub exists.
     platform: createPlatform(() => hub.shellPolicy()),
     plugins: {
-      spawn: utilitySpawner(pluginRunner()),
+      spawn: pluginSpawner(pluginRunner()),
       builtinDirs: [builtinPluginsDir()],
       confirmPermissions,
       watch: watchFolder,

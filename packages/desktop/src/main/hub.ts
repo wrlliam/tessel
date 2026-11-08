@@ -28,6 +28,7 @@ import {
   type LanAddress,
   type Logger,
   type PressEvent,
+  ensureTls,
 } from '@tessel/server'
 import { join } from 'node:path'
 import QRCode from 'qrcode'
@@ -102,6 +103,7 @@ export class Hub {
   private listening = false
   private serverError: string | undefined
   private urls: string[] = []
+  private caUrl: string | undefined
   private qrCodes: Record<string, string> = {}
   private log: LogEntry[] = []
   private logId = 0
@@ -203,12 +205,14 @@ export class Hub {
         shell: this.settings.shell,
         theme: this.settings.theme,
         logLevel: this.settings.logLevel,
+        https: this.settings.https,
       },
       plugins: this.plugins?.list() ?? [],
       phoneSettings: this.settings.phone,
       blocksVersion: this.blocksVersion,
     }
     if (this.serverError) state.serverError = this.serverError
+    if (this.caUrl) state.caUrl = this.caUrl
     return state
   }
 
@@ -361,20 +365,25 @@ export class Hub {
 
   /** Applies a settings change; a new port restarts sharing. */
   async updateSettings(patch: unknown): Promise<SaveResult> {
-    const { port, shell, theme, logLevel } = patch as Partial<Settings>
+    const { port, shell, theme, logLevel, https } = patch as Partial<Settings>
     const allowed = Object.fromEntries(
-      Object.entries({ port, shell, theme, logLevel }).filter(([, v]) => v !== undefined),
+      Object.entries({ port, shell, theme, logLevel, https }).filter(([, v]) => v !== undefined),
     )
     const parsed = Settings.safeParse({ ...this.settings, ...allowed })
     if (!parsed.success)
       return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid setting' }
     const portChanged = parsed.data.port !== this.settings.port
+    const httpsChanged = parsed.data.https !== this.settings.https
     this.settings = parsed.data
     await this.store.save(this.settings)
     if (portChanged && this.listening) {
       await this.server.stop()
       this.listening = false
       await this.startServer()
+    } else if (httpsChanged) {
+      await this.applyTls(this.hosts())
+      await this.refreshNetwork(true)
+      this.logger.info(this.server.secure ? 'Secure connections on' : 'Secure connections off')
     }
     this.emit()
     return { ok: true }
@@ -616,6 +625,7 @@ export class Hub {
 
   private async startServer() {
     this.serverError = undefined
+    await this.applyTls(this.hosts())
     try {
       await this.server.start(this.settings.port)
       this.listening = true
@@ -634,12 +644,35 @@ export class Hub {
     await this.refreshNetwork(true)
   }
 
-  private async refreshNetwork(force = false) {
-    const port = this.settings.port
+  private hosts(): string[] {
     const hosts = (this.opts.addresses ?? lanAddresses)().map((a) => a.address)
     if (this.opts.localHostname) hosts.push(this.opts.localHostname)
-    const urls = this.listening ? hosts.map((h) => `http://${h}:${port}/`) : []
+    return hosts
+  }
+
+  /** Turns https on or off to match settings; a new address gets a renewed certificate. */
+  private async applyTls(hosts: string[]) {
+    if (!this.settings.https) return this.server.setTls(undefined)
+    try {
+      this.server.setTls(await ensureTls(join(this.opts.dataDir, 'tls'), hosts))
+    } catch (err) {
+      this.server.setTls(undefined)
+      this.logger.error(`Couldn't set up secure connections: ${(err as Error).message}`)
+    }
+  }
+
+  private async refreshNetwork(force = false) {
+    const port = this.settings.port
+    const hosts = this.hosts()
+    const scheme = this.server.secure ? 'https' : 'http'
+    const urls = this.listening ? hosts.map((h) => `${scheme}://${h}:${port}/`) : []
     if (!force && urls.join() === this.urls.join()) return
+    // Addresses changed: make sure the certificate still covers them.
+    if (this.server.secure) await this.applyTls(hosts)
+    this.caUrl =
+      this.server.secure && this.listening && hosts[0]
+        ? `http://${hosts[0]}:${port}/tessel-ca.crt`
+        : undefined
     const qrCodes: Record<string, string> = {}
     for (const url of urls) {
       qrCodes[url] = await QRCode.toDataURL(url, {

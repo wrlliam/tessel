@@ -101,4 +101,15 @@ Tessel starts each enabled plugin with Electron's `utilityProcess` (Node's `fork
 
 ## Trust
 
-Permissions are what a plugin declares. Tessel shows them, and asks, before an installed or development plugin starts, but plugin processes run with your account's rights and are not sandboxed. Install only plugins you trust. Phones have no way to install, enable or configure plugins.
+Permissions are what a plugin declares. Tessel shows them, and asks, before an installed or development plugin starts, then holds the plugin to them with Node's permission model:
+
+| Declared     | What the process may do                                                                            |
+| ------------ | -------------------------------------------------------------------------------------------------- |
+| nothing      | Read its own folder (and dependencies linked into it). No writing, programs, native code, workers. |
+| `filesystem` | Read and write any file your account can.                                                          |
+| `shell`      | Start programs.                                                                                    |
+| `network`    | Not limited yet; the Node in Electron 45 can't restrict it.                                        |
+| `input`      | Nothing extra: key and mouse blocks go through Tessel.                                             |
+| `native`     | Runs **without** the sandbox, because native code can step around it.                              |
+
+Use `ctx.storage` for data the plugin keeps; it goes through Tessel, so it needs no file access. Install only plugins you trust. Phones have no way to install, enable or configure plugins.

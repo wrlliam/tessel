@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { DesktopState } from '../../shared/api.ts'
 import { formatCode } from './format.ts'
 import { Panel } from './Panel.tsx'
+import { Switch } from './Switch.tsx'
 import { useNow } from './useDesktopState.ts'
 
 export function ConnectPanel({ state }: { state: DesktopState }) {
@@ -83,12 +84,53 @@ export function ConnectPanel({ state }: { state: DesktopState }) {
                 onClick={() => setPicked(u)}
                 className={`rounded-lg border px-2.5 py-1 font-mono text-xs ${u === url ? 'border-glaze text-text' : 'border-line text-muted hover:text-text'}`}
               >
-                {u.replace(/^http:\/\/|\/$/g, '')}
+                {u.replace(/^https?:\/\/|\/$/g, '')}
               </button>
             ))}
           </div>
         </div>
       )}
+
+      <SecureConnection state={state} />
     </Panel>
+  )
+}
+
+function SecureConnection({ state }: { state: DesktopState }) {
+  const on = state.settings.https
+  return (
+    <div className="mt-5 border-t border-line pt-4 text-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p>Secure connection</p>
+          <p className="text-xs text-muted">
+            Uses https://, so Safari can keep the screen on. Each phone installs Tessel's
+            certificate once.
+          </p>
+        </div>
+        <Switch
+          label="Secure connection"
+          hideLabel
+          checked={on}
+          onChange={(https) => void window.tessel.updateSettings({ https })}
+        />
+      </div>
+      {on && state.caUrl && (
+        <ol className="mt-3 list-decimal space-y-1 pl-4 text-xs text-muted">
+          <li>
+            On the phone, open <span className="font-mono text-text select-all">{state.caUrl}</span>{' '}
+            and allow the download.
+          </li>
+          <li>
+            iPhone: Settings › Profile Downloaded › Install. Then Settings › General › About ›
+            Certificate Trust Settings, and turn on Tessel.
+          </li>
+          <li>
+            Android: Settings › Security › Encryption › Install a certificate › CA certificate.
+          </li>
+          <li>Scan the QR code above and pair again; https:// is a new address to the phone.</li>
+        </ol>
+      )}
+    </div>
   )
 }

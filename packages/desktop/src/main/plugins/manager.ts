@@ -396,7 +396,11 @@ export class PluginManager {
     entry.status = 'starting'
     delete entry.error
     this.opts.onChange()
-    const proc = this.opts.spawn(entry.dir, entry.manifest.name)
+    const proc = this.opts.spawn({
+      dir: entry.dir,
+      name: entry.manifest.name,
+      permissions: entry.manifest.permissions,
+    })
     entry.proc = proc
     const conn = new PluginConnection(proc, {
       onNotification: (n) => this.onNotification(entry, n),

@@ -1,3 +1,4 @@
+export { createCa, ensureTls, issueServerCert, serverCertFits } from './certs.ts'
 export { DeviceRegistry, type DeviceInfo } from './devices.ts'
 export { createJsonStore, NewerSchemaError, type JsonStore, type Migrations } from './json-store.ts'
 export { lanAddresses, type LanAddress } from './lan.ts'
@@ -10,4 +11,5 @@ export {
   type Logger,
   type PressEvent,
   type TesselServerOptions,
+  type TlsCredentials,
 } from './server.ts'

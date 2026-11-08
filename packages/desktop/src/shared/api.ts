@@ -37,6 +37,8 @@ export interface DesktopState {
   port: number
   serverError?: string
   urls: string[]
+  /** Where phones download Tessel's certificate, when secure connections are on. */
+  caUrl?: string
   /** PNG data URL of the QR code for each entry in `urls`. */
   qrCodes: Record<string, string>
   pairing: PairingCode
@@ -60,6 +62,8 @@ export interface AppSettings {
   shell: 'off' | 'confirm' | 'on'
   theme: 'system' | 'dark' | 'light'
   logLevel: 'info' | 'warn' | 'error'
+  /** Serve https:// as well, with a certificate phones install once. */
+  https: boolean
 }
 
 export interface ProfileEngineEvent {

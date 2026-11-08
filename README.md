@@ -220,6 +220,8 @@ Set `TESSEL_DATA_DIR` to use a different folder (handy for testing without touch
 - Pairing codes expire after 5 minutes and work once. Wrong guesses are rate-limited per IP and the code is replaced after 20 failures in total.
 - Requests need a LAN-style `Host` (IP, `localhost` or `*.local`) and, for pairing and WebSocket, a matching `Origin`.
 - Phones can only send press events for tile ids that exist. They never receive tile graphs.
+- **Secure connection** (Phones tab, off by default) adds `https://` and `wss://` on the same port. Tessel makes its own certificate authority for this computer (kept in the data folder, key readable only by you) and a server certificate for its current addresses, renewed when they change. Each phone installs the CA once from `http://<computer>:<port>/tessel-ca.crt`. Plain `http://` keeps working for phones that haven't, and for the iPhone app.
+- **Plugins are sandboxed** with Node's permission model. A plugin can read only its own folder and can't write files, start programs, load native code or start workers, unless its manifest asks for `filesystem` or `shell` and you allowed it. Plugins that need `native` code run without the sandbox (native code can step around it), and Tessel says so when asking.
 
 ## Troubleshooting
 
@@ -254,8 +256,8 @@ Set `TESSEL_DATA_DIR` to use a different folder (handy for testing without touch
 - **Tested on macOS only.** The Windows and Linux adapters (apps, volume, brightness, dark mode, lock, sleep, Voicemeeter, ydotool) are covered by tests that mock the OS calls; CI runs the test suite on all three OSes, but the real calls haven't been tried on those systems yet.
 - **Voicemeeter** is tested against a mock of its API, not real Voicemeeter.
 - **The iPhone app** was run in the iOS simulator (discovery, connecting, the phone page and its native bridge), not yet on a physical iPhone.
-- **Plugins** are separate processes with your account's rights; their permissions are shown and confirmed, not sandboxed.
-- Over plain `http://` on the LAN, Safari gives no Wake Lock and no service worker (offline cache). Add to Home Screen and full-screen mode still work. Optional local HTTPS (a stretch goal in the brief) isn't built.
+- **Plugin network access** isn't limited: the Node in Electron 45 has no network permission yet. Tessel passes `--allow-net` for plugins that declare `network` once it does. Plugins declaring `native` aren't sandboxed.
+- **Secure connection** needs a one-time certificate install on each phone (iPhone also needs it turned on under Certificate Trust Settings), and phones pair again on the `https://` address. Without it, Safari over plain `http://` gives no Wake Lock. There is no service worker either way: the phone page needs the computer to be useful.
 - No haptics in Safari (no Vibration API); the iPhone app has them.
 - The server runs in Electron's main process. It's small; it moves to a utility process if it ever gets heavy.
 - Typing non-ASCII text (accents, emoji) goes through the clipboard: Tessel pastes it, then restores what was there before.

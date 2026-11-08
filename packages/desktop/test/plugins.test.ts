@@ -119,6 +119,50 @@ const tileWith = (type: string, params: Record<string, unknown> = {}) => ({
   },
 })
 
+const probe = (outside: string) => `
+import { readFileSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+const t = (f) => { try { f(); return 'ok' } catch (e) { return e.code ?? 'error' } }
+export default {
+  onLoad(ctx) {
+    ctx.log.info('probe read=' + t(() => readFileSync(${JSON.stringify(outside)})) +
+      ' write=' + t(() => writeFileSync(${JSON.stringify(outside)} + '.w', 'x')) +
+      ' exec=' + t(() => execFileSync(process.execPath, ['-e', '0'])))
+  },
+}
+`
+
+describe('plugin sandbox', () => {
+  const probeWith = async (permissions: string[]) => {
+    const outsideDir = await mkdtemp(join(tmpdir(), 'tessel-outside-'))
+    const outside = join(outsideDir, 'secret.txt')
+    await writeFile(outside, 'secret')
+    const { logs } = await setup({}, (b) =>
+      writePlugin(join(b, 'echo'), { permissions }, probe(outside)),
+    )
+    await until(() => logs.some((l) => l.includes('probe ')))
+    return logs.find((l) => l.includes('probe ')) ?? ''
+  }
+
+  it('keeps a plugin without permissions to its own folder', async () => {
+    const line = await probeWith([])
+    expect(line).toContain('read=ERR_ACCESS_DENIED')
+    expect(line).toContain('write=ERR_ACCESS_DENIED')
+    expect(line).toContain('exec=ERR_ACCESS_DENIED')
+  })
+
+  it('grants files and programs only when the manifest asks', async () => {
+    const line = await probeWith(['filesystem', 'shell'])
+    expect(line).toContain('read=ok')
+    expect(line).toContain('write=ok')
+    expect(line).toContain('exec=ok')
+  })
+
+  it('runs plugins that load native code without the sandbox', async () => {
+    expect(await probeWith(['native'])).toContain('read=ok')
+  })
+})
+
 describe('plugin manager', () => {
   it('starts built-in plugins and registers their blocks under the plugin id', async () => {
     const { manager, registry, logs } = await setup()

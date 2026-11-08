@@ -10,6 +10,8 @@ export const Settings = z.object({
   theme: z.enum(['system', 'dark', 'light']).default('system'),
   /** Lowest level kept in the activity log. */
   logLevel: z.enum(['info', 'warn', 'error']).default('info'),
+  /** Also serve https:// on the same port, with a local certificate phones install once. */
+  https: z.boolean().default(false),
   /** Sent to every connected phone. */
   phone: PhoneSettings.default(PhoneSettings.parse({})),
 })

@@ -1,3 +1,4 @@
+import { X509Certificate } from 'node:crypto'
 import { mkdtemp, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -482,6 +483,23 @@ describe('Hub settings', () => {
 })
 
 describe('Hub phone settings and remembered looks', () => {
+  it('turns on https with a certificate for its addresses, and off again', async () => {
+    const { hub, port, dataDir } = await makeHub()
+    expect(await hub.updateSettings({ https: true })).toEqual({ ok: true })
+    let state = hub.state()
+    expect(state.urls).toEqual([`https://192.168.1.20:${port}/`])
+    expect(state.caUrl).toBe(`http://192.168.1.20:${port}/tessel-ca.crt`)
+    const cert = new X509Certificate(await readFile(join(dataDir, 'tls', 'server.crt'), 'utf8'))
+    expect(cert.checkIP('192.168.1.20')).toBe('192.168.1.20')
+    const ca = await fetch(`http://127.0.0.1:${port}/tessel-ca.crt`)
+    expect(ca.status).toBe(200)
+
+    await hub.updateSettings({ https: false })
+    state = hub.state()
+    expect(state.urls).toEqual([`http://192.168.1.20:${port}/`])
+    expect(state.caUrl).toBeUndefined()
+  })
+
   it('saves phone settings and rejects bad values', async () => {
     const { hub, dataDir } = await makeHub()
     expect(

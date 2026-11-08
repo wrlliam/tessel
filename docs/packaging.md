@@ -27,6 +27,8 @@ What goes in the app:
 
 The macOS build declares `NSLocalNetworkUsageDescription` and `NSBonjourServices` (`_tessel._tcp`) so macOS asks for Local Network access with a clear reason, and Apple Events for the dark-mode and volume blocks.
 
+Plugins run as Tessel's own binary with `ELECTRON_RUN_AS_NODE`, so Node's permission flags apply to them. Keep Electron's `RunAsNode` fuse on if you add fuses.
+
 ## Signing (stubbed for now)
 
 Builds are unsigned unless these are set. electron-builder reads them from the environment, and the release workflow passes them from repository secrets.

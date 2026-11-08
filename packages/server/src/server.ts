@@ -14,6 +14,8 @@ import {
 import Bonjour from 'bonjour-service'
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
 import { existsSync } from 'node:fs'
+import { createServer as createHttpsServer, type Server as HttpsServer } from 'node:https'
+import { createServer as createNetServer, type Server as NetServer, type Socket } from 'node:net'
 import { hostname } from 'node:os'
 import { join } from 'node:path'
 import type { WebSocket } from 'ws'
@@ -60,6 +62,17 @@ export interface TesselServerOptions {
   mdns?: boolean
 }
 
+/** Certificate the server uses for https:// on the same port, and the CA phones install. */
+export interface TlsCredentials {
+  key: string
+  cert: string
+  /** PEM of the CA that signed `cert`, offered at /tessel-ca.crt. */
+  ca: string
+}
+
+/** First byte of a TLS ClientHello. */
+const TLS_HANDSHAKE = 0x16
+
 interface Client {
   socket: WebSocket
   ip: string
@@ -69,6 +82,10 @@ interface Client {
 
 export class TesselServer {
   private app?: FastifyInstance
+  private listener?: NetServer
+  private sockets = new Set<Socket>()
+  private tls?: TlsCredentials
+  private https?: HttpsServer
   private bonjour?: Bonjour
   private clients = new Set<Client>()
   private heartbeat?: NodeJS.Timeout
@@ -101,17 +118,65 @@ export class TesselServer {
     for (const c of this.clients) if (c.device) c.socket.send(data)
   }
 
+  /**
+   * Serves https:// alongside http:// on the same port, or stops when undefined. Takes effect
+   * for new connections straight away, so a renewed certificate needs no restart.
+   */
+  setTls(tls: TlsCredentials | undefined) {
+    this.tls = tls
+    if (!tls) this.https = undefined
+    else if (this.https) this.https.setSecureContext({ key: tls.key, cert: tls.cert })
+    else if (this.app) this.https = this.httpsFor(this.app)
+  }
+
+  get secure() {
+    return this.tls !== undefined
+  }
+
+  private httpsFor(app: FastifyInstance): HttpsServer | undefined {
+    if (!this.tls) return undefined
+    const server = createHttpsServer({ key: this.tls.key, cert: this.tls.cert })
+    // Requests and WebSocket upgrades go to the same Fastify app as plain http.
+    server.on('request', (req, res) => app.server.emit('request', req, res))
+    server.on('upgrade', (req, socket, head) => app.server.emit('upgrade', req, socket, head))
+    server.on('tlsClientError', () => {})
+    return server
+  }
+
   /** Listens on all interfaces. Pass port 0 to pick a free one. */
   async start(port = DEFAULT_PORT, host = '0.0.0.0'): Promise<number> {
     if (this.app) return this.port ?? port
     const app = this.build()
+    await app.ready()
+    this.https = this.httpsFor(app)
+    // One port for both: a TLS handshake goes to https, anything else to plain http. Phones that
+    // haven't installed the CA, and the iPhone app, keep working over http.
+    const listener = createNetServer((socket) => {
+      this.sockets.add(socket)
+      socket.on('close', () => this.sockets.delete(socket))
+      socket.on('error', () => socket.destroy())
+      socket.once('data', (chunk) => {
+        socket.pause()
+        socket.unshift(chunk)
+        const target = chunk[0] === TLS_HANDSHAKE && this.https ? this.https : app.server
+        target.emit('connection', socket)
+        process.nextTick(() => socket.resume())
+      })
+    })
     try {
-      await app.listen({ port, host })
+      await new Promise<void>((resolve, reject) => {
+        listener.once('error', reject)
+        listener.listen(port, host, () => {
+          listener.off('error', reject)
+          resolve()
+        })
+      })
     } catch (err) {
       await app.close()
       throw err
     }
-    const address = app.server.address()
+    this.listener = listener
+    const address = listener.address()
     this.port = typeof address === 'object' && address ? address.port : port
     this.app = app
     this.heartbeat = setInterval(() => this.checkHeartbeats(), HEARTBEAT_MS)
@@ -130,6 +195,12 @@ export class TesselServer {
     this.clients.clear()
     this.emitPhones()
     await this.unadvertise()
+    const listener = this.listener
+    this.listener = undefined
+    for (const s of this.sockets) s.destroy()
+    this.sockets.clear()
+    this.https = undefined
+    await new Promise<void>((resolve) => (listener ? listener.close(() => resolve()) : resolve()))
     await app.close()
     this.opts.logger.info('Stopped listening')
   }
@@ -154,6 +225,15 @@ export class TesselServer {
     app.register(fastifyWebsocket, { options: { maxPayload: MAX_CLIENT_MESSAGE_BYTES } })
     app.register(async (scoped) => {
       scoped.get('/api/health', async () => ({ ok: true, protocol: PROTOCOL_VERSION }))
+      // Phones install this once to trust https:// on this computer. Public by design: a CA
+      // certificate holds no secret.
+      scoped.get('/tessel-ca.crt', async (_req, reply) => {
+        if (!this.tls) return reply.code(404).send({ error: 'Secure connections are off' })
+        return reply
+          .type('application/x-x509-ca-cert')
+          .header('Content-Disposition', 'attachment; filename="Tessel.crt"')
+          .send(this.tls.ca)
+      })
       scoped.post('/api/pair', (req, reply) => this.handlePair(req, reply))
       scoped.get(
         '/ws',

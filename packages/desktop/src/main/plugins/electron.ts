@@ -1,31 +1,23 @@
 import { PERMISSION_TEXT, type PluginManifest } from '@tessel/plugin-sdk'
-import type { Message } from '@tessel/plugin-sdk/protocol'
-import { dialog, utilityProcess } from 'electron'
+import { dialog } from 'electron'
 import { watch } from 'node:fs'
 import { osName, type OS } from '@tessel/core'
-import type { Spawn } from './process.ts'
+import { forkSpawner, type Spawn } from './process.ts'
 
-/** Each plugin gets its own Electron utility process, so a crash can't take the app down. */
-export const utilitySpawner =
-  (runnerPath: string): Spawn =>
-  (dir, name) => {
-    const child = utilityProcess.fork(runnerPath, [dir], {
-      serviceName: `Tessel plugin: ${name}`,
-      stdio: 'pipe',
-    })
-    let stderr = ''
-    child.stderr?.on('data', (d: Buffer) => (stderr = (stderr + d.toString()).slice(-2000)))
-    return {
-      send: (m: Message) => child.postMessage(m),
-      onMessage: (l) => child.on('message', (m) => l(m as Message)),
-      onExit: (l) => child.on('exit', (code) => l(code)),
-      errorOutput: () => stderr,
-      kill: () => void child.kill(),
-    }
-  }
+/**
+ * Each plugin gets its own process, so a crash can't take the app down. It's Tessel's own binary
+ * running as plain Node: Electron's utility processes ignore Node's permission flags, which
+ * keep a plugin to what its manifest declares.
+ */
+export const pluginSpawner = (runnerPath: string): Spawn =>
+  forkSpawner(runnerPath, {
+    execPath: process.execPath,
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+  })
 
 /** Asks before a plugin gets to run, listing what it says it will do. */
 export async function confirmPermissions(manifest: PluginManifest): Promise<boolean> {
+  const native = manifest.permissions.includes('native')
   const lines = manifest.permissions.length
     ? manifest.permissions.map((p) => `• ${PERMISSION_TEXT[p]}`).join('\n')
     : '• Nothing beyond adding blocks'
@@ -35,7 +27,7 @@ export async function confirmPermissions(manifest: PluginManifest): Promise<bool
   const answer = await dialog.showMessageBox({
     type: 'warning',
     message: `Allow the plugin “${manifest.name}” ${manifest.version}?`,
-    detail: `${manifest.description}${manifest.author ? `\nBy ${manifest.author}.` : ''}${platforms}\n\nIt says it will:\n${lines}\n\nPlugins run on this computer with your account's rights. Tessel shows what a plugin declares but can't fully sandbox it, so only allow plugins you trust.`,
+    detail: `${manifest.description}${manifest.author ? `\nBy ${manifest.author}.` : ''}${platforms}\n\nIt says it will:\n${lines}\n\n${native ? "It loads native code, which Tessel can't limit, so it runs with your account's rights. Only allow it if you trust where it came from." : 'Tessel holds it to these: it can read only its own folder unless it asks for files, and can’t start programs unless it asks to. Network access isn’t limited yet.'}`,
     buttons: ['Allow', 'Cancel'],
     defaultId: 1,
     cancelId: 1,
