@@ -20,5 +20,11 @@
   "devDependencies": {
     "@types/ws": "^8.18.2",
     "ws": "^8.22.1"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wrlliam/tessel.git",
+    "directory": "packages/server"
   }
 }

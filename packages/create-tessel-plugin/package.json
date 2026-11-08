@@ -17,5 +17,11 @@
     "@tessel/core": "workspace:*",
     "@tessel/plugin-sdk": "workspace:*",
     "@tessel/desktop": "workspace:*"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wrlliam/tessel.git",
+    "directory": "packages/create-tessel-plugin"
   }
 }

@@ -23,5 +23,11 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wrlliam/tessel.git",
+    "directory": "packages/brand"
   }
 }

@@ -1,10 +1,26 @@
 # Tessel
 
+[![CI](https://github.com/wrlliam/tessel/actions/workflows/ci.yml/badge.svg)](https://github.com/wrlliam/tessel/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/wrlliam/tessel)](https://github.com/wrlliam/tessel/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 **Tap. Build. Done.** Turn your phone into a control surface for your computer over local Wi-Fi.
 
 The desktop app is the brain. The phone is a remote that only ever says "tile X pressed".
 
 > Status: all seven phases of the first version are built: pairing, the block engine and editor, pages and profiles, system settings, plugins, packaging and an iPhone app. See [Known limits](#known-limits) for what hasn't been tried on real hardware yet.
+
+## Download
+
+Get the installer for your computer from the [latest release](https://github.com/wrlliam/tessel/releases/latest):
+
+| OS                              | File                             |
+| ------------------------------- | -------------------------------- |
+| macOS (Apple silicon and Intel) | `Tessel-<version>-universal.dmg` |
+| Windows (x64)                   | `Tessel Setup <version>.exe`     |
+| Linux                           | `.AppImage` or `.deb`            |
+
+Builds aren't signed yet. On macOS, right-click Tessel, choose Open, then Open again. On Windows, choose More info, then Run anyway. Then open Tessel, go to **Phones**, and scan the QR code with your phone.
 
 ## Requirements
 
@@ -25,7 +41,9 @@ The first `pnpm dev` downloads the Electron binary.
 ## Build installers
 
 ```sh
-pnpm package    # installers for this OS in bin/
+pnpm package          # installers for this OS in bin/
+pnpm package:mac-win  # on a Mac: the macOS and Windows installers
+pnpm release          # upload bin/ installers to a draft GitHub release (needs gh)
 ```
 
 macOS gives a universal `.dmg`, Windows an NSIS `.exe`, Linux an `.AppImage` and `.deb`. CI builds all three on a version tag. Signing is stubbed: see [docs/packaging.md](docs/packaging.md) for what each OS needs and how to open unsigned builds.
@@ -242,3 +260,7 @@ Set `TESSEL_DATA_DIR` to use a different folder (handy for testing without touch
 - The server runs in Electron's main process. It's small; it moves to a utility process if it ever gets heavy.
 - Typing non-ASCII text (accents, emoji) goes through the clipboard: Tessel pastes it, then restores what was there before.
 - Windows volume and mute take about a second per change (PowerShell compiles a small Core Audio helper each time).
+
+## License
+
+[MIT](LICENSE)

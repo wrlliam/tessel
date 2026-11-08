@@ -20,6 +20,7 @@
     "stage:plugins": "node scripts/stage-plugins.ts",
     "package": "pnpm build:plugins && pnpm stage:plugins && pnpm --filter @tessel/phone build && pnpm --filter @tessel/desktop build && pnpm --filter @tessel/desktop exec electron-builder",
     "package:mac-win": "pnpm build:plugins && pnpm stage:plugins && pnpm --filter @tessel/phone build && pnpm --filter @tessel/desktop build && pnpm --filter @tessel/desktop exec electron-builder --mac --win",
+    "release": "node scripts/release.ts",
     "package:dir": "pnpm build:plugins && pnpm stage:plugins && pnpm --filter @tessel/phone build && pnpm --filter @tessel/desktop build && pnpm --filter @tessel/desktop exec electron-builder --dir",
     "ios:open": "pnpm --filter @tessel/ios-shell open"
   },
@@ -35,5 +36,11 @@
     "typescript": "6.0.3",
     "typescript-eslint": "^8.72.1",
     "vitest": "^5.1.0"
-  }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wrlliam/tessel.git"
+  },
+  "homepage": "https://github.com/wrlliam/tessel"
 }

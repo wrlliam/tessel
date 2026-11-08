@@ -54,6 +54,12 @@ AppImage and deb builds aren't signed. Publish checksums with the release if you
 - `.github/workflows/ci.yml`: typecheck, lint and tests on Ubuntu, Windows and macOS for every push to `main` and every pull request, plus the Electron smoke test on Linux under `xvfb`.
 - `.github/workflows/release.yml`: on a `v*` tag (or by hand), packages on all three OSes, uploads the installers as artifacts, and attaches them to a draft GitHub release.
 
+## Releasing from your computer
+
+`pnpm release` uploads the installers in `bin/` for the current version to a **draft** GitHub release `v<version>` (it creates the draft, or replaces files on an existing one). Check it on GitHub, then publish it there or with `pnpm release --publish`. It needs the GitHub CLI signed in (`gh auth login`).
+
+Publishing creates the `v<version>` tag, which also starts the release workflow: CI builds all three OSes and attaches them to the same release, replacing files with the same name and adding the Linux builds.
+
 ## Version
 
 Bump `version` in `packages/desktop/package.json`, commit, then tag `v<version>` and push the tag.

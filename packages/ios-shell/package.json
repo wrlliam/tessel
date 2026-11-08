@@ -20,5 +20,11 @@
     "typecheck": "tsc -p tsconfig.json",
     "sync": "vite build && cap sync ios",
     "open": "vite build && cap sync ios && cap open ios"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wrlliam/tessel.git",
+    "directory": "packages/ios-shell"
   }
 }

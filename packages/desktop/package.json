@@ -55,8 +55,14 @@
     "zod": "^4.6.7"
   },
   "author": {
-    "name": "Tessel",
-    "email": "tessel@example.com"
+    "name": "William Banham",
+    "url": "https://github.com/wrlliam"
   },
-  "homepage": "https://github.com/"
+  "homepage": "https://github.com/wrlliam/tessel",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wrlliam/tessel.git",
+    "directory": "packages/desktop"
+  }
 }

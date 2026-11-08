@@ -2,7 +2,7 @@
 # Run from the repo root with `pnpm package`, which builds and stages everything first.
 appId: app.tessel.desktop
 productName: Tessel
-copyright: Copyright © Tessel
+copyright: Copyright © 2026 William Banham
 directories:
   # Installers land in bin/ at the repo root.
   output: ../../bin
@@ -57,6 +57,7 @@ nsis:
 linux:
   target: [AppImage, deb]
   category: Utility
+  maintainer: William Banham <https://github.com/wrlliam/tessel>
   icon: build/icons
   synopsis: Tap. Build. Done.
   description: Turn your phone into a control surface for your computer.

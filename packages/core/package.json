@@ -13,5 +13,11 @@
     "croner": "^11.0.0",
     "jsep": "^1.6.0",
     "zod": "^4.6.7"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wrlliam/tessel.git",
+    "directory": "packages/core"
   }
 }
