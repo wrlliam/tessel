@@ -3,6 +3,7 @@ import { hostname } from 'node:os'
 import { Channel, type DesktopState } from '../shared/api.ts'
 import { Hub } from './hub.ts'
 import { phoneDir } from './paths.ts'
+import { createPlatform } from './platform/index.ts'
 import { TesselTray } from './tray.ts'
 import { currentWindow, markQuitting, showWindow } from './window.ts'
 
@@ -20,6 +21,7 @@ async function start() {
   const hub = new Hub({
     dataDir: app.getPath('userData'),
     phoneDir: phoneDir(),
+    platform: createPlatform(),
     // macOS answers mDNS for its own hostname, so this URL survives DHCP changes.
     ...(process.platform === 'darwin' && hostname().endsWith('.local')
       ? { localHostname: hostname() }

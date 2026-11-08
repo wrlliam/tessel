@@ -1,5 +1,17 @@
-import { sampleProfile, type Profile } from '@tessel/core'
 import {
+  createRegistry,
+  Engine,
+  Profile,
+  PROFILE_SCHEMA_VERSION,
+  sampleProfile,
+  type EngineEvent,
+  type JsonValue,
+  type Platform,
+  type Tile,
+  type VariableStore,
+} from '@tessel/core'
+import {
+  createJsonStore,
   DeviceRegistry,
   PairingCodes,
   TesselServer,
@@ -17,12 +29,14 @@ import { settingsStore, type Settings } from './settings.ts'
 
 const LOG_LIMIT = 200
 const NETWORK_POLL_MS = 10_000
+const VARIABLE_SAVE_DELAY_MS = 500
 
 export type HubState = Omit<DesktopState, 'platform' | 'startOnLogin'>
 
 export interface HubOptions {
   dataDir: string
   phoneDir: string
+  platform: Platform
   /** Extra address to offer, e.g. the macOS Bonjour hostname. */
   localHostname?: string
   /** Inject for tests. */
@@ -38,6 +52,10 @@ export class Hub {
   private pairing = new PairingCodes()
   private server: TesselServer
   private profile: Profile = sampleProfile
+  private profileStore: JsonStore<Profile>
+  private saveTimer?: NodeJS.Timeout
+  private registry = createRegistry()
+  private engine: Engine
   private phones: ConnectedPhone[] = []
   private paused = false
   private listening = false
@@ -58,6 +76,18 @@ export class Hub {
   constructor(private opts: HubOptions) {
     this.store = settingsStore(join(opts.dataDir, 'settings.json'))
     this.devices = new DeviceRegistry(join(opts.dataDir, 'devices.json'))
+    this.profileStore = createJsonStore({
+      file: join(opts.dataDir, 'profiles', 'default.json'),
+      schemaVersion: PROFILE_SCHEMA_VERSION,
+      schema: Profile,
+      defaults: () => sampleProfile,
+    })
+    this.engine = new Engine({
+      registry: this.registry,
+      platform: opts.platform,
+      globals: this.globals,
+      onEvent: (e) => this.handleEngineEvent(e),
+    })
     this.devices.onChange(() => this.emit())
     this.pairing.onChange(() => {
       this.scheduleCodeRotation()
@@ -70,7 +100,7 @@ export class Hub {
       phoneDir: opts.phoneDir,
       logger: this.logger,
       mdns: opts.mdns ?? true,
-      onPress: (e) => this.handlePress(e),
+      onPress: (e) => void this.press(e),
       onPhonesChanged: (phones) => {
         this.phones = phones
         this.emit()
@@ -81,6 +111,10 @@ export class Hub {
   async init() {
     this.settings = await this.store.load()
     await this.devices.load()
+    this.profile = await this.profileStore.load()
+    // Write it back so a fresh install has a file to inspect, and older files get migrated on disk.
+    await this.profileStore.save(this.profile)
+    this.server.setProfile(this.profile)
     this.scheduleCodeRotation()
     this.networkTimer = setInterval(() => void this.refreshNetwork(), NETWORK_POLL_MS)
     if (this.settings.allowPhones) await this.startServer()
@@ -117,6 +151,7 @@ export class Hub {
 
   setPaused(on: boolean) {
     this.paused = on
+    if (on) this.engine.cancelAll()
     this.logger.info(on ? 'Paused all tiles' : 'Resumed tiles')
   }
 
@@ -132,7 +167,12 @@ export class Hub {
   async dispose() {
     clearTimeout(this.codeTimer)
     clearInterval(this.networkTimer)
+    this.engine.cancelAll()
     await this.server.dispose()
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer)
+      await this.profileStore.save(this.profile)
+    }
   }
 
   private async startServer() {
@@ -174,16 +214,65 @@ export class Hub {
     this.emit()
   }
 
-  private handlePress({ deviceId, tileId, phase }: PressEvent) {
-    if (phase !== 'down') return
-    const tile = this.profile.pages.flatMap((p) => p.tiles).find((t) => t.id === tileId)
-    const device = this.devices.list().find((d) => d.id === deviceId)
-    const label = tile?.label || tileId
+  /** Global variables live in the profile and are saved shortly after they change. */
+  private globals: VariableStore = {
+    get: (name) =>
+      Object.hasOwn(this.profile.variables, name) ? this.profile.variables[name] : undefined,
+    set: (name: string, value: JsonValue) => {
+      this.profile = { ...this.profile, variables: { ...this.profile.variables, [name]: value } }
+      clearTimeout(this.saveTimer)
+      this.saveTimer = setTimeout(() => {
+        this.saveTimer = undefined
+        void this.profileStore
+          .save(this.profile)
+          .catch((err: Error) => this.logger.error(`Couldn't save variables: ${err.message}`))
+      }, VARIABLE_SAVE_DELAY_MS)
+    },
+    all: () => ({ ...this.profile.variables }),
+  }
+
+  private findTile(tileId: string): Tile | undefined {
+    return this.profile.pages.flatMap((p) => p.tiles).find((t) => t.id === tileId)
+  }
+
+  async press({ deviceId, tileId, phase }: PressEvent): Promise<void> {
+    const tile = this.findTile(tileId)
+    if (!tile) return
+    const label = tile.label || tileId
     if (this.paused) {
-      this.logger.info(`Ignored "${label}" from ${device?.name ?? 'a phone'}: tiles are paused`)
+      if (phase === 'down') {
+        const device = this.devices.list().find((d) => d.id === deviceId)
+        this.logger.info(`Ignored "${label}" from ${device?.name ?? 'a phone'}: tiles are paused`)
+      }
       return
     }
-    this.logger.info(`"${label}" pressed on ${device?.name ?? 'a phone'}`)
+    if (tile.graph.nodes.length === 0) {
+      if (phase === 'down') this.logger.info(`"${label}" has no blocks yet`)
+      return
+    }
+    await this.engine.trigger(tile, { type: phase === 'down' ? 'press' : 'release' })
+  }
+
+  private handleEngineEvent(e: EngineEvent) {
+    if (e.type !== 'run:end') return
+    const tile = this.findTile(e.tileId)
+    const label = `"${tile?.label || e.tileId}"`
+    switch (e.status) {
+      case 'ok':
+        this.logger.info(`${label} ran in ${e.ms} ms`)
+        return
+      case 'cancelled':
+        this.logger.info(`${label} was stopped`)
+        return
+      case 'timeout':
+        this.logger.warn(`${label}: ${e.error ?? 'took too long'}`)
+        return
+      case 'error': {
+        const node = tile?.graph.nodes.find((n) => n.id === e.failedNodeId)
+        const block = node && this.registry.get(node.type)?.name
+        this.logger.error(`${label}${block ? ` › ${block}` : ''}: ${e.error ?? 'failed'}`)
+      }
+    }
   }
 
   private scheduleCodeRotation() {

@@ -46,12 +46,12 @@ JSON text frames, max 4 KB from the phone, max 40 messages per second (more clos
 
 ### Desktop → phone
 
-| Message      | Fields                                                                                   | Notes                                                                 |
-| ------------ | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `profile`    | `profile: PhoneProfile`                                                                  | Pages and tiles without graphs. Re-sent whenever the profile changes. |
-| `tileState`  | `tileId`, optional `label`, `colour`, `icon`                                             | Live appearance override.                                             |
-| `pageChange` | `pageId: string`                                                                         | Desktop asks the phone to show a page.                                |
-| `pong`       | `t: number`                                                                              |                                                                       |
+| Message      | Fields                                                                    | Notes                                                                 |
+| ------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `profile`    | `profile: PhoneProfile`                                                   | Pages and tiles without graphs. Re-sent whenever the profile changes. |
+| `tileState`  | `tileId`, optional `label`, `colour`, `icon`                              | Live appearance override.                                             |
+| `pageChange` | `pageId: string`                                                          | Desktop asks the phone to show a page.                                |
+| `pong`       | `t: number`                                                               |                                                                       |
 | `error`      | `code: 'unauthorized' \| 'protocol-mismatch' \| 'bad-message'`, `message` | Human-readable message.                                               |
 
 ### Close codes

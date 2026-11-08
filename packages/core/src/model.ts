@@ -50,6 +50,8 @@ export const Tile = z
     /** Sub-page opened by a folder tile. */
     targetPageId: Id.optional(),
     graph: Graph.default({ nodes: [], edges: [] }),
+    /** What a press does while the tile is still running. */
+    concurrency: z.enum(['ignore', 'restart', 'queue']).default('queue'),
     appearanceBindings: z.array(AppearanceBinding).default([]),
   })
   .refine((t) => t.kind !== 'folder' || t.targetPageId !== undefined, {
