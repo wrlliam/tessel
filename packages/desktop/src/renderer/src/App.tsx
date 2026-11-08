@@ -1,9 +1,10 @@
 import logoUrl from '@tessel/brand/logo-mark.svg'
-import type { OS } from '@tessel/core'
+import { pageTemplates, type OS } from '@tessel/core'
 import { Tabs } from 'radix-ui'
 import { useCallback, useEffect, useState } from 'react'
 import type { DesktopState } from '../../shared/api.ts'
 import { Editor } from './editor/Editor.tsx'
+import { useEditor } from './editor/store.ts'
 import { cn } from './lib/cn.ts'
 import { PhonesView } from './PhonesView.tsx'
 import { PluginsView } from './PluginsView.tsx'
@@ -37,6 +38,15 @@ export function App() {
       {!state.toured && touring && (
         <Tour
           onTab={showTab}
+          onStarter={(ids) => {
+            const { addPage, selectPage } = useEditor.getState()
+            const first = useEditor.getState().selectedPageId
+            for (const id of ids) {
+              const t = pageTemplates.find((p) => p.id === id)
+              if (t) addPage(t)
+            }
+            if (first) selectPage(first)
+          }}
           onDone={() => {
             setTouring(false)
             setTab('editor')

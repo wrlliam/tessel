@@ -1,4 +1,5 @@
 import { KeyFace, keyVars } from '@tessel/brand/key'
+import { pageTemplates } from '@tessel/core'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from './ui/button.tsx'
 
@@ -9,6 +10,8 @@ interface Step {
   body: ReactNode
   /** Tab shown behind the card for this step. */
   tab: TabName
+  /** Asks what Tessel is for and offers ready-made pages. */
+  starter?: boolean
   /** Small picture of what the step talks about. */
   keys?: Array<{ label: string; icon: string; colour: string }>
 }
@@ -23,6 +26,12 @@ const STEPS: Step[] = [
       { label: 'Play', icon: 'play', colour: '#22D3C5' },
       { label: 'Lock', icon: 'lock', colour: '#212833' },
     ],
+  },
+  {
+    title: 'What will you use it for?',
+    tab: 'editor',
+    body: 'Pick a few and Tessel adds a ready-made page for each, so your phone has keys from the start. You can change or delete them later.',
+    starter: true,
   },
   {
     title: 'Connect your phone',
@@ -52,7 +61,18 @@ const STEPS: Step[] = [
 ]
 
 /** A short first-run walkthrough. Skippable; finishing or skipping saves that it was seen. */
-export function Tour({ onTab, onDone }: { onTab: (tab: TabName) => void; onDone: () => void }) {
+export function Tour({
+  onTab,
+  onDone,
+  onStarter,
+}: {
+  onTab: (tab: TabName) => void
+  onDone: () => void
+  /** Adds the ready-made pages picked on the starter step. */
+  onStarter: (templateIds: string[]) => void
+}) {
+  const [picked, setPicked] = useState<string[]>([])
+  const [applied, setApplied] = useState(false)
   const [i, setI] = useState(0)
   const step = STEPS[Math.min(i, STEPS.length - 1)] as Step
   const last = i === STEPS.length - 1
@@ -96,6 +116,28 @@ export function Tour({ onTab, onDone }: { onTab: (tab: TabName) => void; onDone:
           </div>
         )}
         <p className="mt-4 text-sm leading-6 text-muted">{step.body}</p>
+        {step.starter && (
+          <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Ready-made pages">
+            {pageTemplates.map((t) => {
+              const on = picked.includes(t.id)
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  aria-pressed={on}
+                  title={t.description}
+                  disabled={applied}
+                  onClick={() =>
+                    setPicked((p) => (on ? p.filter((x) => x !== t.id) : [...p, t.id]))
+                  }
+                  className={`rounded-lg border px-3 py-1.5 text-sm ${on ? 'border-glaze text-text' : 'border-line text-muted hover:text-text'}`}
+                >
+                  {t.name}
+                </button>
+              )
+            })}
+          </div>
+        )}
         <div className="mt-6 flex items-center gap-2">
           <Button variant="ghost" onClick={onDone}>
             Skip
@@ -106,7 +148,17 @@ export function Tour({ onTab, onDone }: { onTab: (tab: TabName) => void; onDone:
                 Back
               </Button>
             )}
-            <Button variant="primary" onClick={() => (last ? onDone() : setI(i + 1))}>
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (step.starter && !applied && picked.length) {
+                  onStarter(picked)
+                  setApplied(true)
+                }
+                if (last) onDone()
+                else setI(i + 1)
+              }}
+            >
               {last ? 'Start' : 'Next'}
             </Button>
           </div>
