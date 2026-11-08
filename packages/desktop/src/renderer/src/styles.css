@@ -1,0 +1,27 @@
+@import 'tailwindcss';
+@import '@tessel/brand/theme.css';
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--glaze);
+  outline-offset: 2px;
+}
+
+.drag {
+  -webkit-app-region: drag;
+}
+.drag button,
+.drag input,
+.drag label {
+  -webkit-app-region: no-drag;
+}

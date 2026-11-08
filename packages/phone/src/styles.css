@@ -1,0 +1,36 @@
+@import 'tailwindcss';
+@import '@tessel/brand/theme.css';
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  /* Stop iOS rubber-banding, pull-to-refresh, selection, callouts and double-tap zoom. */
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+input {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.tile {
+  transition:
+    transform 90ms ease-out,
+    box-shadow 90ms ease-out;
+}
+.tile[data-pressed='true'] {
+  transform: scale(0.96);
+  box-shadow: 0 0 0 3px var(--ember);
+}

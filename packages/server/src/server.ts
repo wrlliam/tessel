@@ -1,0 +1,355 @@
+import fastifyStatic from '@fastify/static'
+import fastifyWebsocket from '@fastify/websocket'
+import {
+  CloseCode,
+  MAX_CLIENT_MESSAGE_BYTES,
+  PROTOCOL_VERSION,
+  PairRequest,
+  parseClientMessage,
+  toPhoneProfile,
+  type PairResponse,
+  type Profile,
+  type ServerMessage,
+} from '@tessel/core'
+import Bonjour from 'bonjour-service'
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify'
+import { existsSync } from 'node:fs'
+import { hostname } from 'node:os'
+import { join } from 'node:path'
+import type { WebSocket } from 'ws'
+import type { DeviceInfo, DeviceRegistry } from './devices.ts'
+import { isAllowedHost, isSameOrigin } from './origin.ts'
+import type { PairingCodes } from './pairing.ts'
+
+export const DEFAULT_PORT = 4747
+const HELLO_TIMEOUT_MS = 5_000
+const HEARTBEAT_MS = 15_000
+const MAX_MESSAGES_PER_SECOND = 40
+
+export interface Logger {
+  info(msg: string): void
+  warn(msg: string): void
+  error(msg: string): void
+}
+
+export interface ConnectedPhone {
+  deviceId: string
+  name: string
+  ip: string
+}
+
+export interface PressEvent {
+  deviceId: string
+  tileId: string
+  phase: 'down' | 'up'
+}
+
+export interface TesselServerOptions {
+  devices: DeviceRegistry
+  pairing: PairingCodes
+  profile: Profile
+  /** Built phone client. When missing, '/' explains how to build it. */
+  phoneDir: string
+  logger: Logger
+  onPress?: (event: PressEvent) => void
+  onPageChange?: (deviceId: string, pageId: string) => void
+  onPhonesChanged?: (phones: ConnectedPhone[]) => void
+  /** Advertise _tessel._tcp over mDNS. Off in tests. */
+  mdns?: boolean
+}
+
+interface Client {
+  socket: WebSocket
+  ip: string
+  device?: DeviceInfo
+  alive: boolean
+}
+
+export class TesselServer {
+  private app?: FastifyInstance
+  private bonjour?: Bonjour
+  private clients = new Set<Client>()
+  private heartbeat?: NodeJS.Timeout
+  private profile: Profile
+  private unsubscribeDevices: () => void
+  port: number | undefined
+
+  constructor(private opts: TesselServerOptions) {
+    this.profile = opts.profile
+    this.unsubscribeDevices = opts.devices.onChange(() => this.dropRevokedClients())
+  }
+
+  get running() {
+    return this.app !== undefined
+  }
+
+  phones(): ConnectedPhone[] {
+    return [...this.clients].flatMap((c) =>
+      c.device ? [{ deviceId: c.device.id, name: c.device.name, ip: c.ip }] : [],
+    )
+  }
+
+  setProfile(profile: Profile) {
+    this.profile = profile
+    this.broadcast({ type: 'profile', profile: toPhoneProfile(profile) })
+  }
+
+  broadcast(message: ServerMessage) {
+    const data = JSON.stringify(message)
+    for (const c of this.clients) if (c.device) c.socket.send(data)
+  }
+
+  /** Listens on all interfaces. Pass port 0 to pick a free one. */
+  async start(port = DEFAULT_PORT, host = '0.0.0.0'): Promise<number> {
+    if (this.app) return this.port ?? port
+    const app = this.build()
+    try {
+      await app.listen({ port, host })
+    } catch (err) {
+      await app.close()
+      throw err
+    }
+    const address = app.server.address()
+    this.port = typeof address === 'object' && address ? address.port : port
+    this.app = app
+    this.heartbeat = setInterval(() => this.checkHeartbeats(), HEARTBEAT_MS)
+    if (this.opts.mdns !== false) this.advertise(this.port)
+    this.opts.logger.info(`Listening on port ${this.port}`)
+    return this.port
+  }
+
+  async stop() {
+    const app = this.app
+    if (!app) return
+    this.app = undefined
+    clearInterval(this.heartbeat)
+    for (const c of this.clients)
+      c.socket.close(CloseCode.serverStopping, 'Desktop stopped sharing')
+    this.clients.clear()
+    this.emitPhones()
+    await this.unadvertise()
+    await app.close()
+    this.opts.logger.info('Stopped listening')
+  }
+
+  async dispose() {
+    this.unsubscribeDevices()
+    await this.stop()
+  }
+
+  private build(): FastifyInstance {
+    const app = Fastify({ logger: false, bodyLimit: 1024, trustProxy: false })
+
+    app.addHook('onRequest', async (req, reply) => {
+      if (!isAllowedHost(req.headers.host)) return reply.code(421).send({ error: 'Unknown host' })
+    })
+    app.addHook('onSend', async (_req, reply) => {
+      reply.header('X-Content-Type-Options', 'nosniff')
+      reply.header('Referrer-Policy', 'no-referrer')
+      reply.header('X-Frame-Options', 'DENY')
+    })
+
+    app.register(fastifyWebsocket, { options: { maxPayload: MAX_CLIENT_MESSAGE_BYTES } })
+    app.register(async (scoped) => {
+      scoped.get('/api/health', async () => ({ ok: true, protocol: PROTOCOL_VERSION }))
+      scoped.post('/api/pair', (req, reply) => this.handlePair(req, reply))
+      scoped.get(
+        '/ws',
+        {
+          websocket: true,
+          preValidation: async (req, reply) => {
+            if (!isSameOrigin(req.headers.origin, req.headers.host)) {
+              return reply.code(403).send({ error: 'Bad origin' })
+            }
+          },
+        },
+        (socket, req) => this.handleSocket(socket, req.ip),
+      )
+    })
+
+    const { phoneDir } = this.opts
+    if (existsSync(join(phoneDir, 'index.html'))) {
+      app.register(fastifyStatic, {
+        root: phoneDir,
+        // Hashed assets never change; index.html must be re-fetched so phones pick up new builds.
+        setHeaders: (reply, path) =>
+          reply.header(
+            'Cache-Control',
+            path.endsWith('index.html') ? 'no-cache' : 'public, max-age=31536000, immutable',
+          ),
+      })
+      app.setNotFoundHandler((req, reply) => {
+        const path = req.url.split('?')[0] ?? ''
+        const isPage = req.method === 'GET' && !path.startsWith('/api/') && !/\.\w+$/.test(path)
+        if (isPage) return reply.sendFile('index.html')
+        return reply.code(404).send({ error: 'Not found' })
+      })
+    } else {
+      app.get('/', async (_req, reply) =>
+        reply
+          .type('text/plain')
+          .send('Phone client not built. Run: pnpm --filter @tessel/phone build'),
+      )
+    }
+    return app
+  }
+
+  private async handlePair(req: FastifyRequest, reply: FastifyReply) {
+    if (!isSameOrigin(req.headers.origin, req.headers.host)) {
+      return reply.code(403).send({ error: 'Bad origin' })
+    }
+    const body = PairRequest.safeParse(req.body)
+    if (!body.success)
+      return reply.code(400).send({ error: 'Enter the 6-digit code from your computer.' })
+
+    const result = this.opts.pairing.attempt(req.ip, body.data.code)
+    if (!result.ok) {
+      if (result.reason === 'rate-limited') {
+        const seconds = Math.ceil(result.retryAfterMs / 1000)
+        reply.header('Retry-After', String(seconds))
+        return reply.code(429).send({ error: `Too many tries. Wait ${seconds} seconds.` })
+      }
+      this.opts.logger.warn(`Wrong pairing code from ${req.ip}`)
+      return reply.code(401).send({ error: 'That code is not right. Check your computer.' })
+    }
+    const paired = await this.opts.devices.pair(body.data.deviceName)
+    this.opts.logger.info(`Paired "${body.data.deviceName}" from ${req.ip}`)
+    return paired satisfies PairResponse
+  }
+
+  private handleSocket(socket: WebSocket, ip: string) {
+    const client: Client = { socket, ip, alive: true }
+    this.clients.add(client)
+    const send = (m: ServerMessage) => socket.send(JSON.stringify(m))
+    const helloTimer = setTimeout(() => {
+      if (!client.device) socket.close(CloseCode.unauthorized, 'No hello')
+    }, HELLO_TIMEOUT_MS)
+
+    let windowStart = Date.now()
+    let count = 0
+
+    socket.on('pong', () => (client.alive = true))
+    socket.on('close', () => {
+      clearTimeout(helloTimer)
+      this.clients.delete(client)
+      if (client.device) this.emitPhones()
+    })
+    socket.on('message', (raw, isBinary) => {
+      const now = Date.now()
+      if (now - windowStart >= 1000) {
+        windowStart = now
+        count = 0
+      }
+      if (++count > MAX_MESSAGES_PER_SECOND || isBinary) {
+        socket.close(1008, 'Too many messages')
+        return
+      }
+
+      const parsed = parseClientMessage(raw.toString())
+      if (!parsed.ok) {
+        send({ type: 'error', code: 'bad-message', message: parsed.error })
+        return
+      }
+      const msg = parsed.message
+
+      if (!client.device) {
+        if (msg.type !== 'hello') {
+          socket.close(CloseCode.unauthorized, 'Say hello first')
+          return
+        }
+        if (msg.protocol !== PROTOCOL_VERSION) {
+          send({
+            type: 'error',
+            code: 'protocol-mismatch',
+            message: `Desktop speaks protocol ${PROTOCOL_VERSION}, phone sent ${msg.protocol}. Reload the page.`,
+          })
+          socket.close(CloseCode.protocolMismatch, 'Protocol mismatch')
+          return
+        }
+        const device = this.opts.devices.verify(msg.token)
+        if (!device) {
+          send({ type: 'error', code: 'unauthorized', message: 'This phone is not paired.' })
+          socket.close(CloseCode.unauthorized, 'Unknown token')
+          return
+        }
+        clearTimeout(helloTimer)
+        client.device = device
+        void this.opts.devices.touch(device.id, msg.deviceName || undefined)
+        send({ type: 'profile', profile: toPhoneProfile(this.profile) })
+        this.emitPhones()
+        return
+      }
+
+      switch (msg.type) {
+        case 'hello':
+          return
+        case 'ping':
+          send({ type: 'pong', t: msg.t })
+          return
+        case 'press':
+          if (!this.hasTile(msg.tileId)) return
+          this.opts.onPress?.({ deviceId: client.device.id, tileId: msg.tileId, phase: msg.phase })
+          return
+        case 'pageChange':
+          if (!this.profile.pages.some((p) => p.id === msg.pageId)) return
+          this.opts.onPageChange?.(client.device.id, msg.pageId)
+          return
+      }
+    })
+  }
+
+  private hasTile(tileId: string) {
+    return this.profile.pages.some((p) => p.tiles.some((t) => t.id === tileId))
+  }
+
+  private dropRevokedClients() {
+    const known = new Set(this.opts.devices.list().map((d) => d.id))
+    for (const c of this.clients) {
+      if (c.device && !known.has(c.device.id)) c.socket.close(CloseCode.revoked, 'Device removed')
+    }
+  }
+
+  private checkHeartbeats() {
+    for (const c of this.clients) {
+      if (!c.alive) {
+        c.socket.terminate()
+        continue
+      }
+      c.alive = false
+      c.socket.ping()
+    }
+  }
+
+  private emitPhones() {
+    this.opts.onPhonesChanged?.(this.phones())
+  }
+
+  // mDNS goodbye packets are best effort; never let them hold up shutdown.
+  private async unadvertise() {
+    const bonjour = this.bonjour
+    if (!bonjour) return
+    this.bonjour = undefined
+    await Promise.race([
+      new Promise<void>((resolve) => bonjour.unpublishAll(() => resolve())),
+      new Promise<void>((resolve) => setTimeout(resolve, 1000)),
+    ])
+    try {
+      bonjour.destroy()
+    } catch (err) {
+      this.opts.logger.warn(`mDNS shutdown: ${String(err)}`)
+    }
+  }
+
+  private advertise(port: number) {
+    this.bonjour = new Bonjour(undefined, (err: unknown) =>
+      this.opts.logger.warn(`mDNS advertising failed: ${String(err)}`),
+    )
+    this.bonjour.publish({
+      name: `Tessel on ${hostname().replace(/\.local$/, '')}`,
+      type: 'tessel',
+      protocol: 'tcp',
+      port,
+      txt: { protocol: String(PROTOCOL_VERSION) },
+    })
+  }
+}

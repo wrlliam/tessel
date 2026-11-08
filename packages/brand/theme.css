@@ -1,0 +1,70 @@
+/* Tessel design tokens. Import after `@import "tailwindcss";`. */
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/space-grotesk';
+@import '@fontsource-variable/jetbrains-mono';
+
+:root {
+  --ink-900: #0e1116;
+  --ink-800: #161b22;
+  --ink-700: #212833;
+  --fog: #a9b4c2;
+  --paper: #f4f6f8;
+  --glaze: #22d3c5;
+  --ember: #ff7a59;
+  --signal: #f25c6e;
+
+  --bg: var(--ink-900);
+  --surface: var(--ink-800);
+  --line: var(--ink-700);
+  --muted: var(--fog);
+  --text: var(--paper);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --bg: var(--paper);
+    --surface: #ffffff;
+    --line: #dce1e7;
+    --muted: #5b6573;
+    --text: var(--ink-900);
+    color-scheme: light;
+  }
+}
+
+:root[data-theme='light'] {
+  --bg: var(--paper);
+  --surface: #ffffff;
+  --line: #dce1e7;
+  --muted: #5b6573;
+  --text: var(--ink-900);
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-line: var(--line);
+  --color-muted: var(--muted);
+  --color-text: var(--text);
+  --color-glaze: var(--glaze);
+  --color-ember: var(--ember);
+  --color-signal: var(--signal);
+  --color-ink-900: var(--ink-900);
+
+  --color-cat-trigger: #f5b63d;
+  --color-cat-action: #22d3c5;
+  --color-cat-logic: #8b7cf6;
+  --color-cat-data: #4fa3f7;
+  --color-cat-plugin: #ff7a59;
+
+  --font-display: 'Space Grotesk Variable', system-ui, sans-serif;
+  --font-sans: 'Inter Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
