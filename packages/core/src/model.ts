@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const PROFILE_SCHEMA_VERSION = 1
+export const PROFILE_SCHEMA_VERSION = 2
 
 const Id = z.string().min(1).max(64)
 const HexColour = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Expected a colour like #22D3C5')
@@ -148,3 +148,46 @@ export const Profile = z
     )
   })
 export type Profile = z.infer<typeof Profile>
+
+type Json = Record<string, unknown>
+const isObj = (v: unknown): v is Json => typeof v === 'object' && v !== null && !Array.isArray(v)
+
+/**
+ * Upgrades saved profiles. Each entry turns version `n` into `n + 1`.
+ *
+ * 1 -> 2: the first "Mute mic in Discord" template pressed Cmd/Ctrl+Shift+M without bringing
+ * Discord to the front, and Discord only hears its shortcuts when focused. Those tiles now use
+ * the Discord: mute app command, which focuses Discord first.
+ */
+export const profileMigrations: Record<number, (data: unknown) => unknown> = {
+  1: (data) => {
+    if (!isObj(data) || !Array.isArray(data['pages'])) return data
+    for (const page of data['pages'] as unknown[]) {
+      if (!isObj(page) || !Array.isArray(page['tiles'])) continue
+      for (const tile of page['tiles'] as unknown[]) {
+        if (!isObj(tile) || !isObj(tile['graph'])) continue
+        const nodes = tile['graph']['nodes']
+        if (!Array.isArray(nodes) || nodes.length !== 2) continue
+        const combo = nodes.find(
+          (n): n is Json =>
+            isObj(n) &&
+            n['type'] === 'action.keyCombo' &&
+            isObj(n['params']) &&
+            n['params']['combo'] === 'mod+shift+m',
+        )
+        if (combo && nodes.some((n) => isObj(n) && n['type'] === 'trigger.press')) {
+          combo['type'] = 'action.appCommand'
+          combo['params'] = { command: 'discord.mute', focus: true }
+        }
+      }
+    }
+    return data
+  },
+}
+
+/** Brings profile data saved at `version` up to PROFILE_SCHEMA_VERSION. */
+export function migrateProfile(version: number, data: unknown): unknown {
+  let out = data
+  for (let v = version; v < PROFILE_SCHEMA_VERSION; v++) out = profileMigrations[v]?.(out) ?? out
+  return out
+}

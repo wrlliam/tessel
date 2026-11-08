@@ -1,4 +1,4 @@
-import { Profile, PROFILE_SCHEMA_VERSION, sampleProfile } from '@tessel/core'
+import { Profile, PROFILE_SCHEMA_VERSION, profileMigrations, sampleProfile } from '@tessel/core'
 import { createJsonStore, type JsonStore } from '@tessel/server'
 import { randomBytes } from 'node:crypto'
 import { readdir, rm } from 'node:fs/promises'
@@ -136,6 +136,7 @@ export class ProfileLibrary {
         file: join(this.dir, `${id}.json`),
         schemaVersion: PROFILE_SCHEMA_VERSION,
         schema: Profile,
+        migrations: profileMigrations,
         defaults: () => ({ ...structuredClone(sampleProfile), id }),
       })
       this.stores.set(id, store)

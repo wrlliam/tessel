@@ -1,4 +1,4 @@
-import { Profile, PROFILE_SCHEMA_VERSION } from '@tessel/core'
+import { migrateProfile, Profile, PROFILE_SCHEMA_VERSION } from '@tessel/core'
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import { z } from 'zod'
 
@@ -52,7 +52,7 @@ export function unpackProfile(bytes: Uint8Array): Profile {
   if (envelope.data.schemaVersion > PROFILE_SCHEMA_VERSION) {
     throw new ImportError('That profile was made with a newer Tessel. Update Tessel to import it.')
   }
-  const profile = Profile.safeParse(envelope.data.data)
+  const profile = Profile.safeParse(migrateProfile(envelope.data.schemaVersion, envelope.data.data))
   if (!profile.success)
     throw new ImportError(
       `That profile isn't valid: ${profile.error.issues[0]?.message ?? 'unknown problem'}`,
