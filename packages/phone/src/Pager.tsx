@@ -23,6 +23,9 @@ interface Props {
   onPress: (tileId: string, phase: 'down' | 'up') => void
   /** A slider tile moved to `value`, 0 to 100. */
   onSlide: (tileId: string, value: number) => void
+  /** Editing keys: taps pick a key instead of pressing it. */
+  editing?: boolean
+  onEditTap?: (tileId: string) => void
 }
 
 /** Slider updates sent to the desktop at most this often while dragging. */
@@ -70,6 +73,8 @@ export function Pager({
   onNav,
   onPress,
   onSlide,
+  editing = false,
+  onEditTap,
 }: Props) {
   const [ref, box] = useBoxSize()
   const gesture = useRef<Gesture | null>(null)
@@ -137,6 +142,11 @@ export function Pager({
       pressedAt.current = performance.now()
       setPressed(data.tileId)
       if (settings.haptics) haptic()
+      if (editing) {
+        e.currentTarget.setPointerCapture(e.pointerId)
+        gesture.current = g
+        return
+      }
       if (g.tile.kind === 'slider' && el) {
         const rect = el.getBoundingClientRect()
         g.slider = { rect, vertical: rect.height > rect.width * 1.1, sentAt: 0 }
@@ -200,6 +210,10 @@ export function Pager({
     const tile = g.tile
     if (!tile) return
     release()
+    if (editing && tile.kind !== 'back') {
+      onEditTap?.(tile.id)
+      return
+    }
     if (g.slider) {
       slideTo(g, e.clientX, e.clientY, true)
       return
@@ -238,6 +252,7 @@ export function Pager({
           height={box.height}
           overrides={overrides}
           dragging={dragging}
+          editing={editing}
           pressedId={pressed}
           disabled={disabled}
         />

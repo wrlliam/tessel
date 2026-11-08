@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import {
   Channel,
   type DesktopState,
+  type PhoneEdit,
   type ProfileEngineEvent,
   type TesselApi,
 } from '../shared/api.ts'
@@ -51,6 +52,11 @@ const api: TesselApi = {
     return () => ipcRenderer.off(Channel.telOpened, handler)
   },
   pathForFile: (file) => webUtils.getPathForFile(file),
+  onPhoneEdit: (listener) => {
+    const handler = (_: unknown, edit: PhoneEdit) => listener(edit)
+    ipcRenderer.on(Channel.phoneEdit, handler)
+    return () => ipcRenderer.off(Channel.phoneEdit, handler)
+  },
   updatePluginSettings: (id, values) =>
     ipcRenderer.invoke(Channel.updatePluginSettings, id, values),
   onEngineEvent: (listener) => {

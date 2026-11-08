@@ -11,6 +11,20 @@ export function keyRadius(shape: KeyShape, width: number, height: number): numbe
   return Math.round(side * (shape === 'round' ? 0.5 : shape === 'square' ? 0.08 : 0.2))
 }
 
+/** The colours offered for tiles, on the desktop and the phone. */
+export const TILE_COLOURS = [
+  '#22D3C5',
+  '#4FA3F7',
+  '#8B7CF6',
+  '#F5B63D',
+  '#FF7A59',
+  '#F25C6E',
+  '#1DB954',
+  '#212833',
+  '#161B22',
+  '#F4F6F8',
+]
+
 export const ICON_SCALE = { small: 0.8, regular: 1, large: 1.25 } as const
 
 export interface KeyLook {

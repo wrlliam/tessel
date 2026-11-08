@@ -36,6 +36,7 @@ export function useEditorSync(startProfileId: string) {
       if (!useEditor.getState().profile) void openProfile(startProfileId)
     })
     const offEngine = window.tessel.onEngineEvent((e) => useEditor.getState().applyEngineEvent(e))
+    const offPhoneEdit = window.tessel.onPhoneEdit((e) => useEditor.getState().applyPhoneEdit(e))
 
     const offSave = useEditor.subscribe((s, prev) => {
       if (s.profile === prev.profile || s.save.kind !== 'pending') return
@@ -61,6 +62,7 @@ export function useEditorSync(startProfileId: string) {
     return () => {
       live = false
       offEngine()
+      offPhoneEdit()
       offSave()
       offValidate()
       clearTimeout(validateTimer)

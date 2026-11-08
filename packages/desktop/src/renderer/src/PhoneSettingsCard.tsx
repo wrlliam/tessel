@@ -188,6 +188,17 @@ export function PhoneSettingsCard({
           />
         </Row>
         <Row
+          label="Edit keys on the phone"
+          help="Rename, recolour and rearrange; never what keys do"
+        >
+          <Switch
+            label="Edit keys on the phone"
+            hideLabel
+            checked={settings.allowEdit}
+            onChange={(allowEdit) => set({ allowEdit })}
+          />
+        </Row>
+        <Row
           label="Share location"
           help={
             settings.shareLocation

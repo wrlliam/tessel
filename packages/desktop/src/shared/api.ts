@@ -12,8 +12,9 @@ import type {
 import type { PairingCode } from '@tessel/server'
 import type { PluginInfo } from '../main/plugins/manager.ts'
 import type { UpdateState } from '../main/updater.ts'
+import type { PhoneEdit } from '../main/hub.ts'
 
-export type { PluginInfo, UpdateState }
+export type { PhoneEdit, PluginInfo, UpdateState }
 
 export interface LogEntry {
   id: number
@@ -137,6 +138,8 @@ export interface TesselApi {
   importTel(path?: string): Promise<TelImport>
   /** A .tel was opened from the system (double-click) or dropped on the window. */
   onTelOpened(listener: (path: string) => void): () => void
+  /** A phone changed a key's look or swapped two keys. */
+  onPhoneEdit(listener: (edit: PhoneEdit) => void): () => void
   /** The path of a file dropped on the window. */
   pathForFile(file: File): string
 }
@@ -200,4 +203,5 @@ export const Channel = {
   exportTel: 'tel:export',
   importTel: 'tel:import',
   telOpened: 'tel:opened',
+  phoneEdit: 'phone:edit',
 } as const

@@ -11,7 +11,7 @@ import type {
 } from '@tessel/core'
 import { buildPage, type PageTemplate } from '@tessel/core'
 import { create } from 'zustand'
-import type { ProfileEngineEvent } from '../../../shared/api.ts'
+import type { PhoneEdit, ProfileEngineEvent } from '../../../shared/api.ts'
 import { copyNodes, pasteNodes, uid, type Clip, type PortRef } from './graph-utils.ts'
 import { fits, foldersUnder, freeCells, type Cell } from './layout.ts'
 
@@ -83,6 +83,8 @@ interface EditorActions {
   addFolder(cell: Cell): void
   /** A slider tile, wired from On slide. */
   addSlider(cell: Cell): void
+  /** Applies a change made on a phone, so the editor's copy doesn't undo it on the next save. */
+  applyPhoneEdit(edit: PhoneEdit): void
   /** Adds tiles from a .tel: as a new page, or into free slots on the selected page. */
   addShared(shared: {
     name: string
@@ -417,6 +419,24 @@ export const useEditor = create<Editor>()((set, get) => {
       if (placed.length === 0) return
       commit({ ...mapPage(p, target.id, () => page), variables })
       set({ selectedTileId: placed[0]?.id ?? null, selectedNodeIds: [] })
+    },
+
+    applyPhoneEdit: (edit) => {
+      const p = get().profile
+      if (!p || p.id !== edit.profileId) return
+      const { icon, ...look } = edit.look
+      let next = mapTile(p, edit.tileId, (t) => {
+        const out: Tile = { ...t, ...look }
+        if (icon === '') delete out.icon
+        else if (icon !== undefined) out.icon = icon
+        return out
+      })
+      const swap = edit.swap
+      if (swap) {
+        next = mapTile(next, swap.a, (t) => ({ ...t, position: swap.aAt }))
+        next = mapTile(next, swap.b, (t) => ({ ...t, position: swap.bAt }))
+      }
+      commit(next)
     },
 
     addSlider: (cell) =>

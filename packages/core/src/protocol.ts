@@ -92,6 +92,8 @@ export const PhoneSettings = z.object({
    */
   landscape: z.enum(['reflow', 'fill', 'fit', 'rotate']).default('reflow'),
   header: z.boolean().default(true),
+  /** Let paired phones rename, recolour, re-icon and rearrange keys (never what they do). */
+  allowEdit: z.boolean().default(true),
   /** Ask the phone for its location, for weather and other live tiles. */
   shareLocation: z.boolean().default(false),
 })
@@ -127,6 +129,20 @@ export const LocationMessage = z.object({
   lon: z.number().min(-180).max(180),
   accuracy: z.number().min(0).optional(),
 })
+/**
+ * Changes how a key looks, or swaps two keys, from the phone. The desktop only accepts it when
+ * "Edit keys on the phone" is on, and never lets a phone change what a key does.
+ */
+export const EditTileMessage = z.object({
+  type: z.literal('editTile'),
+  tileId: TileId,
+  label: z.string().max(40).optional(),
+  colour: HexColour.optional(),
+  /** An icon name or one emoji; empty removes the icon. */
+  icon: z.string().max(64).optional(),
+  /** Another key on the same page to trade places with. */
+  swapWith: TileId.optional(),
+})
 export const PingMessage = z.object({ type: z.literal('ping'), t: z.number() })
 
 export const ClientMessage = z.discriminatedUnion('type', [
@@ -135,8 +151,10 @@ export const ClientMessage = z.discriminatedUnion('type', [
   PageChangeMessage,
   SlideMessage,
   LocationMessage,
+  EditTileMessage,
   PingMessage,
 ])
+export type EditTileMessage = z.infer<typeof EditTileMessage>
 export type ClientMessage = z.infer<typeof ClientMessage>
 
 // Desktop -> phone

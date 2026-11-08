@@ -7,6 +7,7 @@ import {
   PairRequest,
   parseClientMessage,
   toPhoneProfile,
+  type EditTileMessage,
   type PairResponse,
   type Profile,
   type ServerMessage,
@@ -57,6 +58,8 @@ export interface TesselServerOptions {
   onPageChange?: (deviceId: string, pageId: string) => void
   /** A slider tile was dragged; value is 0 to 100. */
   onSlide?: (event: { deviceId: string; tileId: string; value: number }) => void
+  /** A phone changed a key's look or swapped two keys. */
+  onEditTile?: (deviceId: string, edit: Omit<EditTileMessage, 'type'>) => void
   /** A phone shared where it is, after the desktop asked. */
   onLocation?: (deviceId: string, at: { lat: number; lon: number; accuracy?: number }) => void
   onPhonesChanged?: (phones: ConnectedPhone[]) => void
@@ -386,6 +389,12 @@ export class TesselServer {
             return
           this.opts.onSlide?.({ deviceId: client.device.id, tileId: msg.tileId, value: msg.value })
           return
+        case 'editTile': {
+          const { type: _, ...edit } = msg
+          if (!this.hasTile(msg.tileId) || (msg.swapWith && !this.hasTile(msg.swapWith))) return
+          this.opts.onEditTile?.(client.device.id, edit)
+          return
+        }
         case 'location':
           this.opts.onLocation?.(client.device.id, {
             lat: msg.lat,

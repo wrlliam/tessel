@@ -5,6 +5,7 @@ import { guessDeviceName, keepAwake, watchLocation } from './device.ts'
 import { HomeScreenHint } from './HomeScreenHint.tsx'
 import { StatusScreen } from './StatusScreen.tsx'
 import { back, currentPage, reconcile, show, START, swipePages, type Nav } from './navigation.ts'
+import { EditSheet } from './EditSheet.tsx'
 import { Pager } from './Pager.tsx'
 import { loadDim, PhoneMenu } from './PhoneMenu.tsx'
 import { applyTheme } from './theme.ts'
@@ -21,6 +22,9 @@ export function Surface({ token, onUnpaired }: Props) {
   const [seenRequest, setSeenRequest] = useState(0)
   const [dim, setDim] = useState(loadDim)
   const [menu, setMenu] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editTile, setEditTile] = useState<string>()
+  const [swapFrom, setSwapFrom] = useState<string>()
   const { status, profile, overrides, requestedPage, settings } = state
 
   useEffect(() => {
@@ -129,10 +133,49 @@ export function Surface({ token, onUnpaired }: Props) {
       onNav={setNav}
       onPress={(tileId, phase) => connection.send({ type: 'press', tileId, phase })}
       onSlide={(tileId, value) => connection.send({ type: 'slide', tileId, value })}
+      editing={editing}
+      onEditTap={(tileId) => {
+        if (swapFrom) {
+          if (swapFrom !== tileId)
+            connection.send({ type: 'editTile', tileId: swapFrom, swapWith: tileId })
+          setSwapFrom(undefined)
+        } else setEditTile(tileId)
+      }}
     />
   )
   const overlays = (
     <>
+      {editing && (
+        <div className="fixed inset-x-0 top-0 z-20 flex items-center gap-3 bg-surface/95 px-4 pt-[calc(env(safe-area-inset-top)+8px)] pb-2 shadow-[0_1px_0_var(--line)]">
+          <p className="flex-1 text-[15px]">
+            {swapFrom ? 'Tap the key to swap with' : 'Tap a key to change it'}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              if (swapFrom) setSwapFrom(undefined)
+              else setEditing(false)
+            }}
+            className="h-9 rounded-full bg-text px-4 text-sm font-medium text-bg"
+          >
+            {swapFrom ? 'Cancel' : 'Done'}
+          </button>
+        </div>
+      )}
+      {editTile &&
+        (() => {
+          const tile = profile.pages.flatMap((p) => p.tiles).find((t) => t.id === editTile)
+          if (!tile) return null
+          return (
+            <EditSheet
+              tile={tile}
+              look={{ label: tile.label, colour: tile.colour, icon: tile.icon ?? '' }}
+              onSave={(edit) => connection.send({ type: 'editTile', tileId: tile.id, ...edit })}
+              onSwap={() => setSwapFrom(tile.id)}
+              onClose={() => setEditTile(undefined)}
+            />
+          )
+        })()}
       <HomeScreenHint />
       <PhoneMenu
         open={menu}
@@ -140,6 +183,7 @@ export function Surface({ token, onUnpaired }: Props) {
         dim={dim}
         onDim={setDim}
         onForget={() => onUnpaired('This phone forgot the computer. Pair again to reconnect.')}
+        {...(settings.allowEdit && live && { onEdit: () => setEditing(true) })}
       />
       {dim && (
         <div

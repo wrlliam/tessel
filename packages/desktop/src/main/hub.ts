@@ -1,4 +1,5 @@
 import {
+  type EditTileMessage,
   applyChange,
   createRegistry,
   describeBlock,
@@ -49,6 +50,27 @@ export type HubState = Omit<
   DesktopState,
   'platform' | 'startOnLogin' | 'version' | 'update' | 'myBlocksDir'
 >
+
+/** A change made on a phone, passed on to the editor. */
+export interface PhoneEdit {
+  profileId: string
+  tileId: string
+  look: { label?: string; colour?: string; icon?: string }
+  swap?: {
+    a: string
+    b: string
+    aAt: { col: number; row: number }
+    bAt: { col: number; row: number }
+  }
+}
+
+const applyLook = (t: Tile, look: PhoneEdit['look']): Tile => {
+  const { icon, ...rest } = look
+  const out: Tile = { ...t, ...rest }
+  if (icon === '') delete out.icon
+  else if (icon !== undefined) out.icon = icon
+  return out
+}
 
 export interface HubOptions {
   dataDir: string
@@ -117,6 +139,7 @@ export class Hub {
   private logId = 0
   private listeners = new Set<() => void>()
   private engineListeners = new Set<(event: ProfileEngineEvent) => void>()
+  private phoneEditListeners = new Set<(edit: PhoneEdit) => void>()
   private codeTimer?: NodeJS.Timeout
   private networkTimer?: NodeJS.Timeout
   /** Tiles held down on a phone, for long press. */
@@ -176,6 +199,7 @@ export class Hub {
       onPress: (e) => void this.press(e),
       onPageChange: (_deviceId, pageId) => void this.pageOpened(pageId),
       onSlide: (e) => void this.slide(e.tileId, e.value),
+      onEditTile: (deviceId, edit) => void this.editFromPhone(deviceId, edit),
       onLocation: (_deviceId, at) => void this.setLocation(at.lat, at.lon),
       onPhonesChanged: (phones) => {
         this.phones = phones
@@ -241,6 +265,62 @@ export class Hub {
   onChange(listener: () => void): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
+  }
+
+  /** A phone changed a key; the editor applies the same change to its copy. */
+  onPhoneEdit(listener: (edit: PhoneEdit) => void): () => void {
+    this.phoneEditListeners.add(listener)
+    return () => this.phoneEditListeners.delete(listener)
+  }
+
+  /**
+   * A phone renamed, recoloured or re-iconed a key, or swapped two keys on a page. Only looks and
+   * places change; what keys do can only be changed on the computer.
+   */
+  async editFromPhone(deviceId: string, edit: Omit<EditTileMessage, 'type'>): Promise<boolean> {
+    if (!this.settings.phone.allowEdit) return false
+    const profile = this.library.active()
+    const page = profile.pages.find((p) => p.tiles.some((t) => t.id === edit.tileId))
+    const tile = page?.tiles.find((t) => t.id === edit.tileId)
+    if (!page || !tile) return false
+    const look: PhoneEdit['look'] = {
+      ...(edit.label !== undefined && { label: edit.label.trim().slice(0, 40) }),
+      ...(edit.colour !== undefined && { colour: edit.colour }),
+      ...(edit.icon !== undefined && { icon: edit.icon }),
+    }
+    let tiles = page.tiles.map((t) => (t.id === tile.id ? applyLook(t, look) : t))
+    let swap: PhoneEdit['swap']
+    if (edit.swapWith && edit.swapWith !== tile.id) {
+      const other = page.tiles.find((t) => t.id === edit.swapWith)
+      if (!other) return false
+      swap = { a: tile.id, b: other.id, aAt: other.position, bAt: tile.position }
+      tiles = tiles.map((t) =>
+        t.id === tile.id
+          ? { ...t, position: other.position }
+          : t.id === other.id
+            ? { ...t, position: tile.position }
+            : t,
+      )
+    }
+    const next = Profile.safeParse({
+      ...profile,
+      pages: profile.pages.map((p) => (p.id === page.id ? { ...p, tiles } : p)),
+    })
+    // A swap that would overlap other keys (different sizes) is refused.
+    if (!next.success) return false
+    await this.library.save(next.data)
+    this.refreshActive()
+    const device = this.devices.list().find((d) => d.id === deviceId)
+    this.logger.info(`${device?.name ?? 'A phone'} changed "${tile.label || tile.id}"`)
+    const change: PhoneEdit = {
+      profileId: profile.id,
+      tileId: tile.id,
+      look,
+      ...(swap && { swap }),
+    }
+    this.phoneEditListeners.forEach((l) => l(change))
+    this.emit()
+    return true
   }
 
   onEngineEvent(listener: (event: ProfileEngineEvent) => void): () => void {

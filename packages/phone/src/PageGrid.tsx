@@ -14,6 +14,7 @@ interface Props {
   settings: PhoneSettings
   /** Slider positions being dragged on this phone, ahead of the desktop's echo. */
   dragging: Record<string, number>
+  editing?: boolean
 }
 
 const BACK: PhoneTile = {
@@ -29,6 +30,7 @@ const BACK: PhoneTile = {
 /** Draws one page of keys. Gestures are handled by the Pager around it. */
 export function PageGrid({
   dragging,
+  editing,
   profile,
   page,
   width,
@@ -83,6 +85,7 @@ export function PageGrid({
             data-tile-kind={kind}
             data-target={t.targetPageId}
             data-pressed={pressedId === t.id}
+            data-editing={(editing && kind !== 'back') || undefined}
             className="key absolute aria-disabled:opacity-50"
             style={{
               left: t.position.col * stepX,

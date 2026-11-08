@@ -483,6 +483,41 @@ describe('Hub settings', () => {
 })
 
 describe('Hub phone settings and remembered looks', () => {
+  it('lets phones rename, recolour and swap keys, but only when allowed', async () => {
+    const { hub } = await makeHub()
+    const edits: unknown[] = []
+    hub.onPhoneEdit((e) => edits.push(e))
+    expect(
+      await hub.editFromPhone('dev', {
+        tileId: 'mute',
+        label: ' Mic ',
+        colour: '#22D3C5',
+        icon: 'mic',
+      }),
+    ).toBe(true)
+    let tiles = hub.getProfile('default')!.pages[0]!.tiles
+    expect(tiles.find((t) => t.id === 'mute')).toMatchObject({
+      label: 'Mic',
+      colour: '#22D3C5',
+      icon: 'mic',
+    })
+    expect(edits).toHaveLength(1)
+
+    expect(await hub.editFromPhone('dev', { tileId: 'mute', swapWith: 'lock' })).toBe(true)
+    tiles = hub.getProfile('default')!.pages[0]!.tiles
+    expect(tiles.find((t) => t.id === 'mute')?.position).toEqual({ col: 2, row: 2 })
+    expect(tiles.find((t) => t.id === 'lock')?.position).toEqual({ col: 2, row: 0 })
+
+    await hub.updatePhoneSettings({ allowEdit: false })
+    expect(await hub.editFromPhone('dev', { tileId: 'mute', label: 'Nope' })).toBe(false)
+  })
+
+  it('refuses a swap that would overlap other keys', async () => {
+    const { hub } = await makeHub()
+    const big = hub.getProfile('default')!.pages[0]!.tiles.find((t) => t.span.w > 1)!
+    expect(await hub.editFromPhone('dev', { tileId: 'calculator', swapWith: big.id })).toBe(false)
+  })
+
   it('turns on https with a certificate for its addresses, and off again', async () => {
     const { hub, port, dataDir } = await makeHub()
     expect(await hub.updateSettings({ https: true })).toEqual({ ok: true })

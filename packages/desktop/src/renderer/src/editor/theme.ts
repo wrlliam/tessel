@@ -17,14 +17,4 @@ export const VALUE_COLOUR: Record<ValueType, string> = {
   any: '#A9B4C2',
 }
 
-export const TILE_COLOURS = [
-  '#22D3C5',
-  '#4FA3F7',
-  '#8B7CF6',
-  '#F5B63D',
-  '#FF7A59',
-  '#F25C6E',
-  '#212833',
-  '#161B22',
-  '#F4F6F8',
-]
+export { TILE_COLOURS } from '@tessel/brand/key'

@@ -111,6 +111,7 @@ async function start() {
   }
   hub.onChange(broadcast)
   hub.onEngineEvent((event) => currentWindow()?.webContents.send(Channel.engineEvent, event))
+  hub.onPhoneEdit((edit) => currentWindow()?.webContents.send(Channel.phoneEdit, edit))
 
   ipcMain.handle(Channel.getState, () => state())
   ipcMain.handle(Channel.setAllowPhones, (_e, on: unknown) => hub.setAllowPhones(on === true))
