@@ -2,6 +2,7 @@ import {
   builtinBlocks,
   describeBlock,
   sampleProfile,
+  Tile,
   type Condition,
   type EngineEvent,
   type Graph,
@@ -379,5 +380,21 @@ describe('block search', () => {
     expect(blockScore('Delay', 'Waits before carrying on.', 'delay')).toBe(1)
     expect(blockScore('Set tile appearance', '', 'tile')).toBe(0.8)
     expect(blockScore('Notification', 'Shows a desktop notification.', 'desktop')).toBe(0.3)
+  })
+})
+
+describe('grid preview', () => {
+  it('shows edits straight away and live values only where bindings drive them', async () => {
+    const { previewLook } = await import('../src/renderer/src/editor/TileGrid.tsx')
+    const tile = Tile.parse({
+      id: 't',
+      label: 'New name',
+      colour: '#22D3C5',
+      position: { col: 0, row: 0 },
+      appearanceBindings: [{ field: 'colour', expression: '{{state.on ? "#F25C6E" : "#212833"}}' }],
+    })
+    const live = { label: 'Old name', colour: '#F25C6E', icon: 'mic' }
+    expect(previewLook(tile, live)).toEqual({ label: 'New name', colour: '#F25C6E', icon: '' })
+    expect(previewLook(tile, undefined)).toEqual({ label: 'New name', colour: '#22D3C5', icon: '' })
   })
 })

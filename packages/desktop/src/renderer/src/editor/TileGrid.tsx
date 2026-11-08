@@ -21,7 +21,13 @@ import {
 import { openTel, shareTiles } from './share.ts'
 import { ShortcutDialog } from './ShortcutDialog.tsx'
 import { saveNow } from './sync.ts'
-import { useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react'
 import { cn } from '../lib/cn.ts'
 import { Popover, PopoverAnchor, PopoverContent } from '../ui/popover.tsx'
 import { fits, freeCells, type Cell } from './layout.ts'
@@ -49,6 +55,7 @@ interface Props {
 
 /** Phone-shaped preview of a page. Drag tiles to move them; drag the corner of the selected tile to resize. */
 export function TileGrid({ page, live, keyStyle, onTemplates }: Props) {
+  const problems = usePageProblems(page)
   const selected = useEditor((s) => s.selectedTileId)
   const running = useEditor((s) => s.runningTiles)
   const { moveTile, resizeTile, addTile, addFolder, addSlider, duplicateTile, deleteTile } =
@@ -158,7 +165,8 @@ export function TileGrid({ page, live, keyStyle, onTemplates }: Props) {
               key={t.id}
               page={page}
               tile={t}
-              look={live[t.id] ?? { label: t.label, colour: t.colour, icon: t.icon ?? '' }}
+              look={previewLook(t, live[t.id])}
+              problem={problems[t.id]}
               selected={t.id === selected}
               running={running[t.id] === true}
               keyStyle={keyStyle}
@@ -309,6 +317,8 @@ interface TileProps {
   onResize: (span: { w: number; h: number }) => void
   onMenu: (x: number, y: number) => void
   onDelete: () => void
+  /** Why the tile won't run, if it won't. */
+  problem?: string | undefined
 }
 
 function GridTile({
@@ -321,6 +331,7 @@ function GridTile({
   onResize,
   onMenu,
   onDelete,
+  problem,
 }: TileProps) {
   const { selectTile } = useEditor.getState()
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: tile.id })
@@ -370,7 +381,7 @@ function GridTile({
         {...attributes}
         role="button"
         aria-pressed={selected}
-        aria-label={`${tile.kind === 'folder' ? 'Folder' : 'Tile'} ${look.label || 'Untitled'}`}
+        aria-label={`${tile.kind === 'folder' ? 'Folder' : 'Tile'} ${look.label || 'Untitled'}${problem ? `, needs fixing: ${problem}` : ''}`}
         onClick={() => selectTile(tile.id)}
         onContextMenu={(e) => {
           e.preventDefault()
@@ -394,6 +405,15 @@ function GridTile({
           folder={tile.kind === 'folder'}
         />
       </button>
+      {problem && (
+        <span
+          title={problem}
+          aria-hidden
+          className="pointer-events-auto absolute -top-1.5 -left-1.5 flex size-4 items-center justify-center rounded-full border-2 border-bg bg-signal text-[10px] leading-none font-bold text-white"
+        >
+          !
+        </span>
+      )}
       {selected && (
         <div
           role="presentation"
@@ -407,4 +427,47 @@ function GridTile({
       )}
     </div>
   )
+}
+
+/**
+ * What the grid shows: your latest edits straight away, with live values only for fields that
+ * follow tile state (live appearance), so editing a label isn't hidden by an old live look.
+ */
+export function previewLook(tile: Tile, live: Appearance | undefined): Appearance {
+  const base = { label: tile.label, colour: tile.colour, icon: tile.icon ?? '' }
+  if (!live) return base
+  const bound = new Set(tile.appearanceBindings.map((b) => b.field))
+  return {
+    label: bound.has('label') ? live.label : base.label,
+    colour: bound.has('colour') ? live.colour : base.colour,
+    icon: bound.has('icon') ? live.icon : base.icon,
+  }
+}
+
+/** Checks every tile on the page in the background; tiles that can't run get a reason. */
+function usePageProblems(page: Page): Record<string, string> {
+  const [problems, setProblems] = useState<Record<string, string>>({})
+  const blocksVersion = useEditor((s) => s.blocks)
+  useEffect(() => {
+    let live = true
+    const timer = setTimeout(() => {
+      void Promise.all(
+        page.tiles
+          .filter((t) => t.kind !== 'folder' && t.graph.nodes.length > 0)
+          .map(async (t) => {
+            const issues = await window.tessel.validateGraph(t.graph)
+            const error = issues.find((i) => i.severity === 'error')
+            return [t.id, error?.message] as const
+          }),
+      ).then((found) => {
+        if (!live) return
+        setProblems(Object.fromEntries(found.filter(([, m]) => m)) as Record<string, string>)
+      })
+    }, 300)
+    return () => {
+      live = false
+      clearTimeout(timer)
+    }
+  }, [page, blocksVersion])
+  return problems
 }
