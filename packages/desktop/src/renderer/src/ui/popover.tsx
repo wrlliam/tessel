@@ -4,6 +4,7 @@ import { cn } from '../lib/cn.ts'
 
 export const Popover = P.Root
 export const PopoverAnchor = P.Anchor
+export const PopoverTrigger = P.Trigger
 
 export function PopoverContent({ className, ...props }: ComponentProps<typeof P.Content>) {
   return (

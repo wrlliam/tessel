@@ -222,10 +222,13 @@ export class Hub {
       },
       plugins: this.plugins?.list() ?? [],
       phoneSettings: this.settings.phone,
+      toured: this.settings.toured,
       blocksVersion: this.blocksVersion,
     }
     if (this.serverError) state.serverError = this.serverError
     if (this.caUrl) state.caUrl = this.caUrl
+    if (this.settings.location && this.settings.phone.shareLocation)
+      state.location = this.settings.location
     return state
   }
 

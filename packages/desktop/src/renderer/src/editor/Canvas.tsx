@@ -7,6 +7,7 @@ import {
   Panel,
   ReactFlow,
   ReactFlowProvider,
+  SelectionMode,
   useReactFlow,
   type Connection,
   type Edge,
@@ -14,7 +15,8 @@ import {
   type IsValidConnection,
   type NodeChange,
 } from '@xyflow/react'
-import { Play, Redo2, Square, Undo2 } from 'lucide-react'
+import { Copy, CopyPlus, Play, Redo2, Square, Trash2, Undo2 } from 'lucide-react'
+import { Popover, PopoverAnchor, PopoverContent } from '../ui/popover.tsx'
 import {
   useEffect,
   useMemo,
@@ -23,6 +25,7 @@ import {
   type DragEvent,
   type KeyboardEvent,
   type MouseEvent,
+  type ReactNode,
 } from 'react'
 import { Button } from '../ui/button.tsx'
 import { AddBlockMenu } from './AddBlockMenu.tsx'
@@ -60,7 +63,23 @@ function CanvasInner({ tile, colorMode }: { tile: Tile; colorMode: ColorMode }) 
   const running = useEditor((s) => s.runningTiles[tile.id] === true)
   const canUndo = useEditor((s) => s.past.length > 0)
   const canRedo = useEditor((s) => s.future.length > 0)
-  const { updateGraph, selectNodes, addNode, connect, undo, redo } = useEditor.getState()
+  const { updateGraph, selectNodes, addNode, connect, undo, redo, copy, paste } =
+    useEditor.getState()
+  const [nodeMenu, setNodeMenu] = useState<{ x: number; y: number } | null>(null)
+  const nodeMenuAt = useRef({ x: 0, y: 0 })
+  const nodeAnchor = useRef({
+    getBoundingClientRect: () => new DOMRect(nodeMenuAt.current.x, nodeMenuAt.current.y, 0, 0),
+  })
+  const openNodeMenu = (e: { preventDefault(): void; clientX: number; clientY: number }) => {
+    e.preventDefault()
+    nodeMenuAt.current = { x: e.clientX, y: e.clientY }
+    setNodeMenu({ x: e.clientX, y: e.clientY })
+  }
+  const deleteSelected = () => {
+    const ids = useEditor.getState().selectedNodeIds
+    if (ids.length) updateGraph(tile.id, (g) => removeNodes(g, ids, []))
+    setNodeMenu(null)
+  }
   const flow = useReactFlow()
   const wrapper = useRef<HTMLDivElement>(null)
   const pointer = useRef<{ x: number; y: number } | null>(null)
@@ -252,6 +271,16 @@ function CanvasInner({ tile, colorMode }: { tile: Tile; colorMode: ColorMode }) 
             e.preventDefault()
             setMenuAt({ x: e.clientX, y: e.clientY })
           }}
+          onNodeContextMenu={(e, node) => {
+            if (!useEditor.getState().selectedNodeIds.includes(node.id)) selectNodes([node.id])
+            openNodeMenu(e)
+          }}
+          onSelectionContextMenu={(e) => openNodeMenu(e)}
+          // Drag on empty canvas draws a selection box; scroll or middle-drag moves around.
+          selectionOnDrag
+          selectionMode={SelectionMode.Partial}
+          panOnDrag={[1]}
+          panOnScroll
           deleteKeyCode={['Backspace', 'Delete']}
           snapToGrid
           snapGrid={[16, 16]}
@@ -311,7 +340,7 @@ function CanvasInner({ tile, colorMode }: { tile: Tile; colorMode: ColorMode }) 
               className="mb-6 rounded-lg bg-surface px-3 py-2 text-sm text-muted"
             >
               Press <kbd className="font-mono text-text">Space</kbd> or right-click to add a block,
-              then drag from a port to wire it up.
+              then drag from a port to wire it up. Drag on empty space to select several.
             </Panel>
           )}
           {hint && (
@@ -324,6 +353,33 @@ function CanvasInner({ tile, colorMode }: { tile: Tile; colorMode: ColorMode }) 
             </Panel>
           )}
         </ReactFlow>
+        <Popover open={nodeMenu !== null} onOpenChange={(open) => !open && setNodeMenu(null)}>
+          <PopoverAnchor virtualRef={nodeAnchor} />
+          <PopoverContent align="start" className="w-48 p-1" aria-label="Block actions">
+            <CanvasMenuItem
+              onClick={() => {
+                copy()
+                paste()
+                setNodeMenu(null)
+              }}
+              shortcut="⌘D"
+            >
+              <CopyPlus /> Duplicate
+            </CanvasMenuItem>
+            <CanvasMenuItem
+              onClick={() => {
+                copy()
+                setNodeMenu(null)
+              }}
+              shortcut="⌘C"
+            >
+              <Copy /> Copy
+            </CanvasMenuItem>
+            <CanvasMenuItem onClick={deleteSelected} shortcut="⌫">
+              <Trash2 /> Delete
+            </CanvasMenuItem>
+          </PopoverContent>
+        </Popover>
         <AddBlockMenu
           at={menuAt}
           onPick={(type) => menuAt && addAt(type, menuAt)}
@@ -339,4 +395,17 @@ function refs(c: Connection | Edge) {
     { nodeId: c.source, port: c.sourceHandle ?? '' },
     { nodeId: c.target, port: c.targetHandle ?? '' },
   ] as const
+}
+
+function CanvasMenuItem(props: { onClick: () => void; shortcut: string; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={props.onClick}
+      className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-line [&_svg]:size-4"
+    >
+      {props.children}
+      <kbd className="ml-auto font-mono text-xs text-muted">{props.shortcut}</kbd>
+    </button>
+  )
 }

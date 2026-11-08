@@ -6,6 +6,8 @@ import {
   Profile,
   resolveAppearance,
   templates,
+  pageTemplates,
+  buildPage,
   Tile,
   toPhoneProfile,
   validateGraph,
@@ -124,9 +126,20 @@ describe('appearance', () => {
   })
 })
 
+describe('page templates', () => {
+  it.each(pageTemplates.map((p) => [p.id, p] as const))('%s builds a valid page', (_, pt) => {
+    let n = 0
+    const { tiles } = buildPage(pt, (prefix) => `${prefix}${++n}`)
+    expect(tiles).toHaveLength(pt.tiles.length)
+    const page = Page.safeParse({ id: 'p', name: pt.name, cols: pt.cols, rows: pt.rows, tiles })
+    expect(page.success, JSON.stringify(page.error?.issues)).toBe(true)
+  })
+})
+
 describe('templates', () => {
   const registry = createRegistry()
-  it.each(templates.map((t) => [t.id, t] as const))(
+  // Templates using plugin blocks are checked in the desktop tests, against the plugins.
+  it.each(templates.filter((t) => !t.plugin).map((t) => [t.id, t] as const))(
     '%s is a valid tile with a valid graph',
     (_, t) => {
       const parsed = Tile.safeParse({ ...t.tile, id: 'x', position: { col: 0, row: 0 } })

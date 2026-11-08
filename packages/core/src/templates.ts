@@ -1,7 +1,15 @@
 import type { Graph, JsonValue, Tile } from './model.ts'
 
 export type TemplateCategory =
-  'Meetings' | 'Media and sound' | 'Apps' | 'System' | 'Productivity' | 'Examples'
+  | 'Meetings'
+  | 'Media and sound'
+  | 'Sliders'
+  | 'Live tiles'
+  | 'Voicemeeter'
+  | 'Apps'
+  | 'System'
+  | 'Productivity'
+  | 'Examples'
 
 export interface TileTemplate {
   id: string
@@ -9,7 +17,9 @@ export interface TileTemplate {
   name: string
   description: string
   tile: Pick<Tile, 'label' | 'colour'> &
-    Partial<Pick<Tile, 'icon' | 'appearanceBindings' | 'concurrency'>> & { graph: Graph }
+    Partial<Pick<Tile, 'icon' | 'appearanceBindings' | 'concurrency' | 'kind'>> & { graph: Graph }
+  /** Plugin whose blocks the template uses; the gallery says when it isn't on. */
+  plugin?: string
   /** Global variables the template reads; added to the profile if missing. */
   variables?: Record<string, JsonValue>
 }
@@ -65,6 +75,171 @@ function muteKey(command: string, label: string) {
         wire('toggle', 'on', 'cmd'),
         wire('toggle', 'off', 'cmd'),
       ],
+    },
+  }
+}
+
+const bind = (field: 'label' | 'colour' | 'icon', expression: string) => ({ field, expression })
+
+/** Counts down on the key; a short press starts or restarts it, holding cancels it. */
+function timer(id: string, minutes: number, label = `${minutes} min`): TileTemplate {
+  return {
+    id,
+    category: 'Productivity',
+    name: `${minutes}-minute timer`,
+    description:
+      'Shows the time left on the key and notifies you when it ends. Press again to restart; hold to cancel.',
+    tile: {
+      label,
+      icon: 'timer',
+      colour: '#212833',
+      concurrency: 'restart',
+      appearanceBindings: [
+        bind('label', `{{state.left || "${label}"}}`),
+        bind('colour', '{{state.left ? "#FF7A59" : "#212833"}}'),
+      ],
+      graph: {
+        nodes: [
+          press,
+          node('count', 'logic.countdown', { seconds: minutes * 60, key: 'left' }, 288),
+          node('notify', 'action.notify', { title: 'Tessel', body: `${label} is up` }, 576),
+          node('hold', 'trigger.longPress', {}, 0, 160),
+          node(
+            'cancelled',
+            'action.notify',
+            { title: 'Tessel', body: 'Timer cancelled' },
+            288,
+            160,
+          ),
+        ],
+        edges: [
+          wire('press', 'out', 'count'),
+          wire('count', 'out', 'notify'),
+          wire('hold', 'out', 'cancelled'),
+        ],
+      },
+    },
+  }
+}
+
+/** Every `seconds`, and when the page opens: run `nodes` after the triggers. */
+function live(
+  seconds: number,
+  nodes: ReturnType<typeof node>[],
+  edges: ReturnType<typeof wire>[],
+  first: string,
+) {
+  const cron = seconds >= 60 ? `0 */${Math.round(seconds / 60)} * * * *` : `*/${seconds} * * * * *`
+  return {
+    nodes: [
+      node('tick', 'trigger.schedule', { cron }, 0),
+      node('open', 'trigger.pageOpen', {}, 0, 128),
+      press,
+      ...nodes,
+    ].map((n) => (n.id === 'press' ? { ...n, position: at(0, 256) } : n)),
+    edges: [
+      wire('tick', 'out', first),
+      wire('open', 'out', first),
+      wire('press', 'out', first),
+      ...edges,
+    ],
+  }
+}
+
+/** On slide -> one block, with the value wired into `port`. */
+function slider(
+  type: string,
+  params: Record<string, unknown>,
+  port: string,
+  range: { min: number; max: number; step: number },
+) {
+  return {
+    nodes: [node('slide', 'trigger.slide', range, 0), node('action', type, params, 288)],
+    edges: [wire('slide', 'out', 'action'), wire('slide', 'value', 'action', port)],
+  }
+}
+
+/** A Voicemeeter mute that shows Voicemeeter's real state, so it never drifts. */
+function vmMute(id: string, target: 'strip' | 'bus', index: number, label: string): TileTemplate {
+  const param = `${target === 'strip' ? 'Strip' : 'Bus'}[${index - 1}].Mute`
+  return {
+    id,
+    category: 'Voicemeeter',
+    plugin: 'voicemeeter',
+    name: `Mute ${label}`,
+    description: `Mutes or unmutes ${target} ${index} and turns red while muted, following Voicemeeter itself.`,
+    tile: {
+      label,
+      icon: target === 'strip' ? 'mic' : 'volume-2',
+      colour: '#212833',
+      appearanceBindings: [
+        bind('colour', '{{state.muted ? "#F25C6E" : "#212833"}}'),
+        bind(
+          'icon',
+          `{{state.muted ? "${target === 'strip' ? 'mic-off' : 'volume-x'}" : "${target === 'strip' ? 'mic' : 'volume-2'}"}}`,
+        ),
+      ],
+      graph: {
+        nodes: [
+          press,
+          node('mute', 'voicemeeter.mute', { target, index, action: 'toggle' }, 288),
+          node('watch', 'voicemeeter.parameterChange', { param, stateKey: 'muted' }, 0, 160),
+        ],
+        edges: [wire('press', 'out', 'mute')],
+      },
+    },
+  }
+}
+
+function vmGain(id: string, target: 'strip' | 'bus', index: number, label: string): TileTemplate {
+  return {
+    id,
+    category: 'Voicemeeter',
+    plugin: 'voicemeeter',
+    name: `${label} gain slider`,
+    description: `Drag to set the gain of ${target} ${index}, from -60 to +12 dB.`,
+    tile: {
+      label,
+      icon: 'sliders-horizontal',
+      colour: '#22D3C5',
+      kind: 'slider',
+      concurrency: 'restart',
+      appearanceBindings: [bind('label', `${label} {{state.value ?? 0}} dB`)],
+      graph: slider('voicemeeter.setGain', { target, index, gain: 0 }, 'gain', {
+        min: -60,
+        max: 12,
+        step: 0.5,
+      }),
+    },
+  }
+}
+
+function vmRoute(id: string, index: number, output: string): TileTemplate {
+  return {
+    id,
+    category: 'Voicemeeter',
+    plugin: 'voicemeeter',
+    name: `Strip ${index} to ${output}`,
+    description: `Sends strip ${index} to ${output} or stops it, and lights up while it is on.`,
+    tile: {
+      label: `${index} → ${output}`,
+      icon: 'audio-lines',
+      colour: '#212833',
+      appearanceBindings: [bind('colour', '{{state.on ? "#22D3C5" : "#212833"}}')],
+      graph: {
+        nodes: [
+          press,
+          node('route', 'voicemeeter.routing', { index, output, action: 'toggle' }, 288),
+          node(
+            'watch',
+            'voicemeeter.parameterChange',
+            { param: `Strip[${index - 1}].${output}`, stateKey: 'on' },
+            0,
+            160,
+          ),
+        ],
+        edges: [wire('press', 'out', 'route')],
+      },
     },
   }
 }
@@ -139,6 +314,27 @@ export const templates: TileTemplate[] = [
     name: 'Discord: deafen',
     description: 'Deafens or undeafens in Discord.',
     tile: { label: 'Deafen', icon: 'headphones', colour: '#212833', graph: app('discord.deafen') },
+  },
+  {
+    id: 'vesktop-mute',
+    category: 'Meetings',
+    name: 'Vesktop: mute',
+    description: 'Mutes or unmutes in Vesktop, the Vencord Discord app, and turns red while muted.',
+    tile: muteKey('vesktop.mute', 'Vesktop mic'),
+  },
+  {
+    id: 'vesktop-deafen',
+    category: 'Meetings',
+    name: 'Vesktop: deafen',
+    description: 'Deafens or undeafens in Vesktop.',
+    tile: { label: 'Deafen', icon: 'headphones', colour: '#212833', graph: app('vesktop.deafen') },
+  },
+  {
+    id: 'vesktop-switcher',
+    category: 'Apps',
+    name: 'Vesktop: quick switcher',
+    description: 'Opens Vesktop’s quick switcher to jump to a server or friend.',
+    tile: { label: 'Switcher', icon: 'search', colour: '#212833', graph: app('vesktop.switcher') },
   },
 
   // Media and sound
@@ -433,51 +629,9 @@ export const templates: TileTemplate[] = [
       },
     },
   },
-  {
-    id: 'timer-5',
-    category: 'Productivity',
-    name: '5-minute timer',
-    description:
-      'Shows that it is running on the key, then sends a notification when the time is up.',
-    tile: {
-      label: '5 min',
-      icon: 'timer',
-      colour: '#212833',
-      concurrency: 'restart',
-      graph: {
-        nodes: [
-          press,
-          node(
-            'show',
-            'action.setTileAppearance',
-            {
-              tile: '',
-              label: 'Timing…',
-              colour: '#FF7A59',
-              icon: '',
-              reset: false,
-              remember: false,
-            },
-            288,
-          ),
-          node('wait', 'logic.delay', { ms: 300000 }, 576),
-          node('notify', 'action.notify', { title: 'Tessel', body: 'Five minutes are up' }, 864),
-          node(
-            'reset',
-            'action.setTileAppearance',
-            { tile: '', label: '', colour: '', icon: '', reset: true, remember: false },
-            1152,
-          ),
-        ],
-        edges: [
-          wire('press', 'out', 'show'),
-          wire('show', 'out', 'wait'),
-          wire('wait', 'out', 'notify'),
-          wire('notify', 'out', 'reset'),
-        ],
-      },
-    },
-  },
+  timer('timer-5', 5),
+  timer('timer-25', 25, 'Focus 25'),
+
   {
     id: 'copy-signature',
     category: 'Productivity',
@@ -530,13 +684,389 @@ export const templates: TileTemplate[] = [
       }),
     },
   },
+  // Sliders
+  {
+    id: 'slider-volume',
+    category: 'Sliders',
+    name: 'Volume slider',
+    description: "Drag to set the computer's volume.",
+    tile: {
+      label: 'Volume',
+      icon: 'volume-2',
+      colour: '#22D3C5',
+      kind: 'slider',
+      concurrency: 'restart',
+      appearanceBindings: [bind('label', 'Volume {{state.value ?? 50}}%')],
+      graph: slider('action.setSetting', { setting: 'volume', level: 50 }, 'level', {
+        min: 0,
+        max: 100,
+        step: 1,
+      }),
+    },
+  },
+  {
+    id: 'slider-brightness',
+    category: 'Sliders',
+    name: 'Brightness slider',
+    description: 'Drag to set the screen brightness. Works on most built-in screens.',
+    tile: {
+      label: 'Brightness',
+      icon: 'sun-dim',
+      colour: '#F5B63D',
+      kind: 'slider',
+      concurrency: 'restart',
+      appearanceBindings: [bind('label', 'Brightness {{state.value ?? 50}}%')],
+      graph: slider('action.setSetting', { setting: 'brightness', level: 50 }, 'level', {
+        min: 0,
+        max: 100,
+        step: 5,
+      }),
+    },
+  },
+  {
+    id: 'slider-blank',
+    category: 'Sliders',
+    name: 'Slider',
+    description:
+      'A slider with On slide ready to wire up. value goes from 0 to 100 unless you change it.',
+    tile: {
+      label: 'Slider',
+      icon: 'sliders-horizontal',
+      colour: '#212833',
+      kind: 'slider',
+      concurrency: 'restart',
+      appearanceBindings: [bind('label', '{{state.value ?? 50}}')],
+      graph: {
+        nodes: [node('slide', 'trigger.slide', { min: 0, max: 100, step: 1 }, 0)],
+        edges: [],
+      },
+    },
+  },
+
+  // Live tiles
+  {
+    id: 'live-weather',
+    category: 'Live tiles',
+    name: 'Weather',
+    description:
+      'Shows the temperature and sky where your phone is, every 15 minutes. Turn on Share location in Phones › On the phone, or type a place in the Weather block.',
+    tile: {
+      label: 'Weather',
+      icon: 'cloud-sun',
+      colour: '#4FA3F7',
+      graph: live(
+        900,
+        [
+          node('weather', 'data.weather', { place: '', units: 'celsius' }, 288),
+          node(
+            'show',
+            'action.setTileAppearance',
+            { tile: '', label: '', colour: '', icon: '', reset: false, remember: false },
+            576,
+          ),
+        ],
+        [
+          wire('weather', 'out', 'show'),
+          wire('weather', 'summary', 'show', 'label'),
+          wire('weather', 'icon', 'show', 'icon'),
+        ],
+        'weather',
+      ),
+    },
+  },
+  {
+    id: 'live-now-playing',
+    category: 'Live tiles',
+    name: "What's playing",
+    description:
+      'Shows the song playing in Spotify (or your music app) and the time left, every 2 seconds. Tap to play or pause.',
+    tile: {
+      label: 'Nothing playing',
+      icon: 'music',
+      colour: '#1DB954',
+      graph: {
+        nodes: [
+          node('tick', 'trigger.schedule', { cron: '*/2 * * * * *' }, 0),
+          node('open', 'trigger.pageOpen', {}, 0, 128),
+          node('np', 'data.nowPlaying', {}, 288),
+          node('text', 'data.text', { template: '{{input.a}}  {{input.b}}' }, 288, 256),
+          node(
+            'show',
+            'action.setTileAppearance',
+            { tile: '', label: '', colour: '', icon: 'music', reset: false, remember: false },
+            576,
+          ),
+          node(
+            'idle',
+            'action.setTileAppearance',
+            {
+              tile: '',
+              label: 'Nothing playing',
+              colour: '',
+              icon: 'music',
+              reset: false,
+              remember: false,
+            },
+            576,
+            160,
+          ),
+          node('press', 'trigger.press', {}, 0, 384),
+          node('pp', 'action.mediaKey', { key: 'playPause' }, 288, 384),
+        ],
+        edges: [
+          wire('tick', 'out', 'np'),
+          wire('open', 'out', 'np'),
+          wire('np', 'out', 'show'),
+          wire('np', 'nothing', 'idle'),
+          wire('np', 'song', 'text', 'a'),
+          wire('np', 'left', 'text', 'b'),
+          wire('text', 'text', 'show', 'label'),
+          wire('press', 'out', 'pp'),
+        ],
+      },
+    },
+  },
+  {
+    id: 'live-clock',
+    category: 'Live tiles',
+    name: 'Clock',
+    description: 'Shows the time, updated every minute.',
+    tile: {
+      label: 'Clock',
+      icon: 'clock',
+      colour: '#212833',
+      graph: live(
+        60,
+        [
+          node('time', 'data.getTime', {}, 288),
+          node(
+            'show',
+            'action.setTileAppearance',
+            { tile: '', label: '', colour: '', icon: '', reset: false, remember: false },
+            576,
+          ),
+        ],
+        [wire('time', 'time', 'show', 'label')],
+        'show',
+      ),
+    },
+  },
+
+  // Voicemeeter
+  vmMute('vm-mute-strip1', 'strip', 1, 'Mic'),
+  vmMute('vm-mute-strip2', 'strip', 2, 'Input 2'),
+  vmMute('vm-mute-strip3', 'strip', 3, 'Input 3'),
+  vmMute('vm-mute-a1', 'bus', 1, 'A1'),
+  vmMute('vm-mute-b1', 'bus', 6, 'B1'),
+  vmGain('vm-gain-strip1', 'strip', 1, 'Mic'),
+  vmGain('vm-gain-strip2', 'strip', 2, 'Input 2'),
+  vmGain('vm-gain-a1', 'bus', 1, 'A1'),
+  vmRoute('vm-route-1-a1', 1, 'A1'),
+  vmRoute('vm-route-1-b1', 1, 'B1'),
+  vmRoute('vm-route-3-a2', 3, 'A2'),
+  {
+    id: 'vm-solo-1',
+    category: 'Voicemeeter',
+    plugin: 'voicemeeter',
+    name: 'Solo strip 1',
+    description: 'Solos strip 1, so you hear only it, or turns solo off.',
+    tile: {
+      label: 'Solo 1',
+      icon: 'headphones',
+      colour: '#212833',
+      graph: simple('voicemeeter.solo', { index: 1, action: 'toggle' }),
+    },
+  },
+  {
+    id: 'vm-macro-1',
+    category: 'Voicemeeter',
+    plugin: 'voicemeeter',
+    name: 'Macro button 1',
+    description: 'Presses Voicemeeter macro button 1, as if you clicked it.',
+    tile: {
+      label: 'Macro 1',
+      icon: 'zap',
+      colour: '#8B7CF6',
+      graph: simple('voicemeeter.macroButton', { button: 1, action: 'press' }),
+    },
+  },
+  {
+    id: 'vm-level',
+    category: 'Voicemeeter',
+    plugin: 'voicemeeter',
+    name: 'Mic level',
+    description: "Shows strip 1's input level in dB, twice a second.",
+    tile: {
+      label: 'Level',
+      icon: 'gauge',
+      colour: '#212833',
+      graph: {
+        nodes: [
+          node('tick', 'trigger.schedule', { cron: '*/1 * * * * *' }, 0),
+          node('level', 'voicemeeter.getLevel', { kind: '1', channel: 0 }, 0, 128),
+          node('round', 'data.math', { op: 'round', a: 0, b: 0 }, 288, 128),
+          node(
+            'show',
+            'action.setTileAppearance',
+            { tile: '', label: '', colour: '', icon: '', reset: false, remember: false },
+            576,
+          ),
+        ],
+        edges: [
+          wire('tick', 'out', 'show'),
+          wire('level', 'db', 'round', 'a'),
+          wire('round', 'result', 'show', 'label'),
+        ],
+      },
+    },
+  },
 ]
 
 export const TEMPLATE_CATEGORIES: TemplateCategory[] = [
   'Meetings',
   'Media and sound',
+  'Sliders',
+  'Live tiles',
+  'Voicemeeter',
   'Apps',
   'System',
   'Productivity',
   'Examples',
 ]
+
+/** A whole page of ready-made tiles. */
+export interface PageTemplate {
+  id: string
+  name: string
+  description: string
+  cols: number
+  rows: number
+  tiles: Array<{ template: string; col: number; row: number; w?: number; h?: number }>
+}
+
+export const pageTemplates: PageTemplate[] = [
+  {
+    id: 'page-meetings',
+    name: 'Meetings',
+    description: 'Mute, camera, share and leave for Zoom, plus Teams and Google Meet.',
+    cols: 3,
+    rows: 4,
+    tiles: [
+      { template: 'zoom-mute', col: 0, row: 0 },
+      { template: 'zoom-video', col: 1, row: 0 },
+      { template: 'zoom-share', col: 2, row: 0 },
+      { template: 'teams-mute', col: 0, row: 1 },
+      { template: 'teams-hand', col: 1, row: 1 },
+      { template: 'meet-mute', col: 2, row: 1 },
+      { template: 'mute-status', col: 0, row: 2 },
+      { template: 'lock-screen', col: 1, row: 2 },
+      { template: 'zoom-leave', col: 2, row: 2 },
+      { template: 'timer-25', col: 0, row: 3, w: 3 },
+    ],
+  },
+  {
+    id: 'page-music',
+    name: 'Music',
+    description: "What's playing with time left, playback keys and a volume slider.",
+    cols: 3,
+    rows: 4,
+    tiles: [
+      { template: 'live-now-playing', col: 0, row: 0, w: 3 },
+      { template: 'previous-track', col: 0, row: 1 },
+      { template: 'play-pause', col: 1, row: 1 },
+      { template: 'next-track', col: 2, row: 1 },
+      { template: 'volume-down', col: 0, row: 2 },
+      { template: 'mute-status', col: 1, row: 2 },
+      { template: 'volume-up', col: 2, row: 2 },
+      { template: 'slider-volume', col: 0, row: 3, w: 3 },
+    ],
+  },
+  {
+    id: 'page-voicemeeter',
+    name: 'Voicemeeter mixer',
+    description:
+      'Mutes that follow Voicemeeter, gain faders for two inputs and A1, routing and the mic level. Needs the Voicemeeter plugin (Windows).',
+    cols: 4,
+    rows: 4,
+    tiles: [
+      { template: 'vm-mute-strip1', col: 0, row: 0 },
+      { template: 'vm-mute-strip2', col: 1, row: 0 },
+      { template: 'vm-mute-a1', col: 2, row: 0 },
+      { template: 'vm-mute-b1', col: 3, row: 0 },
+      { template: 'vm-gain-strip1', col: 0, row: 1, h: 2 },
+      { template: 'vm-gain-strip2', col: 1, row: 1, h: 2 },
+      { template: 'vm-gain-a1', col: 2, row: 1, h: 2 },
+      { template: 'vm-route-1-a1', col: 3, row: 1 },
+      { template: 'vm-route-1-b1', col: 3, row: 2 },
+      { template: 'vm-level', col: 0, row: 3 },
+      { template: 'vm-solo-1', col: 1, row: 3 },
+      { template: 'vm-macro-1', col: 2, row: 3 },
+      { template: 'vm-mute-strip3', col: 3, row: 3 },
+    ],
+  },
+  {
+    id: 'page-voice-chat',
+    name: 'Voice chat',
+    description: 'Mute and deafen for Discord and Vesktop, plus the quick switcher.',
+    cols: 3,
+    rows: 3,
+    tiles: [
+      { template: 'mute-discord', col: 0, row: 0 },
+      { template: 'discord-deafen', col: 1, row: 0 },
+      { template: 'vesktop-switcher', col: 2, row: 0 },
+      { template: 'vesktop-mute', col: 0, row: 1 },
+      { template: 'vesktop-deafen', col: 1, row: 1 },
+      { template: 'mute-status', col: 2, row: 1 },
+      { template: 'slider-volume', col: 0, row: 2, w: 3 },
+    ],
+  },
+  {
+    id: 'page-desk',
+    name: 'Desk',
+    description: 'Clock, weather, focus timers and everyday system keys.',
+    cols: 3,
+    rows: 4,
+    tiles: [
+      { template: 'live-clock', col: 0, row: 0 },
+      { template: 'live-weather', col: 1, row: 0, w: 2 },
+      { template: 'timer-25', col: 0, row: 1 },
+      { template: 'timer-5', col: 1, row: 1 },
+      { template: 'dark-toggle', col: 2, row: 1 },
+      { template: 'screenshot', col: 0, row: 2 },
+      { template: 'show-desktop', col: 1, row: 2 },
+      { template: 'lock-screen', col: 2, row: 2 },
+      { template: 'slider-brightness', col: 0, row: 3, w: 3 },
+    ],
+  },
+]
+
+/**
+ * Tiles for a page template, with fresh ids from `newId`, and the variables they need.
+ * Unknown template ids are skipped.
+ */
+export function buildPage(
+  page: PageTemplate,
+  newId: (prefix: string) => string,
+): { tiles: Tile[]; variables: Record<string, JsonValue>; plugins: string[] } {
+  const byId = new Map(templates.map((t) => [t.id, t]))
+  const variables: Record<string, JsonValue> = {}
+  const plugins = new Set<string>()
+  const tiles: Tile[] = []
+  for (const slot of page.tiles) {
+    const t = byId.get(slot.template)
+    if (!t) continue
+    Object.assign(variables, t.variables)
+    if (t.plugin) plugins.add(t.plugin)
+    const tile = structuredClone(t.tile)
+    tiles.push({
+      kind: 'action',
+      concurrency: 'queue',
+      appearanceBindings: [],
+      ...tile,
+      id: newId('t'),
+      position: { col: slot.col, row: slot.row },
+      span: { w: slot.w ?? 1, h: slot.h ?? 1 },
+    })
+  }
+  return { tiles, variables, plugins: [...plugins] }
+}

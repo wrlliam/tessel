@@ -450,7 +450,12 @@ export const setTileAppearance = defineBlock({
   name: 'Set tile appearance',
   description:
     'Changes the name, icon or colour of this tile or another one on the phone, e.g. to show a status. Leave a field empty to keep it.',
-  inputs: [flowIn, { id: 'label', kind: 'value', type: 'string' }],
+  inputs: [
+    flowIn,
+    { id: 'label', kind: 'value', type: 'string' },
+    { id: 'icon', kind: 'value', type: 'string' },
+    { id: 'colour', kind: 'value', type: 'string' },
+  ],
   outputs: [flowOut],
   paramsSchema: z.object({
     label: optionalText,

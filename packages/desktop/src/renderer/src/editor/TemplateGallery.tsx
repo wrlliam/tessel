@@ -83,6 +83,11 @@ export function TemplateGallery({ open, onOpenChange, onPick, keyStyle }: Props)
                             <span className="line-clamp-2 block text-xs text-muted">
                               {t.description}
                             </span>
+                            {t.plugin && (
+                              <span className="block font-mono text-[11px] text-muted">
+                                Needs the {t.plugin} plugin
+                              </span>
+                            )}
                           </span>
                         </button>
                       </li>

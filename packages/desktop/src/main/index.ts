@@ -151,6 +151,7 @@ async function start() {
       ? hub.updatePhoneSettings(patch)
       : { ok: false, error: 'Nothing to change' },
   )
+  ipcMain.handle(Channel.finishTour, () => hub.finishTour())
   ipcMain.handle(Channel.validateGraph, (_e, graph: unknown) => hub.checkGraph(graph))
   ipcMain.handle(Channel.testRun, (_e, profileId: unknown, tileId: unknown) => {
     if (str(profileId) && str(tileId)) return hub.testRun(profileId, tileId)

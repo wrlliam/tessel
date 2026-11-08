@@ -25,7 +25,13 @@ function Row({ label, help, children }: { label: string; help?: string; children
 }
 
 /** How every connected phone looks and behaves. Changes reach phones straight away. */
-export function PhoneSettingsCard({ settings }: { settings: PhoneSettings }) {
+export function PhoneSettingsCard({
+  settings,
+  location,
+}: {
+  settings: PhoneSettings
+  location?: { at: number } | undefined
+}) {
   const set = (patch: Partial<PhoneSettings>) => void window.tessel.updatePhoneSettings(patch)
   const previewTheme = settings.theme === 'system' ? undefined : settings.theme
 
@@ -105,12 +111,13 @@ export function PhoneSettingsCard({ settings }: { settings: PhoneSettings }) {
             ]}
           />
         </Row>
-        <Row label="Held sideways" help="Fill stretches keys across the whole screen">
+        <Row label="Held sideways" help="Reflow lays keys out again in wide rows, so they stay big">
           <Segmented
             label="Held sideways"
             value={settings.landscape}
             onChange={(landscape) => set({ landscape })}
             options={[
+              { value: 'reflow', label: 'Reflow' },
               { value: 'fill', label: 'Fill' },
               { value: 'fit', label: 'Fit' },
               { value: 'rotate', label: 'Rotate' },
@@ -133,7 +140,27 @@ export function PhoneSettingsCard({ settings }: { settings: PhoneSettings }) {
             onChange={(haptics) => set({ haptics })}
           />
         </Row>
-        <Row label="Keep the screen on">
+        <Row
+          label="Share location"
+          help={
+            settings.shareLocation
+              ? location
+                ? `For weather tiles. Last shared ${new Date(location.at).toLocaleString()}`
+                : 'For weather tiles. Phones ask once; browsers need Secure connection'
+              : 'Lets weather tiles use where your phone is'
+          }
+        >
+          <Switch
+            label="Share location"
+            hideLabel
+            checked={settings.shareLocation}
+            onChange={(shareLocation) => set({ shareLocation })}
+          />
+        </Row>
+        <Row
+          label="Keep the screen on"
+          help="Over plain http, Safari needs one tap before it stays on"
+        >
           <Switch
             label="Keep the screen on"
             hideLabel

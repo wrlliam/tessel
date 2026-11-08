@@ -8,6 +8,7 @@ import type {
   Tile,
   TileTemplate,
 } from '@tessel/core'
+import { buildPage, type PageTemplate } from '@tessel/core'
 import { create } from 'zustand'
 import type { ProfileEngineEvent } from '../../../shared/api.ts'
 import { copyNodes, pasteNodes, uid, type Clip, type PortRef } from './graph-utils.ts'
@@ -64,7 +65,8 @@ interface EditorActions {
   setIssues(issues: GraphIssue[]): void
   setNotice(notice?: string): void
   renameProfile(name: string): void
-  addPage(): void
+  /** A blank page, or one filled from a page template. */
+  addPage(template?: PageTemplate): void
   updatePage(
     pageId: string,
     patch: Partial<Pick<Page, 'name' | 'cols' | 'rows'>>,
@@ -238,20 +240,22 @@ export const useEditor = create<Editor>()((set, get) => {
       if (p) commit({ ...p, name }, 'profile-name')
     },
 
-    addPage: () => {
+    addPage: (template) => {
       const p = get().profile
       if (!p) return
       const count = p.pages.filter((pg) => pg.kind === 'page').length
       const like = selectedPage()
+      const built = template && buildPage(template, uid)
       const page: Page = {
         id: uid('pg'),
-        name: `Page ${count + 1}`,
+        name: template?.name ?? `Page ${count + 1}`,
         kind: 'page',
-        cols: like?.cols ?? 3,
-        rows: like?.rows ?? 5,
-        tiles: [],
+        cols: template?.cols ?? like?.cols ?? 3,
+        rows: template?.rows ?? like?.rows ?? 5,
+        tiles: built?.tiles ?? [],
       }
-      commit({ ...p, pages: [...p.pages, page] })
+      const variables = { ...built?.variables, ...p.variables }
+      commit({ ...p, variables, pages: [...p.pages, page] })
       set({ selectedPageId: page.id, selectedTileId: null, selectedNodeIds: [] })
     },
 

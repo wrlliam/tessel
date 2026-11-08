@@ -1,8 +1,9 @@
-import type { Page } from '@tessel/core'
-import { ChevronDown, ChevronUp, Folder, Plus } from 'lucide-react'
+import { pageTemplates, type Page } from '@tessel/core'
+import { ChevronDown, ChevronUp, File, Folder, LayoutGrid, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '../lib/cn.ts'
 import { Button } from '../ui/button.tsx'
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover.tsx'
 import { Field } from '../ui/field.tsx'
 import { Input, Select } from '../ui/input.tsx'
 import { parentOf } from './layout.ts'
@@ -42,9 +43,7 @@ export function PagesPanel() {
     <section aria-label="Pages" className="space-y-2">
       <div className="flex items-center justify-between">
         <h3 className="text-xs text-muted">Pages</h3>
-        <Button size="sm" variant="ghost" onClick={addPage}>
-          <Plus /> Page
-        </Button>
+        <NewPageMenu onPick={addPage} />
       </div>
       <ul className="space-y-0.5">{pages.map((p) => row(p, 0))}</ul>
       <PageSettings />
@@ -135,5 +134,51 @@ function PageSettings() {
         )}
       </div>
     </div>
+  )
+}
+
+/** Blank page or a ready-made one. */
+function NewPageMenu({ onPick }: { onPick: (template?: (typeof pageTemplates)[number]) => void }) {
+  const [open, setOpen] = useState(false)
+  const pick = (t?: (typeof pageTemplates)[number]) => {
+    onPick(t)
+    setOpen(false)
+  }
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button size="sm" variant="ghost">
+          <Plus /> Page
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 p-1" aria-label="New page">
+        <button
+          type="button"
+          onClick={() => pick()}
+          className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-line"
+        >
+          <File className="mt-0.5 size-4 shrink-0 text-muted" />
+          <span>
+            Blank page
+            <span className="block text-xs text-muted">Same size as the page you're on</span>
+          </span>
+        </button>
+        <p className="px-2 pt-2 pb-1 text-xs text-muted">Ready-made</p>
+        {pageTemplates.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => pick(t)}
+            className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-line"
+          >
+            <LayoutGrid className="mt-0.5 size-4 shrink-0 text-muted" />
+            <span>
+              {t.name}
+              <span className="block text-xs text-muted">{t.description}</span>
+            </span>
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
   )
 }

@@ -21,7 +21,7 @@ export function PhonesView({ state }: { state: DesktopState }) {
             <ConnectPanel state={state} />
             <DevicesPanel state={state} />
           </div>
-          <PhoneSettingsCard settings={state.phoneSettings} />
+          <PhoneSettingsCard settings={state.phoneSettings} location={state.location} />
         </div>
       </main>
       <ActivityLog entries={state.log} />

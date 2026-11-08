@@ -54,6 +54,10 @@ export interface DesktopState {
   settings: AppSettings
   plugins: PluginInfo[]
   phoneSettings: PhoneSettings
+  /** Where a phone last said it was, when Share location is on. */
+  location?: { lat: number; lon: number; at: number }
+  /** First-run tour finished or skipped. */
+  toured: boolean
   /** Changes when plugin blocks are added or removed. */
   blocksVersion: number
 }
@@ -110,6 +114,7 @@ export interface TesselApi {
   updatePluginSettings(id: string, values: Record<string, unknown>): Promise<void>
   /** Changes how connected phones look and behave. */
   updatePhoneSettings(patch: Partial<PhoneSettings>): Promise<SaveResult>
+  finishTour(): Promise<void>
 }
 
 export type SaveResult = { ok: true } | { ok: false; error: string }
@@ -143,4 +148,5 @@ export const Channel = {
   addPlugin: 'plugins:add',
   updatePluginSettings: 'plugins:settings',
   updatePhoneSettings: 'phone:settings',
+  finishTour: 'app:tour-done',
 } as const
