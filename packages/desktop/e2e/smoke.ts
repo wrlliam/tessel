@@ -129,8 +129,29 @@ try {
     const p = await window.tessel.getProfile('default')
     return p?.pages.flatMap((pg) => pg.tiles).find((x) => x.label === 'Count')?.position
   })
-  if (moved?.col !== 1 || moved.row !== 1) throw new Error(`Tile landed at ${JSON.stringify(moved)}, expected col 1 row 1`)
+  if (moved?.col !== 1 || moved.row !== 1)
+    throw new Error(`Tile landed at ${JSON.stringify(moved)}, expected col 1 row 1`)
   if (shots) await page.screenshot({ path: join(shots, 'e2e-folder.png') })
+
+  step('Set setting shows only the fields for the chosen setting')
+  await page.getByRole('tab', { name: 'Editor' }).click()
+  await page.getByRole('button', { name: 'Page', exact: true }).click()
+  await page.getByRole('button', { name: 'Add something in row 1, column 1' }).click()
+  await page.getByRole('button', { name: 'Blank tile' }).click()
+  await page
+    .getByRole('complementary', { name: 'Blocks' })
+    .getByRole('button', { name: 'Set setting' })
+    .click()
+  await page.getByLabel('Turn').waitFor()
+  await page.getByLabel('Setting', { exact: true }).selectOption('volume')
+  await page.getByLabel('Level (0 to 100)').waitFor()
+  if (await page.getByLabel('Turn').count()) throw new Error('On/off field should hide for volume')
+
+  step('Settings: shell commands can be set to ask every time')
+  await page.getByRole('tab', { name: 'Settings' }).click()
+  await page.getByRole('radio', { name: 'Ask every time' }).click()
+  await page.getByRole('radio', { name: 'Ask every time', checked: true }).waitFor()
+  if (shots) await page.screenshot({ path: join(shots, 'e2e-settings.png') })
 
   if (errors.length) throw new Error(`Renderer errors:\n${errors.join('\n')}`)
   console.log('Smoke test passed')

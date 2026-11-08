@@ -1,11 +1,13 @@
 import {
   Engine,
+  toJsonValue,
   type AppearanceChange,
   type BlockRegistry,
   type EngineEvent,
   type JsonValue,
   type Platform,
   type Profile,
+  type RunnableTile,
 } from '@tessel/core'
 
 const VARIABLE_SAVE_DELAY_MS = 500
@@ -19,7 +21,10 @@ export interface RuntimeHost {
   persist(profile: Profile): Promise<void>
   onEvent(event: EngineEvent): void
   onAppearance(tileId: string, change: AppearanceChange): void
-  onVariablesChanged(): void
+  /** Variables or tile state changed, so live appearance may need updating. */
+  onStateChanged(): void
+  onSwitchPage(pageId: string): void
+  findTile(tileId: string): RunnableTile | undefined
   onSaveError(err: Error): void
 }
 
@@ -42,13 +47,30 @@ export class ProfileRuntime {
       },
       onEvent: (e) => host.onEvent(e),
       onAppearance: (tileId, change) => host.onAppearance(tileId, change),
+      tileState: {
+        get: (tileId, key) => host.get().tileState[tileId]?.[key],
+        set: (tileId, key, value) =>
+          this.update((p) => ({
+            ...p,
+            tileState: {
+              ...p.tileState,
+              [tileId]: { ...p.tileState[tileId], [key]: toJsonValue(value) },
+            },
+          })),
+      },
+      onSwitchPage: (pageId) => host.onSwitchPage(pageId),
+      findTile: (tileId) => host.findTile(tileId),
     })
   }
 
   setVariables(values: Record<string, JsonValue>) {
-    const profile = this.host.get()
-    this.host.replace({ ...profile, variables: { ...profile.variables, ...values } })
-    this.host.onVariablesChanged()
+    this.update((p) => ({ ...p, variables: { ...p.variables, ...values } }))
+  }
+
+  /** Changes run-time data in the profile and saves it shortly after. */
+  private update(change: (profile: Profile) => Profile) {
+    this.host.replace(change(this.host.get()))
+    this.host.onStateChanged()
     clearTimeout(this.saveTimer)
     this.saveTimer = setTimeout(() => {
       this.saveTimer = undefined

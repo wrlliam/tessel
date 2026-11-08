@@ -13,9 +13,22 @@ export function mockPlatform(os: Platform['os'] = 'darwin') {
   return {
     os,
     openApp: vi.fn(async (_app: string) => {}),
+    openUrl: vi.fn(async (_url: string) => {}),
+    openFile: vi.fn(async (_path: string) => {}),
     typeText: vi.fn(async (_text: string) => {}),
     pressCombo: vi.fn(async () => {}),
-    setDarkMode: vi.fn(async (_on: boolean) => {}),
+    mediaKey: vi.fn(async () => {}),
+    mouse: vi.fn(async () => {}),
+    setDarkMode: vi.fn(async (_on: boolean | 'toggle') => {}),
+    setMuted: vi.fn(async (_on: boolean | 'toggle') => {}),
+    setVolume: vi.fn(async (_level: number) => {}),
+    setBrightness: vi.fn(async (_level: number) => {}),
+    lockScreen: vi.fn(async () => {}),
+    sleep: vi.fn(async () => {}),
+    setClipboard: vi.fn(async (_text: string) => {}),
+    notify: vi.fn(async (_title: string, _body: string) => {}),
+    runShell: vi.fn(async () => ({ code: 0, stdout: 'hello\n', stderr: '' })),
+    http: vi.fn(async () => ({ status: 200, body: '{"ok":true}' })),
   } satisfies Platform
 }
 

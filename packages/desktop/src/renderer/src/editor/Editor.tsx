@@ -53,9 +53,10 @@ interface Props {
   profiles: Array<{ id: string; name: string }>
   activeProfileId: string
   liveAppearance: Record<string, Appearance>
+  theme: 'system' | 'dark' | 'light'
 }
 
-export function Editor({ os, profiles, activeProfileId, liveAppearance }: Props) {
+export function Editor({ os, profiles, activeProfileId, liveAppearance, theme }: Props) {
   useEditorSync(activeProfileId)
   useShortcuts(os)
   const profile = useEditor((s) => s.profile)
@@ -106,7 +107,7 @@ export function Editor({ os, profiles, activeProfileId, liveAppearance }: Props)
           <FolderPanel folderId={tile.targetPageId} />
         ) : tile ? (
           <main aria-label="Blocks canvas" className="flex min-w-0 flex-1 flex-col">
-            <Canvas tile={tile} />
+            <Canvas tile={tile} colorMode={theme} />
           </main>
         ) : (
           <main className="flex flex-1 items-center justify-center text-sm text-muted">

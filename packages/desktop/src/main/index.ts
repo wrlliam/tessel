@@ -23,10 +23,11 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 async function start() {
-  const hub = new Hub({
+  const hub: Hub = new Hub({
     dataDir: app.getPath('userData'),
     phoneDir: phoneDir(),
-    platform: createPlatform(),
+    // Read when a shell block runs, after the hub exists.
+    platform: createPlatform(() => hub.shellPolicy()),
     // macOS answers mDNS for its own hostname, so this URL survives DHCP changes.
     ...(process.platform === 'darwin' && hostname().endsWith('.local')
       ? { localHostname: hostname() }
@@ -71,6 +72,11 @@ async function start() {
   ipcMain.handle(Channel.setAllowPhones, (_e, on: unknown) => hub.setAllowPhones(on === true))
   ipcMain.handle(Channel.setPaused, (_e, on: unknown) => hub.setPaused(on === true))
   ipcMain.handle(Channel.setStartOnLogin, (_e, on: unknown) => setStartOnLogin(on === true))
+  ipcMain.handle(Channel.updateSettings, (_e, patch: unknown) =>
+    patch && typeof patch === 'object'
+      ? hub.updateSettings(patch)
+      : { ok: false, error: 'Nothing to change' },
+  )
   ipcMain.handle(Channel.newPairingCode, () => hub.newPairingCode())
   ipcMain.handle(Channel.revokeDevice, (_e, id: unknown) => {
     if (typeof id === 'string') return hub.revokeDevice(id)

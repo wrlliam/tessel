@@ -16,6 +16,8 @@ export type TriggerType = 'press' | 'longPress' | 'release' | 'pageOpen' | 'sche
 
 export interface TriggerEvent {
   type: TriggerType
+  /** Only start this trigger block, e.g. the schedule that fired. */
+  nodeId?: string
   data?: Record<string, unknown>
 }
 
@@ -31,6 +33,14 @@ export interface RunContext {
   now(): Date
   /** Changes how this tile looks on the phone until the next change or reset. */
   setAppearance(change: AppearanceChange): void
+  /** Values this tile keeps between runs (Toggle), saved with the profile. */
+  tileState: { get(key: string): unknown; set(key: string, value: unknown): void }
+  /** Shows a page or folder on connected phones. */
+  switchPage(pageId: string): void
+  /** Presses another tile and waits for it to finish. */
+  runTile(tileId: string): Promise<void>
+  /** Reads inputs and renders params again, for blocks that wait on something changing. */
+  refreshParams(): Promise<unknown>
 }
 
 export type AppearanceChange = { label?: string; colour?: string; icon?: string } | 'reset'
@@ -39,10 +49,23 @@ export interface BlockResult {
   /** Flow output to follow. Defaults to the block's first flow output. */
   next?: string
   values?: Record<string, unknown>
+  /** Runs what is wired to `port` this many times before following `next`. Sets value output `index`. */
+  loop?: { port: string; times: number }
 }
 
 export type FieldWidget =
-  'text' | 'textarea' | 'number' | 'toggle' | 'select' | 'combo' | 'condition'
+  | 'text'
+  | 'textarea'
+  | 'number'
+  | 'toggle'
+  | 'select'
+  | 'combo'
+  | 'condition'
+  | 'cron'
+  /** A page or folder in the same profile. */
+  | 'page'
+  /** Another tile in the same profile. */
+  | 'tile'
 
 /** How the editor shows one param. Text-like fields accept {{templates}}. */
 export interface FieldDef {
@@ -52,6 +75,8 @@ export interface FieldDef {
   placeholder?: string
   help?: string
   options?: Array<{ value: string; label: string }>
+  /** Only show this field when another param has one of these values. */
+  when?: { key: string; is: string[] }
 }
 
 export interface BlockDefinition<P = unknown> {

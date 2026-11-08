@@ -4,7 +4,7 @@
 
 The desktop app is the brain. The phone is a remote that only ever says "tile X pressed".
 
-> Status: **Phase 4 (pages, folders, profiles).** Several profiles, swipeable pages, folders, icons, live tile state, templates and `.tessel` import/export. System settings blocks and the remaining built-ins come in phase 5.
+> Status: **Phase 5 (system settings and all built-in blocks).** Plugins (including Voicemeeter) come in phase 6.
 
 ## Requirements
 
@@ -46,7 +46,7 @@ Paired phones are listed in the window. **Remove** disconnects one immediately a
 
 ## Editor
 
-The window has two tabs: **Editor** and **Phones** (pairing and devices).
+The window has three tabs: **Editor**, **Phones** (pairing and devices) and **Settings** (port, start on login, theme, shell commands, activity log level).
 
 - **Left:** the profile, its pages and the page as your phone shows it.
   - **Profiles** (e.g. Work, Gaming): create, duplicate, rename, delete, import and export. **Use on phones** picks the one phones see; the tray menu has a Profile submenu too. Each profile has its own variables.
@@ -59,7 +59,7 @@ The window has two tabs: **Editor** and **Phones** (pairing and devices).
 
 **Live appearance.** A tile's label, colour or icon can follow variables, e.g. label `Count: {{var.count ?? 0}}`, and the **Set tile appearance** block can change them while a tile runs (use it for status, like a mute tile turning red). The phone and the editor's grid show the live look.
 
-**Templates:** Open an app, Mute mic in Discord, Dark mode by time of day, Type my email, Counter.
+**Templates:** Open an app, Mute mic in Discord, Dark mode by time of day, Type my email, Counter, Play / pause, Mute sound with status, Open a website, Lock screen (on long press, so it isn't locked by accident).
 
 **Import and export.** A profile exports as a `.tessel` file (a zip of JSON, including its variables, so check them before sharing). Importing shows which blocks the profile uses and asks before adding it as a new profile.
 
@@ -77,12 +77,31 @@ The window has two tabs: **Editor** and **Phones** (pairing and devices).
 
 Every tile is a small graph: a trigger, then blocks joined by wires. Flow wires set the order; value wires carry data (`Get time` › `hour` into `If`).
 
-| Category | Blocks so far                                                 |
-| -------- | ------------------------------------------------------------- |
-| Trigger  | On press                                                      |
-| Action   | Open app, Type text, Key combo, Set setting (dark mode)       |
-| Logic    | If (and / or / not conditions, `yes` and `no` outputs), Delay |
-| Data     | Get time, Get variable, Set variable                          |
+| Category | Blocks                                                                                                                                                                                                                   |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Trigger  | On press, On long press, On release, On page open, On schedule                                                                                                                                                           |
+| Action   | Open app, Open URL, Open file, Type text, Key combo, Media key, Mouse, Set clipboard, Notification, HTTP request, Run shell command, Switch page, Run another tile, Set tile appearance, Set setting, Lock screen, Sleep |
+| Logic    | If, Switch, Compare, Toggle, Delay, Repeat, Wait until                                                                                                                                                                   |
+| Data     | Get time, Get variable, Set variable, Math, Text, Random                                                                                                                                                                 |
+
+**Triggers.** On press fires as soon as the phone commits the tap. If a tile also has **On long press**, the two take turns: a short tap fires On press when you lift, holding half a second fires On long press instead. **On release** fires when you lift. **On page open** fires when a phone shows the tile's page. **On schedule** takes a cron pattern (`0 9 * * 1-5` is 9:00 on weekdays; a sixth field adds seconds) and runs for the profile phones are using, in the computer's time zone; the editor shows the next three times.
+
+**Toggle** flips between its `now on` and `now off` outputs on each run and remembers where it was (saved with the profile), so `{{state.on}}` can drive live appearance. **Repeat** runs what is wired to `each time` up to 100 times, then `then`. **Wait until** re-checks its condition, reading wires again each time. **Run another tile** presses another tile and waits for it; tiles that would run each other in a circle are refused.
+
+### System settings by OS
+
+**Set setting** covers dark mode, mute, volume and brightness. Everything is best effort: when an OS can't do something, the block says so plainly.
+
+|                         | macOS                                             | Windows                                                | Linux                                         |
+| ----------------------- | ------------------------------------------------- | ------------------------------------------------------ | --------------------------------------------- |
+| Dark mode               | AppleScript (asks for Automation permission once) | Registry (`AppsUseLightTheme`, `SystemUsesLightTheme`) | GNOME `gsettings`                             |
+| Volume, mute            | AppleScript                                       | Core Audio via PowerShell (about a second per change)  | `pactl`, or `wpctl` on PipeWire               |
+| Brightness              | Needs `brew install brightness`                   | Built-in laptop screens only (WMI)                     | Needs `brightnessctl`                         |
+| Lock screen             | Ctrl+Cmd+Q (needs Accessibility)                  | `LockWorkStation`                                      | `loginctl lock-session`, or `xdg-screensaver` |
+| Sleep                   | `pmset sleepnow`                                  | Suspend                                                | `systemctl suspend`                           |
+| Keys, media keys, mouse | nut-js (needs Accessibility)                      | nut-js                                                 | nut-js on X11 only                            |
+
+**Shell commands** are off until you change **Settings › Safety**. "Ask every time" shows each command and waits for you. HTTP responses over 1 MB are cut short.
 
 **Templates.** Any text param can use `{{ }}`: `{{var.email}}` (global variable, saved with the profile), `{{local.n}}` (this run only), `{{input.a}}` (a wired value), `{{trigger.type}}`. Expressions support arithmetic, comparisons, `&&` `||` `??`, `a ? b : c` and helpers `upper lower trim len round floor ceil abs min max num str pad`. They are evaluated by a whitelisting interpreter: no `eval`, no prototype access.
 

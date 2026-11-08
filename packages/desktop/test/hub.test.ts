@@ -13,10 +13,23 @@ const hubs: Hub[] = []
 const mockPlatform = () =>
   ({
     os: 'darwin',
-    openApp: vi.fn(async () => {}),
-    typeText: vi.fn(async () => {}),
+    openApp: vi.fn(async (_app: string) => {}),
+    openUrl: vi.fn(async () => {}),
+    openFile: vi.fn(async () => {}),
+    typeText: vi.fn(async (_text: string) => {}),
     pressCombo: vi.fn(async () => {}),
+    mediaKey: vi.fn(async () => {}),
+    mouse: vi.fn(async () => {}),
     setDarkMode: vi.fn(async () => {}),
+    setMuted: vi.fn(async (_on: boolean | 'toggle') => {}),
+    setVolume: vi.fn(async () => {}),
+    setBrightness: vi.fn(async () => {}),
+    lockScreen: vi.fn(async () => {}),
+    sleep: vi.fn(async () => {}),
+    setClipboard: vi.fn(async () => {}),
+    notify: vi.fn(async () => {}),
+    runShell: vi.fn(async () => ({ code: 0, stdout: '', stderr: '' })),
+    http: vi.fn(async () => ({ status: 200, body: '' })),
   }) satisfies Platform
 afterEach(async () => {
   await Promise.all(hubs.splice(0).map((h) => h.dispose()))
@@ -335,5 +348,135 @@ describe('Hub profiles', () => {
     expect(hub.state().liveAppearance['lock']).toBeDefined()
     await hub.press({ deviceId: 'd', tileId: 'lock', phase: 'down' })
     expect(hub.state().liveAppearance['lock']).toBeUndefined()
+  })
+})
+
+type Hub_ = Awaited<ReturnType<typeof makeHub>>['hub']
+const n = (id: string, type: string, params: Record<string, unknown> = {}) => ({
+  id,
+  type,
+  params,
+  position: { x: 0, y: 0 },
+})
+const w = (from: string, fp: string, to: string, tp = 'in') => ({
+  id: `${from}-${fp}-${to}`,
+  from: { nodeId: from, port: fp },
+  to: { nodeId: to, port: tp },
+})
+
+async function withLockGraph(
+  hub: Hub_,
+  graph: { nodes: ReturnType<typeof n>[]; edges: ReturnType<typeof w>[] },
+  change?: (t: { appearanceBindings: unknown[] }) => void,
+) {
+  const profile = structuredClone(hub.getProfile('default')!)
+  const tile = profile.pages[0]!.tiles.find((t) => t.id === 'lock')!
+  tile.graph = graph
+  change?.(tile as never)
+  expect(await hub.saveProfile(profile)).toEqual({ ok: true })
+}
+
+describe('Hub triggers', () => {
+  const app = (name: string) => n(name, 'action.openApp', { app: name })
+
+  it('fires On press on touch when the tile has no long press', async () => {
+    const { hub, platform } = await makeHub()
+    await withLockGraph(hub, {
+      nodes: [n('p', 'trigger.press'), app('tap'), n('r', 'trigger.release'), app('up')],
+      edges: [w('p', 'out', 'tap'), w('r', 'out', 'up')],
+    })
+    await hub.press({ deviceId: 'd', tileId: 'lock', phase: 'down' })
+    expect(platform.openApp.mock.calls.flat()).toEqual(['tap'])
+    await hub.press({ deviceId: 'd', tileId: 'lock', phase: 'up' })
+    expect(platform.openApp.mock.calls.flat()).toEqual(['tap', 'up'])
+  })
+
+  it('makes press and long press exclusive', async () => {
+    const { hub, platform } = await makeHub()
+    await withLockGraph(hub, {
+      nodes: [n('p', 'trigger.press'), app('short'), n('l', 'trigger.longPress'), app('long')],
+      edges: [w('p', 'out', 'short'), w('l', 'out', 'long')],
+    })
+    await hub.press({ deviceId: 'd', tileId: 'lock', phase: 'down' })
+    await hub.press({ deviceId: 'd', tileId: 'lock', phase: 'up' })
+    expect(platform.openApp.mock.calls.flat()).toEqual(['short'])
+
+    await hub.press({ deviceId: 'd', tileId: 'lock', phase: 'down' })
+    await new Promise((r) => setTimeout(r, 600))
+    await hub.press({ deviceId: 'd', tileId: 'lock', phase: 'up' })
+    expect(platform.openApp.mock.calls.flat()).toEqual(['short', 'long'])
+  })
+
+  it('runs On page open for tiles on the opened page', async () => {
+    const { hub, platform } = await makeHub()
+    await withLockGraph(hub, {
+      nodes: [n('o', 'trigger.pageOpen'), app('opened')],
+      edges: [w('o', 'out', 'opened')],
+    })
+    await hub.pageOpened('home')
+    expect(platform.openApp).toHaveBeenCalledWith('opened')
+  })
+
+  it('keeps Toggle state, exposes it to live appearance, and survives editor saves', async () => {
+    const { hub, platform } = await makeHub()
+    await withLockGraph(
+      hub,
+      {
+        nodes: [
+          n('p', 'trigger.press'),
+          n('t', 'logic.toggle', { key: 'on' }),
+          n('m', 'action.setSetting', { setting: 'mute', value: 'toggle' }),
+        ],
+        edges: [w('p', 'out', 't'), w('t', 'on', 'm'), w('t', 'off', 'm')],
+      },
+      (t) =>
+        (t.appearanceBindings = [
+          { field: 'colour', expression: '{{state.on ? "#F25C6E" : "#161B22"}}' },
+        ]),
+    )
+    await hub.press({ deviceId: 'd', tileId: 'lock', phase: 'down' })
+    expect(platform.setMuted).toHaveBeenCalledWith('toggle')
+    expect(hub.getProfile('default')?.tileState['lock']).toEqual({ on: true })
+    expect(hub.state().liveAppearance['lock']?.colour).toBe('#F25C6E')
+    // An editor save carrying stale state must not reset it.
+    const stale = structuredClone(hub.getProfile('default')!)
+    stale.tileState = {}
+    await hub.saveProfile(stale)
+    expect(hub.getProfile('default')?.tileState['lock']).toEqual({ on: true })
+  })
+})
+
+describe('Hub settings', () => {
+  it('saves allowed settings and ignores the rest', async () => {
+    const { hub, dataDir } = await makeHub()
+    expect(
+      await hub.updateSettings({ shell: 'confirm', logLevel: 'error', allowPhones: false }),
+    ).toEqual({ ok: true })
+    expect(hub.state().settings).toMatchObject({ shell: 'confirm', logLevel: 'error' })
+    expect(hub.state().allowPhones).toBe(true)
+    expect(hub.shellPolicy()).toBe('confirm')
+    const saved = JSON.parse(await readFile(join(dataDir, 'settings.json'), 'utf8'))
+    expect(saved.data.shell).toBe('confirm')
+  })
+
+  it('rejects invalid values', async () => {
+    const { hub } = await makeHub()
+    expect((await hub.updateSettings({ port: 80 })).ok).toBe(false)
+  })
+
+  it('filters the activity log by level', async () => {
+    const { hub } = await makeHub()
+    await hub.updateSettings({ logLevel: 'error' })
+    const before = hub.state().log.length
+    hub.setPaused(true)
+    expect(hub.state().log.length).toBe(before)
+  })
+
+  it('restarts sharing on a new port', async () => {
+    const { hub } = await makeHub()
+    const port = await freePort()
+    await hub.updateSettings({ port })
+    expect(hub.state()).toMatchObject({ listening: true, port })
+    expect(hub.state().urls[0]).toContain(`:${port}/`)
   })
 })

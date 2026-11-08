@@ -9,7 +9,7 @@ import {
   type ValueType,
 } from './block.ts'
 import { isNumeric, renderParams, toBool, toText } from './expression.ts'
-import { osName, type Platform } from './platform.ts'
+import { osName, UserFacingError, type Platform } from './platform.ts'
 import { toJsonValue, type VariableStore } from './variables.ts'
 import { validateGraph } from './validate.ts'
 
@@ -60,6 +60,14 @@ export interface EngineOptions {
   globals: VariableStore
   onEvent?: (event: EngineEvent) => void
   onAppearance?: (tileId: string, change: AppearanceChange) => void
+  /** Per-tile values that last between runs (Toggle). */
+  tileState?: {
+    get(tileId: string, key: string): unknown
+    set(tileId: string, key: string, value: unknown): void
+  }
+  onSwitchPage?: (pageId: string) => void
+  /** Looks up another tile in the same profile, for Run another tile. */
+  findTile?: (tileId: string) => RunnableTile | undefined
   now?: () => Date
   /** Most blocks one run may execute. */
   maxSteps?: number
@@ -94,6 +102,7 @@ interface Lane {
 }
 
 let runCounter = 0
+const MAX_TILE_CHAIN = 8
 
 export class Engine {
   private lanes = new Map<string, Lane>()
@@ -209,7 +218,11 @@ class Run {
       )
       if (problem)
         throw new NodeFailure(problem.nodeId ?? '', `This tile needs fixing: ${problem.message}`)
-      const triggers = tile.graph.nodes.filter((n) => this.def(n.id)?.trigger === this.event.type)
+      const triggers = tile.graph.nodes.filter(
+        (n) =>
+          this.def(n.id)?.trigger === this.event.type &&
+          (!this.event.nodeId || n.id === this.event.nodeId),
+      )
       for (const node of triggers) await this.runFlow(node)
     } catch (err) {
       if (err instanceof StopRun) status = err.status
@@ -253,6 +266,16 @@ class Run {
     const def = this.def(node.id)
     if (!def) return
     const result = await this.exec(node, def, 0)
+    if (result.loop) {
+      const values = this.outputs.get(node.id) ?? {}
+      for (let index = 0; index < result.loop.times; index++) {
+        this.outputs.set(node.id, { ...values, index })
+        for (const edge of this.flowEdges.get(`${node.id}:${result.loop.port}`) ?? []) {
+          const target = this.nodes.get(edge.to.nodeId)
+          if (target) await this.runFlow(target)
+        }
+      }
+    }
     const flowOutputs = def.outputs.filter((p) => p.kind === 'flow')
     const next = result.next ?? flowOutputs[0]?.id
     if (next === undefined) return
@@ -298,6 +321,14 @@ class Run {
         signal,
         now: () => this.engine.opts.now?.() ?? new Date(),
         setAppearance: (change) => this.engine.opts.onAppearance?.(this.tile.id, change),
+        tileState: {
+          get: (key) => this.engine.opts.tileState?.get(this.tile.id, key),
+          set: (key, value) => this.engine.opts.tileState?.set(this.tile.id, key, value),
+        },
+        switchPage: (pageId) => this.engine.opts.onSwitchPage?.(pageId),
+        runTile: (tileId) => this.runOther(tileId),
+        refreshParams: async () =>
+          this.renderParams(node, def, await this.resolveInputs(node, depth)),
       }
       const result = (await raceAbort(Promise.resolve(def.run(ctx, params, input)), signal)) ?? {}
       this.outputs.set(node.id, result.values ?? {})
@@ -315,6 +346,22 @@ class Run {
       const message = err instanceof Error ? err.message : String(err)
       this.setStatus(node.id, 'error', message)
       throw new NodeFailure(node.id, message)
+    }
+  }
+
+  /** Tiles that pressed each other in this chain, so A -> B -> A is refused. */
+  private async runOther(tileId: string) {
+    const chain = [...((this.event.data?.['chain'] as string[] | undefined) ?? []), this.tile.id]
+    if (chain.includes(tileId)) throw new UserFacingError('That would run tiles in a circle')
+    if (chain.length >= MAX_TILE_CHAIN)
+      throw new UserFacingError(`Tiles can only run each other ${MAX_TILE_CHAIN} deep`)
+    const target = this.engine.opts.findTile?.(tileId)
+    if (!target) throw new UserFacingError('That tile no longer exists')
+    const result = await this.engine.trigger(target, { type: 'press', data: { chain } })
+    if (result && result.status !== 'ok') {
+      throw new UserFacingError(
+        `The other tile ${result.status === 'error' ? 'failed' : 'stopped'}${result.error ? `: ${result.error}` : ''}`,
+      )
     }
   }
 

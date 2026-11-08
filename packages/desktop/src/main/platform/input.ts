@@ -1,4 +1,4 @@
-import { type KeyCombo, type Modifier, type OS } from '@tessel/core'
+import type { KeyCombo, MediaKey, Modifier, MouseAction, OS } from '@tessel/core'
 
 /** The slice of nut-js Tessel uses, so tests can swap in a fake. */
 export interface Nut {
@@ -9,6 +9,23 @@ export interface Nut {
     releaseKey(...keys: number[]): Promise<unknown>
   }
   Key: Record<string, number>
+  mouse: {
+    setPosition(point: unknown): Promise<unknown>
+    click(button: number): Promise<unknown>
+    doubleClick(button: number): Promise<unknown>
+  }
+  Button: { LEFT: number; MIDDLE: number; RIGHT: number }
+  Point: new (x: number, y: number) => unknown
+}
+
+const MEDIA: Record<MediaKey, string> = {
+  playPause: 'AudioPlay',
+  next: 'AudioNext',
+  previous: 'AudioPrev',
+  stop: 'AudioStop',
+  volumeUp: 'AudioVolUp',
+  volumeDown: 'AudioVolDown',
+  mute: 'AudioMute',
 }
 
 export interface ClipboardAccess<T> {
@@ -130,6 +147,34 @@ export function createInput<T>(deps: InputDeps<T>) {
 
     async pressCombo(combo: KeyCombo) {
       await press(await keyboard(), combo)
+    },
+
+    async mediaKey(key: MediaKey) {
+      const n = await keyboard()
+      const code = n.Key[MEDIA[key]]
+      if (code === undefined) throw new Error(`Key "${MEDIA[key]}" is missing from nut-js`)
+      await n.keyboard.pressKey(code)
+      await n.keyboard.releaseKey(code)
+    },
+
+    async mouse(action: MouseAction) {
+      const n = await keyboard()
+      switch (action.kind) {
+        case 'move':
+          await n.mouse.setPosition(new n.Point(action.x, action.y))
+          return
+        case 'click':
+          await n.mouse.click(n.Button.LEFT)
+          return
+        case 'doubleClick':
+          await n.mouse.doubleClick(n.Button.LEFT)
+          return
+        case 'rightClick':
+          await n.mouse.click(n.Button.RIGHT)
+          return
+        case 'middleClick':
+          await n.mouse.click(n.Button.MIDDLE)
+      }
     },
   }
 }

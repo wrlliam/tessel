@@ -1,7 +1,8 @@
 import { type OS, type Platform, UserFacingError } from '@tessel/core'
-import { clipboard, ClipboardItem, shell, systemPreferences } from 'electron'
+import { clipboard, ClipboardItem, dialog, Notification, shell, systemPreferences } from 'electron'
 import { readdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
+import { createCommon, type ShellPolicy } from './common.ts'
 import { createDarwin } from './darwin.ts'
 import { launch, run } from './exec.ts'
 import { createInput, type Nut } from './input.ts'
@@ -48,13 +49,35 @@ function ensureInputAllowed(os: OS) {
   }
 }
 
-export function createPlatform(): Platform {
+async function confirmShell(command: string): Promise<boolean> {
+  const answer = await dialog.showMessageBox({
+    type: 'warning',
+    message: 'Run this command?',
+    detail: command.length > 600 ? `${command.slice(0, 600)}…` : command,
+    buttons: ['Run', "Don't run"],
+    defaultId: 1,
+    cancelId: 1,
+  })
+  return answer.response === 0
+}
+
+export function createPlatform(shellPolicy: () => ShellPolicy): Platform {
   const os = process.platform as OS
   const input = createInput({
     os,
     loadNut: () => import('@nut-tree-fork/nut-js') as unknown as Promise<Nut>,
     clipboard: electronClipboard,
     ensureAllowed: () => ensureInputAllowed(os),
+  })
+  const common = createCommon({
+    shellPolicy,
+    confirmShell,
+    openExternal: (url) => shell.openExternal(url),
+    openPath: (p) => shell.openPath(p),
+    writeClipboard: (text) => clipboard.writeText(text),
+    notify: (title, body) => {
+      if (Notification.isSupported()) new Notification({ title, body }).show()
+    },
   })
   const native =
     os === 'darwin'
@@ -69,5 +92,5 @@ export function createPlatform(): Platform {
             listDir: (d) => readdir(d),
             readFile: (p) => readFile(p, 'utf8'),
           })
-  return { os, ...native, ...input }
+  return { os, ...native, ...input, ...common }
 }

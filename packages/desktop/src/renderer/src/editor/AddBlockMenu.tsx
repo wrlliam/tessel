@@ -8,6 +8,7 @@ import {
 } from '../ui/command.tsx'
 import { Popover, PopoverAnchor, PopoverContent } from '../ui/popover.tsx'
 import { groupBlocks } from './blocks-list.ts'
+import { blockScore } from './search.ts'
 import { useEditor } from './store.ts'
 import { CATEGORY } from './theme.ts'
 
@@ -29,19 +30,20 @@ export function AddBlockMenu({ at, onPick, onClose }: Props) {
         />
       </PopoverAnchor>
       <PopoverContent className="w-72" onCloseAutoFocus={(e) => e.preventDefault()}>
-        <Command label="Add block">
+        <Command
+          label="Add block"
+          filter={(value, search) => {
+            const block = blocks.get(value)
+            return block ? blockScore(block.name, block.description, search) : 0
+          }}
+        >
           <CommandInput placeholder="Add a block…" autoFocus />
           <CommandList>
             <CommandEmpty>No blocks match.</CommandEmpty>
             {groupBlocks(blocks.values()).map(([category, list]) => (
               <CommandGroup key={category} heading={CATEGORY[category].label}>
                 {list.map((b) => (
-                  <CommandItem
-                    key={b.id}
-                    value={b.id}
-                    keywords={[b.name, b.description, CATEGORY[category].label]}
-                    onSelect={() => onPick(b.id)}
-                  >
+                  <CommandItem key={b.id} value={b.id} onSelect={() => onPick(b.id)}>
                     <span
                       className="size-2.5 shrink-0 rounded-sm"
                       style={{ background: CATEGORY[category].colour }}

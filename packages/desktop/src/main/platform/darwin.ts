@@ -1,7 +1,26 @@
-import { UserFacingError } from '@tessel/core'
-import type { Run } from './exec.ts'
+import { UserFacingError, type OnOff } from '@tessel/core'
+import { isMissingProgram, type Run } from './exec.ts'
+
+const ACCESSIBILITY =
+  'Tessel needs Accessibility permission for this. Turn it on in System Settings › Privacy & Security › Accessibility.'
 
 export function createDarwin(deps: { run: Run }) {
+  async function script(source: string) {
+    try {
+      await deps.run('osascript', ['-e', source])
+    } catch (err) {
+      const message = String((err as Error).message)
+      if (message.includes('-1743')) {
+        throw new UserFacingError(
+          'Tessel needs permission to control System Events. Allow it in System Settings › Privacy & Security › Automation.',
+        )
+      }
+      if (message.includes('-1719') || message.includes('-25211'))
+        throw new UserFacingError(ACCESSIBILITY)
+      throw err
+    }
+  }
+
   return {
     async openApp(app: string) {
       const isPath = app.startsWith('/') || app.endsWith('.app')
@@ -14,18 +33,40 @@ export function createDarwin(deps: { run: Run }) {
       }
     },
 
-    async setDarkMode(on: boolean) {
-      const script = `tell application "System Events" to tell appearance preferences to set dark mode to ${on}`
+    setDarkMode: (on: OnOff) =>
+      script(
+        `tell application "System Events" to tell appearance preferences to set dark mode to ${on === 'toggle' ? 'not dark mode' : on}`,
+      ),
+
+    setMuted: (on: OnOff) =>
+      script(
+        `set volume output muted ${on === 'toggle' ? 'not (output muted of (get volume settings))' : on}`,
+      ),
+
+    setVolume: (level: number) => script(`set volume output volume ${Math.round(level)}`),
+
+    async setBrightness(level: number) {
+      // macOS has no built-in command for this; the open-source `brightness` tool does it.
       try {
-        await deps.run('osascript', ['-e', script])
+        await deps.run('brightness', [(level / 100).toFixed(2)])
       } catch (err) {
-        if (String((err as Error).message).includes('-1743')) {
+        if (isMissingProgram(err)) {
           throw new UserFacingError(
-            'Tessel needs permission to change appearance. Allow it in System Settings › Privacy & Security › Automation › System Events.',
+            'Brightness on macOS needs the free "brightness" tool. Install it with: brew install brightness',
           )
         }
         throw err
       }
+    },
+
+    // Same as pressing Ctrl+Cmd+Q.
+    lockScreen: () =>
+      script(
+        'tell application "System Events" to keystroke "q" using {control down, command down}',
+      ),
+
+    sleep: async () => {
+      await deps.run('pmset', ['sleepnow'])
     },
   }
 }

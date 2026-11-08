@@ -46,6 +46,33 @@ describe('macOS', () => {
   })
 })
 
+describe('macOS system settings', () => {
+  it('toggles dark mode and mute with AppleScript', async () => {
+    const run = ok()
+    const mac = createDarwin({ run })
+    await mac.setDarkMode('toggle')
+    await mac.setMuted('toggle')
+    await mac.setVolume(42.4)
+    expect(run.mock.calls.map((c) => c[1][1])).toEqual([
+      'tell application "System Events" to tell appearance preferences to set dark mode to not dark mode',
+      'set volume output muted not (output muted of (get volume settings))',
+      'set volume output volume 42',
+    ])
+  })
+
+  it('explains the missing brightness tool', async () => {
+    await expect(
+      createDarwin({ run: fail('missing', 'ENOENT') }).setBrightness(50),
+    ).rejects.toThrow(/brew install brightness/)
+  })
+
+  it('sleeps with pmset', async () => {
+    const run = ok()
+    await createDarwin({ run }).sleep()
+    expect(run).toHaveBeenCalledWith('pmset', ['sleepnow'])
+  })
+})
+
 describe('Windows', () => {
   const apps = [
     { Name: 'Discord', AppID: 'com.squirrel.Discord.Discord' },
@@ -100,6 +127,31 @@ describe('Windows', () => {
 
   it('explains a missing app', async () => {
     await expect(createWin32(deps()).openApp('Nope')).rejects.toThrow(/Start menu/)
+  })
+
+  it('toggles dark mode by reading the current theme', async () => {
+    const d = deps()
+    d.run.mockResolvedValueOnce({ stdout: '    AppsUseLightTheme    REG_DWORD    0x1', stderr: '' })
+    await createWin32(d).setDarkMode('toggle')
+    expect(d.run.mock.calls[1]?.[1]).toContain('0')
+  })
+
+  it('sets volume and mute through Core Audio', async () => {
+    const d = deps()
+    const win = createWin32(d)
+    await win.setVolume(35)
+    await win.setMuted('toggle')
+    const scripts = d.run.mock.calls.map((c) => c[1].at(-1))
+    expect(scripts[0]).toContain('[TesselAudio]::SetVolume(0.35)')
+    expect(scripts[1]).toContain('[TesselAudio]::SetMute(-not [TesselAudio]::GetMute())')
+  })
+
+  it('locks with LockWorkStation and explains unsupported brightness', async () => {
+    const d = deps()
+    await createWin32(d).lockScreen()
+    expect(d.run).toHaveBeenCalledWith('rundll32.exe', ['user32.dll,LockWorkStation'])
+    d.run.mockRejectedValueOnce(new Error('not supported'))
+    await expect(createWin32(d).setBrightness(40)).rejects.toThrow(/built-in laptop screens/)
   })
 
   it('writes both theme registry values', async () => {
@@ -184,6 +236,47 @@ describe('Linux', () => {
     ])
   })
 
+  it('sets volume with pactl, falling back to wpctl', async () => {
+    const d = deps()
+    await createLinux(d).setVolume(30)
+    expect(d.run).toHaveBeenCalledWith('pactl', ['set-sink-volume', '@DEFAULT_SINK@', '30%'])
+    const run = vi.fn<Run>(async (cmd) => {
+      if (cmd === 'pactl') throw new ExecError('missing', 'ENOENT', '')
+      return { stdout: '', stderr: '' }
+    })
+    await createLinux(deps(run)).setMuted('toggle')
+    expect(run).toHaveBeenLastCalledWith('wpctl', ['set-mute', '@DEFAULT_AUDIO_SINK@', 'toggle'])
+  })
+
+  it('toggles dark mode from the current scheme', async () => {
+    const run = vi.fn<Run>(async (_cmd, args) => ({
+      stdout: args[0] === 'get' ? "'prefer-dark'\n" : '',
+      stderr: '',
+    }))
+    await createLinux(deps(run)).setDarkMode('toggle')
+    expect(run).toHaveBeenLastCalledWith('gsettings', [
+      'set',
+      'org.gnome.desktop.interface',
+      'color-scheme',
+      'default',
+    ])
+  })
+
+  it('locks with loginctl, falling back to xdg-screensaver', async () => {
+    const run = vi.fn<Run>(async (cmd) => {
+      if (cmd === 'loginctl') throw new ExecError('missing', 'ENOENT', '')
+      return { stdout: '', stderr: '' }
+    })
+    await createLinux(deps(run)).lockScreen()
+    expect(run).toHaveBeenLastCalledWith('xdg-screensaver', ['lock'])
+  })
+
+  it('explains missing brightnessctl', async () => {
+    await expect(createLinux(deps(fail('x', 'ENOENT'))).setBrightness(10)).rejects.toThrow(
+      /brightnessctl/,
+    )
+  })
+
   it('explains missing gsettings', async () => {
     await expect(createLinux(deps(fail('nope', 'ENOENT'))).setDarkMode(true)).rejects.toThrow(
       /GNOME/,
@@ -205,9 +298,23 @@ describe('input', () => {
       'Num4',
       'F5',
       'Enter',
+      'AudioPlay',
+      'AudioNext',
     ].forEach((k, i) => (Key[k] = i))
     const nut = {
       Key,
+      Button: { LEFT: 0, MIDDLE: 1, RIGHT: 2 },
+      Point: class {
+        constructor(
+          public x: number,
+          public y: number,
+        ) {}
+      },
+      mouse: {
+        setPosition: vi.fn(async (_p: unknown) => {}),
+        click: vi.fn(async (_b: number) => {}),
+        doubleClick: vi.fn(async (_b: number) => {}),
+      },
       keyboard: {
         config: { autoDelayMs: 300 },
         type: vi.fn(async () => {}),
@@ -289,6 +396,23 @@ describe('input', () => {
     expect(nut.keyboard.pressKey).not.toHaveBeenCalled()
   })
 
+  it('presses media keys', async () => {
+    const { input, nut } = make()
+    await input.mediaKey('playPause')
+    expect(nut.keyboard.pressKey).toHaveBeenCalledWith(nut.Key['AudioPlay'])
+    expect(nut.keyboard.releaseKey).toHaveBeenCalledWith(nut.Key['AudioPlay'])
+  })
+
+  it('moves and clicks the mouse', async () => {
+    const { input, nut } = make()
+    await input.mouse({ kind: 'move', x: 10, y: 20 })
+    await input.mouse({ kind: 'rightClick' })
+    await input.mouse({ kind: 'doubleClick' })
+    expect(nut.mouse.setPosition).toHaveBeenCalledWith(expect.objectContaining({ x: 10, y: 20 }))
+    expect(nut.mouse.click).toHaveBeenCalledWith(2)
+    expect(nut.mouse.doubleClick).toHaveBeenCalledWith(0)
+  })
+
   it('maps key names', () => {
     expect(['a', '7', 'f12', 'bracketleft', 'printscreen'].map(nutKeyName)).toEqual([
       'A',
@@ -308,6 +432,17 @@ describe('key names against the real nut-js enum', () => {
     }
     const { nutModifierName } = await import('../src/main/platform/input.ts')
     for (const name of KEY_NAMES) expect(Key[nutKeyName(name)], name).toBeTypeOf('number')
+    for (const media of [
+      'AudioPlay',
+      'AudioNext',
+      'AudioPrev',
+      'AudioStop',
+      'AudioVolUp',
+      'AudioVolDown',
+      'AudioMute',
+    ]) {
+      expect(Key[media], media).toBeTypeOf('number')
+    }
     for (const os of ['darwin', 'win32', 'linux'] as const) {
       for (const mod of ['ctrl', 'alt', 'shift', 'meta'] as const) {
         expect(Key[nutModifierName(mod, os)], `${mod} on ${os}`).toBeTypeOf('number')

@@ -42,15 +42,17 @@ const isEditable = (el: EventTarget | null) =>
   el instanceof HTMLElement &&
   (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))
 
-export function Canvas({ tile }: { tile: Tile }) {
+type ColorMode = 'system' | 'dark' | 'light'
+
+export function Canvas({ tile, colorMode }: { tile: Tile; colorMode: ColorMode }) {
   return (
     <ReactFlowProvider>
-      <CanvasInner key={tile.id} tile={tile} />
+      <CanvasInner key={tile.id} tile={tile} colorMode={colorMode} />
     </ReactFlowProvider>
   )
 }
 
-function CanvasInner({ tile }: { tile: Tile }) {
+function CanvasInner({ tile, colorMode }: { tile: Tile; colorMode: ColorMode }) {
   const blocks = useEditor((s) => s.blocks)
   const selectedNodeIds = useEditor((s) => s.selectedNodeIds)
   const issues = useEditor((s) => s.issues)
@@ -255,7 +257,7 @@ function CanvasInner({ tile }: { tile: Tile }) {
           snapGrid={[16, 16]}
           fitView
           fitViewOptions={{ maxZoom: 1, padding: 0.3 }}
-          colorMode="system"
+          colorMode={colorMode}
           proOptions={{ hideAttribution: true }}
           ariaLabelConfig={{
             'node.a11yDescription.default':

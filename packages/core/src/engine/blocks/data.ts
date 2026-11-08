@@ -94,4 +94,124 @@ export const setVariable = defineBlock({
   },
 })
 
-export const dataBlocks = [getTime, getVariable, setVariable]
+const number = z.coerce.number().refine(Number.isFinite, 'Not a number')
+
+const MATH = {
+  add: (a: number, b: number) => a + b,
+  subtract: (a: number, b: number) => a - b,
+  multiply: (a: number, b: number) => a * b,
+  divide: (a: number, b: number) => (b === 0 ? NaN : a / b),
+  remainder: (a: number, b: number) => (b === 0 ? NaN : a % b),
+  min: Math.min,
+  max: Math.max,
+  power: (a: number, b: number) => a ** b,
+  round: (a: number) => Math.round(a),
+  floor: (a: number) => Math.floor(a),
+  ceil: (a: number) => Math.ceil(a),
+  abs: (a: number) => Math.abs(a),
+} as const
+type MathOp = keyof typeof MATH
+const UNARY: MathOp[] = ['round', 'floor', 'ceil', 'abs']
+
+export const math = defineBlock({
+  id: 'data.math',
+  category: 'data',
+  name: 'Math',
+  description: 'Works out a number from A and B.',
+  inputs: [
+    { id: 'a', kind: 'value', type: 'number' },
+    { id: 'b', kind: 'value', type: 'number' },
+  ],
+  outputs: [{ id: 'result', kind: 'value', type: 'number' }],
+  paramsSchema: z.object({
+    op: z.enum(Object.keys(MATH) as [MathOp, ...MathOp[]]),
+    a: number,
+    b: number.default(0),
+  }),
+  fields: [
+    { key: 'a', label: 'A', widget: 'number' },
+    {
+      key: 'op',
+      label: 'Operation',
+      widget: 'select',
+      options: [
+        { value: 'add', label: 'A + B' },
+        { value: 'subtract', label: 'A − B' },
+        { value: 'multiply', label: 'A × B' },
+        { value: 'divide', label: 'A ÷ B' },
+        { value: 'remainder', label: 'Remainder of A ÷ B' },
+        { value: 'min', label: 'Smaller of A and B' },
+        { value: 'max', label: 'Larger of A and B' },
+        { value: 'power', label: 'A to the power of B' },
+        { value: 'round', label: 'Round A' },
+        { value: 'floor', label: 'Round A down' },
+        { value: 'ceil', label: 'Round A up' },
+        { value: 'abs', label: 'A without its sign' },
+      ],
+    },
+    {
+      key: 'b',
+      label: 'B',
+      widget: 'number',
+      when: { key: 'op', is: Object.keys(MATH).filter((k) => !UNARY.includes(k as MathOp)) },
+    },
+  ],
+  defaults: { op: 'add', a: 0, b: 0 },
+  run: (_ctx, { op, a, b }) => {
+    const result = MATH[op](a, b)
+    if (!Number.isFinite(result))
+      throw new Error("That doesn't work out to a number (dividing by zero?)")
+    return { values: { result } }
+  },
+})
+
+export const textBlock = defineBlock({
+  id: 'data.text',
+  category: 'data',
+  name: 'Text',
+  description: 'Builds text from a template, e.g. joining values: {{input.a}} – {{input.b}}.',
+  inputs: [
+    { id: 'a', kind: 'value', type: 'any' },
+    { id: 'b', kind: 'value', type: 'any' },
+    { id: 'c', kind: 'value', type: 'any' },
+  ],
+  outputs: [{ id: 'text', kind: 'value', type: 'string' }],
+  paramsSchema: z.object({
+    template: z.preprocess(
+      (v) => (v == null ? '' : typeof v === 'string' ? v : String(v)),
+      z.string().max(10_000),
+    ),
+  }),
+  fields: [
+    {
+      key: 'template',
+      label: 'Template',
+      widget: 'textarea',
+      placeholder: 'It is {{input.a}}:{{pad(input.b)}}',
+    },
+  ],
+  defaults: { template: '' },
+  run: (_ctx, { template }) => ({ values: { text: template } }),
+})
+
+export const random = defineBlock({
+  id: 'data.random',
+  category: 'data',
+  name: 'Random',
+  description: 'A whole number between min and max, both included. A new one each time it is read.',
+  inputs: [],
+  outputs: [{ id: 'value', kind: 'value', type: 'number' }],
+  paramsSchema: z
+    .object({ min: z.coerce.number().int(), max: z.coerce.number().int() })
+    .refine((p) => p.max >= p.min, { message: 'Max must be at least min', path: ['max'] }),
+  fields: [
+    { key: 'min', label: 'Min', widget: 'number' },
+    { key: 'max', label: 'Max', widget: 'number' },
+  ],
+  defaults: { min: 1, max: 6 },
+  run: (_ctx, { min, max }) => ({
+    values: { value: min + Math.floor(Math.random() * (max - min + 1)) },
+  }),
+})
+
+export const dataBlocks = [getTime, getVariable, setVariable, math, textBlock, random]

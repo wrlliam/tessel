@@ -123,4 +123,78 @@ export const templates: TileTemplate[] = [
       },
     },
   },
+  {
+    id: 'play-pause',
+    name: 'Play / pause',
+    description: 'Presses the media play/pause key for whatever is playing.',
+    tile: {
+      label: 'Play',
+      icon: 'play',
+      colour: '#22D3C5',
+      graph: {
+        nodes: [press, node('key', 'action.mediaKey', { key: 'playPause' }, 288)],
+        edges: [wire('press', 'out', 'key')],
+      },
+    },
+  },
+  {
+    id: 'mute-status',
+    name: 'Mute sound, with status',
+    description:
+      'Toggles mute and turns red while muted. Uses a Toggle, so it remembers its state.',
+    tile: {
+      label: 'Sound',
+      icon: 'volume-2',
+      colour: '#212833',
+      appearanceBindings: [
+        { field: 'colour', expression: '{{state.muted ? "#F25C6E" : "#212833"}}' },
+        { field: 'icon', expression: '{{state.muted ? "volume-x" : "volume-2"}}' },
+        { field: 'label', expression: '{{state.muted ? "Muted" : "Sound"}}' },
+      ],
+      graph: {
+        nodes: [
+          press,
+          node('toggle', 'logic.toggle', { key: 'muted' }, 288),
+          node('mute', 'action.setSetting', { setting: 'mute', value: true }, 576, -48),
+          node('unmute', 'action.setSetting', { setting: 'mute', value: false }, 576, 96),
+        ],
+        edges: [
+          wire('press', 'out', 'toggle'),
+          wire('toggle', 'on', 'mute'),
+          wire('toggle', 'off', 'unmute'),
+        ],
+      },
+    },
+  },
+  {
+    id: 'open-website',
+    name: 'Open a website',
+    description: 'Opens a link in your browser.',
+    tile: {
+      label: 'Website',
+      icon: 'globe',
+      colour: '#4FA3F7',
+      graph: {
+        nodes: [press, node('url', 'action.openUrl', { url: 'https://example.com' }, 288)],
+        edges: [wire('press', 'out', 'url')],
+      },
+    },
+  },
+  {
+    id: 'lock-screen',
+    name: 'Lock screen',
+    description: 'Locks the computer. Hold the tile to avoid locking by accident.',
+    tile: {
+      label: 'Lock',
+      icon: 'lock',
+      colour: '#161B22',
+      graph: {
+        nodes: [
+          node('hold', 'trigger.longPress', {}, 0),
+          node('lock', 'action.lockScreen', {}, 288),
+        ],
+        edges: [wire('hold', 'out', 'lock')],
+      },
+    },
+  },
 ]

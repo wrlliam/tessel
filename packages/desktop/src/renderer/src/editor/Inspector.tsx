@@ -14,6 +14,8 @@ import { Button } from '../ui/button.tsx'
 import { Field } from '../ui/field.tsx'
 import { Input, Select, Textarea } from '../ui/input.tsx'
 import { ComboField } from './fields/ComboField.tsx'
+import { CronField } from './fields/CronField.tsx'
+import { PagePicker, TilePicker } from './fields/Pickers.tsx'
 import { ConditionField } from './fields/ConditionField.tsx'
 import { IconPicker } from './IconPicker.tsx'
 import { pageOfTile, useEditor } from './store.ts'
@@ -69,9 +71,11 @@ function BlockSection({ node, block, os }: { node: GraphNode; block: BlockDescri
         </p>
       )}
       {issue && <p className="text-sm text-signal">{issue.message}</p>}
-      {(block.fields ?? []).map((f) => (
-        <ParamField key={f.key} field={f} node={node} os={os} />
-      ))}
+      {(block.fields ?? [])
+        .filter((f) => !f.when || f.when.is.includes(text(node.params[f.when.key])))
+        .map((f) => (
+          <ParamField key={f.key} field={f} node={node} os={os} />
+        ))}
       {block.inputs.some((p) => p.kind === 'value') && (
         <p className="text-xs text-muted">
           A wire into a value input replaces the setting with the same name.
@@ -149,6 +153,17 @@ function ParamField({ field, node, os }: { field: FieldDef; node: GraphNode; os:
           <ConditionField value={value as Condition} onChange={set} />
         </Field>
       )
+    case 'cron':
+      control = (
+        <CronField id={id} value={text(value)} placeholder={field.placeholder} onChange={set} />
+      )
+      break
+    case 'page':
+      control = <PagePicker id={id} value={text(value)} onChange={set} />
+      break
+    case 'tile':
+      control = <TilePicker id={id} value={text(value)} onChange={set} />
+      break
     case 'text':
       control = (
         <Input

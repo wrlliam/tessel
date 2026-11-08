@@ -1,5 +1,6 @@
-import { UserFacingError } from '@tessel/core'
+import { UserFacingError, type OnOff } from '@tessel/core'
 import type { Launch, Run } from './exec.ts'
+import { muteScript, volumeScript } from './win-audio.ts'
 
 interface StartApp {
   Name: string
@@ -25,6 +26,8 @@ export function createWin32(deps: {
   openPath: (path: string) => Promise<string>
 }) {
   let cache: { at: number; apps: StartApp[] } | undefined
+  const powershell = (command: string) =>
+    deps.run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command])
 
   // Get-StartApps lists both classic and Store apps with the ID Explorer needs to launch them.
   async function startApps(): Promise<StartApp[]> {
@@ -57,8 +60,18 @@ export function createWin32(deps: {
       deps.launch('explorer.exe', [`shell:AppsFolder\\${match.AppID}`])
     },
 
-    async setDarkMode(on: boolean) {
-      const light = on ? '0' : '1'
+    async setDarkMode(on: OnOff) {
+      let dark = on
+      if (dark === 'toggle') {
+        const { stdout } = await deps.run('reg.exe', [
+          'query',
+          PERSONALIZE,
+          '/v',
+          'AppsUseLightTheme',
+        ])
+        dark = /0x1\b/.test(stdout)
+      }
+      const light = dark ? '0' : '1'
       for (const value of ['AppsUseLightTheme', 'SystemUsesLightTheme']) {
         await deps.run('reg.exe', [
           'add',
@@ -72,6 +85,36 @@ export function createWin32(deps: {
           '/f',
         ])
       }
+    },
+
+    setVolume: async (level: number) => {
+      await powershell(volumeScript(level))
+    },
+
+    setMuted: async (on: OnOff) => {
+      await powershell(muteScript(on))
+    },
+
+    async setBrightness(level: number) {
+      try {
+        await powershell(
+          `Get-CimInstance -Namespace root/WMI -ClassName WmiMonitorBrightnessMethods -ErrorAction Stop | Invoke-CimMethod -MethodName WmiSetBrightness -Arguments @{ Timeout = 1; Brightness = ${Math.round(level)} } -ErrorAction Stop | Out-Null`,
+        )
+      } catch {
+        throw new UserFacingError(
+          'Windows can only change the brightness of built-in laptop screens.',
+        )
+      }
+    },
+
+    lockScreen: async () => {
+      await deps.run('rundll32.exe', ['user32.dll,LockWorkStation'])
+    },
+
+    sleep: async () => {
+      await powershell(
+        "Add-Type -AssemblyName System.Windows.Forms; [void][System.Windows.Forms.Application]::SetSuspendState('Suspend', $false, $false)",
+      )
     },
   }
 }

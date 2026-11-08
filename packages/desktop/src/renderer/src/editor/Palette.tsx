@@ -1,16 +1,15 @@
 import { useState } from 'react'
 import { Input } from '../ui/input.tsx'
 import { BLOCK_MIME, groupBlocks } from './blocks-list.ts'
+import { blockScore } from './search.ts'
 import { useEditor } from './store.ts'
 import { CATEGORY } from './theme.ts'
 
 export function Palette({ onAdd }: { onAdd: (type: string) => void }) {
   const blocks = useEditor((s) => s.blocks)
   const [query, setQuery] = useState('')
-  const q = query.trim().toLowerCase()
-  const match = (text: string) => text.toLowerCase().includes(q)
   const groups = groupBlocks(
-    [...blocks.values()].filter((b) => !q || match(b.name) || match(b.description)),
+    [...blocks.values()].filter((b) => blockScore(b.name, b.description, query) > 0),
   )
 
   return (

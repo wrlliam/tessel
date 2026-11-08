@@ -1,4 +1,4 @@
-import { UserFacingError } from '@tessel/core'
+import { UserFacingError, type OnOff } from '@tessel/core'
 import { basename, join } from 'node:path'
 import { isMissingProgram, type Launch, type Run } from './exec.ts'
 
@@ -55,6 +55,28 @@ export function parseDesktopEntry(text: string): string | undefined {
 }
 
 export function createLinux(deps: LinuxDeps) {
+  async function tool(cmd: string, args: string[], missing: string) {
+    try {
+      await deps.run(cmd, args)
+    } catch (err) {
+      if (isMissingProgram(err)) throw new UserFacingError(missing)
+      throw err
+    }
+  }
+
+  async function audio(pactl: string[], wpctl: string[]) {
+    try {
+      await deps.run('pactl', pactl)
+    } catch (err) {
+      if (!isMissingProgram(err)) throw err
+      await tool(
+        'wpctl',
+        wpctl,
+        'Sound control needs pactl or wpctl. Install pulseaudio-utils or wireplumber.',
+      )
+    }
+  }
+
   async function entries(): Promise<DesktopEntry[]> {
     const found: DesktopEntry[] = []
     const seen = new Set<string>()
@@ -97,13 +119,22 @@ export function createLinux(deps: LinuxDeps) {
       await launchEntry(match)
     },
 
-    async setDarkMode(on: boolean) {
+    async setDarkMode(on: OnOff) {
       try {
+        let dark = on
+        if (dark === 'toggle') {
+          const { stdout } = await deps.run('gsettings', [
+            'get',
+            'org.gnome.desktop.interface',
+            'color-scheme',
+          ])
+          dark = !stdout.includes('dark')
+        }
         await deps.run('gsettings', [
           'set',
           'org.gnome.desktop.interface',
           'color-scheme',
-          on ? 'prefer-dark' : 'default',
+          dark ? 'prefer-dark' : 'default',
         ])
       } catch (err) {
         if (isMissingProgram(err)) {
@@ -113,6 +144,46 @@ export function createLinux(deps: LinuxDeps) {
         }
         throw err
       }
+    },
+
+    // pactl works with PulseAudio and PipeWire; wpctl is PipeWire's own tool.
+    setVolume: (level: number) =>
+      audio(
+        ['set-sink-volume', '@DEFAULT_SINK@', `${Math.round(level)}%`],
+        ['set-volume', '@DEFAULT_AUDIO_SINK@', (level / 100).toFixed(2)],
+      ),
+
+    setMuted: (on: OnOff) => {
+      const arg = on === 'toggle' ? 'toggle' : on ? '1' : '0'
+      return audio(
+        ['set-sink-mute', '@DEFAULT_SINK@', arg],
+        ['set-mute', '@DEFAULT_AUDIO_SINK@', arg],
+      )
+    },
+
+    async setBrightness(level: number) {
+      await tool(
+        'brightnessctl',
+        ['set', `${Math.round(level)}%`],
+        'Brightness needs brightnessctl. Install it from your package manager.',
+      )
+    },
+
+    async lockScreen() {
+      try {
+        await deps.run('loginctl', ['lock-session'])
+      } catch (err) {
+        if (!isMissingProgram(err)) throw err
+        await tool(
+          'xdg-screensaver',
+          ['lock'],
+          "Couldn't find a way to lock the screen (tried loginctl and xdg-screensaver).",
+        )
+      }
+    },
+
+    sleep: async () => {
+      await deps.run('systemctl', ['suspend'])
     },
   }
 }

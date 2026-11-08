@@ -117,7 +117,7 @@ describe('helpers', () => {
         node('s', 'action.setSetting', { setting: 'darkMode', value: false }),
         blocks.get('action.setSetting'),
       ),
-    ).toBe('Dark mode · On: off')
+    ).toBe('Dark mode · Off')
   })
 
   it('describes combos for each OS', () => {
@@ -364,5 +364,20 @@ describe('layout', () => {
       ],
     }
     expect(foldersUnder(profile, 'home')).toEqual(['f1', 'f2'])
+  })
+})
+
+describe('block search', () => {
+  it('ranks names above descriptions and ignores scattered letters', async () => {
+    const { blockScore } = await import('../src/renderer/src/editor/search.ts')
+    const open = blockScore(
+      'Open URL',
+      'Opens a link in its default app, e.g. a website in your browser.',
+      'delay',
+    )
+    expect(open).toBe(0)
+    expect(blockScore('Delay', 'Waits before carrying on.', 'delay')).toBe(1)
+    expect(blockScore('Set tile appearance', '', 'tile')).toBe(0.8)
+    expect(blockScore('Notification', 'Shows a desktop notification.', 'desktop')).toBe(0.3)
   })
 })

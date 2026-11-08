@@ -33,11 +33,14 @@ import QRCode from 'qrcode'
 import type { DesktopState, LogEntry, ProfileEngineEvent, SaveResult } from '../shared/api.ts'
 import { newProfileId, ProfileLibrary } from './profiles.ts'
 import { ProfileRuntime } from './runtime.ts'
-import { settingsStore, type Settings } from './settings.ts'
+import { Scheduler } from './scheduler.ts'
+import { Settings, settingsStore } from './settings.ts'
 import { blocksUsed, packProfile, unpackProfile } from './transfer.ts'
 
 const LOG_LIMIT = 200
 const NETWORK_POLL_MS = 10_000
+const LONG_PRESS_MS = 500
+const LEVELS = { info: 0, warn: 1, error: 2 } as const
 
 export type HubState = Omit<DesktopState, 'platform' | 'startOnLogin'>
 
@@ -53,6 +56,7 @@ export interface HubOptions {
 }
 
 const tilesOf = (p: Profile) => p.pages.flatMap((pg) => pg.tiles)
+const hasTrigger = (t: Tile, type: string) => t.graph.nodes.some((n) => n.type === type)
 const baseLook = (t: Tile): Appearance => ({ label: t.label, colour: t.colour, icon: t.icon ?? '' })
 
 /** Owns the server, pairing, devices, profiles and engines. Electron-free so it can be unit-tested. */
@@ -81,6 +85,13 @@ export class Hub {
   private engineListeners = new Set<(event: ProfileEngineEvent) => void>()
   private codeTimer?: NodeJS.Timeout
   private networkTimer?: NodeJS.Timeout
+  /** Tiles held down on a phone, for long press. */
+  private holds = new Map<string, { timer: NodeJS.Timeout; long: boolean }>()
+  private scheduler = new Scheduler(({ tileId, nodeId }) => {
+    const tile = this.findTile(this.library.activeId, tileId)
+    if (tile && !this.paused)
+      void this.runtime(this.library.activeId).engine.trigger(tile, { type: 'schedule', nodeId })
+  })
   readonly logger: Logger = {
     info: (m) => this.addLog('info', m),
     warn: (m) => this.addLog('warn', m),
@@ -108,6 +119,7 @@ export class Hub {
       logger: this.logger,
       mdns: opts.mdns ?? true,
       onPress: (e) => void this.press(e),
+      onPageChange: (_deviceId, pageId) => void this.pageOpened(pageId),
       onPhonesChanged: (phones) => {
         this.phones = phones
         this.emit()
@@ -141,6 +153,11 @@ export class Hub {
       profiles: this.library.list(),
       activeProfileId: this.library.activeId,
       liveAppearance: Object.fromEntries(this.live),
+      settings: {
+        shell: this.settings.shell,
+        theme: this.settings.theme,
+        logLevel: this.settings.logLevel,
+      },
     }
     if (this.serverError) state.serverError = this.serverError
     return state
@@ -173,7 +190,11 @@ export class Hub {
     }
     const current = this.library.get(parsed.data.id)
     if (!current) return { ok: false, error: 'That profile no longer exists' }
-    await this.library.save({ ...parsed.data, variables: current.variables })
+    await this.library.save({
+      ...parsed.data,
+      variables: current.variables,
+      tileState: current.tileState,
+    })
     if (parsed.data.id === this.library.activeId) this.refreshActive()
     this.emit()
     return { ok: true }
@@ -273,6 +294,31 @@ export class Hub {
     this.runtimes.get(profileId)?.engine.cancel(tileId)
   }
 
+  shellPolicy() {
+    return this.settings.shell
+  }
+
+  /** Applies a settings change; a new port restarts sharing. */
+  async updateSettings(patch: unknown): Promise<SaveResult> {
+    const { port, shell, theme, logLevel } = patch as Partial<Settings>
+    const allowed = Object.fromEntries(
+      Object.entries({ port, shell, theme, logLevel }).filter(([, v]) => v !== undefined),
+    )
+    const parsed = Settings.safeParse({ ...this.settings, ...allowed })
+    if (!parsed.success)
+      return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid setting' }
+    const portChanged = parsed.data.port !== this.settings.port
+    this.settings = parsed.data
+    await this.store.save(this.settings)
+    if (portChanged && this.listening) {
+      await this.server.stop()
+      this.listening = false
+      await this.startServer()
+    }
+    this.emit()
+    return { ok: true }
+  }
+
   async setAllowPhones(on: boolean) {
     this.settings = { ...this.settings, allowPhones: on }
     await this.store.save(this.settings)
@@ -311,14 +357,47 @@ export class Hub {
       if (phase === 'down') this.logger.info(`"${label}" has no blocks yet`)
       return
     }
-    await this.runtime(profileId).engine.trigger(tile, {
-      type: phase === 'down' ? 'press' : 'release',
-    })
+    const engine = this.runtime(profileId).engine
+    const key = `${deviceId}:${tileId}`
+    // With a long press trigger, a short tap fires On press on release instead of on touch.
+    const longPress = hasTrigger(tile, 'trigger.longPress')
+    if (phase === 'down') {
+      if (!longPress) {
+        await engine.trigger(tile, { type: 'press' })
+        return
+      }
+      clearTimeout(this.holds.get(key)?.timer)
+      const hold = {
+        long: false,
+        timer: setTimeout(() => {
+          hold.long = true
+          void engine.trigger(tile, { type: 'longPress' })
+        }, LONG_PRESS_MS),
+      }
+      this.holds.set(key, hold)
+      return
+    }
+    const hold = this.holds.get(key)
+    this.holds.delete(key)
+    if (hold) clearTimeout(hold.timer)
+    if (longPress && hold && !hold.long) await engine.trigger(tile, { type: 'press' })
+    await engine.trigger(tile, { type: 'release' })
+  }
+
+  /** Runs On page open for every tile on the page a phone just showed. */
+  async pageOpened(pageId: string) {
+    if (this.paused) return
+    const profileId = this.library.activeId
+    const page = this.library.active().pages.find((p) => p.id === pageId)
+    const engine = this.runtime(profileId).engine
+    await Promise.all((page?.tiles ?? []).map((t) => engine.trigger(t, { type: 'pageOpen' })))
   }
 
   async dispose() {
     clearTimeout(this.codeTimer)
     clearInterval(this.networkTimer)
+    this.scheduler.stop()
+    for (const h of this.holds.values()) clearTimeout(h.timer)
     await this.server.dispose()
     await Promise.all([...this.runtimes.values()].map((r) => r.dispose()))
   }
@@ -334,9 +413,14 @@ export class Hub {
         persist: (p) => this.library.save(p),
         onEvent: (e) => this.handleEngineEvent(profileId, e),
         onAppearance: (tileId, change) => this.changeAppearance(profileId, tileId, change),
-        onVariablesChanged: () => {
+        onStateChanged: () => {
           if (profileId === this.library.activeId) this.pushAppearances()
         },
+        onSwitchPage: (pageId) => {
+          if (profileId === this.library.activeId)
+            this.server.broadcast({ type: 'pageChange', pageId })
+        },
+        findTile: (tileId) => this.findTile(profileId, tileId),
         onSaveError: (err) => this.logger.error(`Couldn't save variables: ${err.message}`),
       })
       this.runtimes.set(profileId, runtime)
@@ -350,7 +434,18 @@ export class Hub {
     this.live.clear()
     this.server.setProfile(this.library.active())
     this.pushAppearances()
+    this.reschedule()
     this.emit()
+  }
+
+  private reschedule() {
+    this.scheduler.set(
+      tilesOf(this.library.active()).flatMap((tile) =>
+        tile.graph.nodes
+          .filter((n) => n.type === 'trigger.schedule' && typeof n.params['cron'] === 'string')
+          .map((n) => ({ tileId: tile.id, nodeId: n.id, pattern: n.params['cron'] as string })),
+      ),
+    )
   }
 
   /** The active profile was edited: resend it and recompute looks. */
@@ -360,6 +455,7 @@ export class Hub {
     this.live.clear()
     this.server.setProfile(this.library.active())
     this.pushAppearances()
+    this.reschedule()
   }
 
   private changeAppearance(profileId: string, tileId: string, change: AppearanceChange) {
@@ -373,14 +469,14 @@ export class Hub {
   /** Sends phones every tile whose look changed since the last push. */
   private pushAppearances() {
     const profile = this.library.active()
-    const scope = { var: profile.variables }
     let changed = false
     for (const tile of tilesOf(profile)) {
-      const look = resolveAppearance(
-        tile,
-        { ...scope, tile: { id: tile.id } },
-        this.overrides.get(tile.id),
-      )
+      const scope = {
+        var: profile.variables,
+        state: profile.tileState[tile.id] ?? {},
+        tile: { id: tile.id },
+      }
+      const look = resolveAppearance(tile, scope, this.overrides.get(tile.id))
       const shown = this.live.get(tile.id) ?? baseLook(tile)
       if (sameAppearance(look, shown)) continue
       if (sameAppearance(look, baseLook(tile))) this.live.delete(tile.id)
@@ -465,6 +561,7 @@ export class Hub {
   }
 
   private addLog(level: LogEntry['level'], message: string) {
+    if (this.settings && LEVELS[level] < LEVELS[this.settings.logLevel]) return
     this.log = [
       ...this.log.slice(-(LOG_LIMIT - 1)),
       { id: ++this.logId, at: Date.now(), level, message },

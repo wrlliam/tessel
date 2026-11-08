@@ -9,3 +9,4 @@ export const builtinBlocks = [...triggerBlocks, ...actionBlocks, ...logicBlocks,
 export const createRegistry = () => new BlockRegistry(builtinBlocks)
 
 export { checkCondition, Condition } from './logic.ts'
+export { cronError, nextRuns } from './triggers.ts'

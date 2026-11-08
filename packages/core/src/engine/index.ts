@@ -12,4 +12,11 @@ export {
 export * from './platform.ts'
 export * from './validate.ts'
 export * from './variables.ts'
-export { builtinBlocks, checkCondition, Condition, createRegistry } from './blocks/index.ts'
+export {
+  builtinBlocks,
+  checkCondition,
+  Condition,
+  createRegistry,
+  cronError,
+  nextRuns,
+} from './blocks/index.ts'

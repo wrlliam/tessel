@@ -43,6 +43,13 @@ export interface DesktopState {
   activeProfileId: string
   /** Tiles in the active profile that currently look different from their settings. */
   liveAppearance: Record<string, Appearance>
+  settings: AppSettings
+}
+
+export interface AppSettings {
+  shell: 'off' | 'confirm' | 'on'
+  theme: 'system' | 'dark' | 'light'
+  logLevel: 'info' | 'warn' | 'error'
 }
 
 export interface ProfileEngineEvent {
@@ -60,6 +67,8 @@ export interface TesselApi {
   setAllowPhones(on: boolean): Promise<void>
   setPaused(on: boolean): Promise<void>
   setStartOnLogin(on: boolean): Promise<void>
+  /** Port and app settings. A new port restarts sharing. */
+  updateSettings(patch: Partial<AppSettings & { port: number }>): Promise<SaveResult>
   newPairingCode(): Promise<void>
   revokeDevice(id: string): Promise<void>
   getBlocks(): Promise<BlockDescriptor[]>
@@ -89,6 +98,7 @@ export const Channel = {
   setAllowPhones: 'phones:allow',
   setPaused: 'tiles:pause',
   setStartOnLogin: 'app:start-on-login',
+  updateSettings: 'app:settings',
   newPairingCode: 'pairing:new-code',
   revokeDevice: 'devices:revoke',
   getBlocks: 'blocks:list',

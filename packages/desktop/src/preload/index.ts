@@ -16,6 +16,7 @@ const api: TesselApi = {
   setAllowPhones: (on) => ipcRenderer.invoke(Channel.setAllowPhones, on),
   setPaused: (on) => ipcRenderer.invoke(Channel.setPaused, on),
   setStartOnLogin: (on) => ipcRenderer.invoke(Channel.setStartOnLogin, on),
+  updateSettings: (patch) => ipcRenderer.invoke(Channel.updateSettings, patch),
   newPairingCode: () => ipcRenderer.invoke(Channel.newPairingCode),
   revokeDevice: (id) => ipcRenderer.invoke(Channel.revokeDevice, id),
   getBlocks: () => ipcRenderer.invoke(Channel.getBlocks),

@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "croner": "^11.0.0",
     "jsep": "^1.6.0",
     "zod": "^4.6.7"
   }

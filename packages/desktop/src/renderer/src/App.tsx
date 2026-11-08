@@ -1,10 +1,12 @@
 import logoUrl from '@tessel/brand/logo-mark.svg'
 import type { OS } from '@tessel/core'
 import { Tabs } from 'radix-ui'
+import { useEffect } from 'react'
 import type { DesktopState } from '../../shared/api.ts'
 import { Editor } from './editor/Editor.tsx'
 import { cn } from './lib/cn.ts'
 import { PhonesView } from './PhonesView.tsx'
+import { SettingsView } from './SettingsView.tsx'
 import { Switch } from './Switch.tsx'
 import { useDesktopState } from './useDesktopState.ts'
 
@@ -13,6 +15,12 @@ const tab =
 
 export function App() {
   const state = useDesktopState()
+  const theme = state?.settings.theme
+  useEffect(() => {
+    const root = document.documentElement
+    if (!theme || theme === 'system') delete root.dataset['theme']
+    else root.dataset['theme'] = theme
+  }, [theme])
   if (!state) return null
 
   return (
@@ -31,6 +39,9 @@ export function App() {
           </Tabs.Trigger>
           <Tabs.Trigger value="phones" className={tab}>
             Phones
+          </Tabs.Trigger>
+          <Tabs.Trigger value="settings" className={tab}>
+            Settings
           </Tabs.Trigger>
         </Tabs.List>
         <div className="ml-auto flex items-center gap-6">
@@ -57,10 +68,14 @@ export function App() {
           profiles={state.profiles}
           activeProfileId={state.activeProfileId}
           liveAppearance={state.liveAppearance}
+          theme={state.settings.theme}
         />
       </Tabs.Content>
       <Tabs.Content value="phones" className="flex min-h-0 flex-1 flex-col">
         <PhonesView state={state} />
+      </Tabs.Content>
+      <Tabs.Content value="settings" className="flex min-h-0 flex-1 flex-col">
+        <SettingsView state={state} />
       </Tabs.Content>
     </Tabs.Root>
   )

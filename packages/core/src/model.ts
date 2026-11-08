@@ -109,6 +109,8 @@ export const Profile = z
     name: z.string().min(1).max(40),
     pages: z.array(Page).min(1),
     variables: z.record(z.string(), JsonValue).default({}),
+    /** Values tiles keep between runs (Toggle), by tile id. */
+    tileState: z.record(z.string(), z.record(z.string(), JsonValue)).default({}),
   })
   .superRefine((profile, ctx) => {
     const pageIds = new Set(profile.pages.map((p) => p.id))

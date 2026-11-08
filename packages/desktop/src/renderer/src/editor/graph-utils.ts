@@ -111,10 +111,18 @@ export function summarise(node: GraphNode, block: BlockDescriptor | undefined): 
   const parts: string[] = []
   for (const field of block.fields) {
     const v = node.params[field.key]
-    if (field.widget === 'condition' || v === undefined || v === '') continue
+    if (
+      field.widget === 'condition' ||
+      field.widget === 'tile' ||
+      field.widget === 'page' ||
+      v === undefined ||
+      v === ''
+    )
+      continue
+    if (field.when && !field.when.is.includes(String(node.params[field.when.key]))) continue
     if (field.widget === 'toggle') parts.push(`${field.label}: ${v ? 'on' : 'off'}`)
     else if (field.widget === 'select')
-      parts.push(field.options?.find((o) => o.value === v)?.label ?? String(v))
+      parts.push(field.options?.find((o) => o.value === String(v))?.label ?? String(v))
     else parts.push(String(v))
   }
   return parts.join(' · ')

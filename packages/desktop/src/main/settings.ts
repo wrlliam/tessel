@@ -4,6 +4,11 @@ import { z } from 'zod'
 export const Settings = z.object({
   allowPhones: z.boolean().default(true),
   port: z.int().min(1024).max(65535).default(4747),
+  /** Run shell command blocks: off (default), ask every time, or allowed. */
+  shell: z.enum(['off', 'confirm', 'on']).default('off'),
+  theme: z.enum(['system', 'dark', 'light']).default('system'),
+  /** Lowest level kept in the activity log. */
+  logLevel: z.enum(['info', 'warn', 'error']).default('info'),
 })
 export type Settings = z.infer<typeof Settings>
 
