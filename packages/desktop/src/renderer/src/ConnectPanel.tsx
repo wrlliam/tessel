@@ -37,11 +37,13 @@ export function ConnectPanel({ state }: { state: DesktopState }) {
         />
         <ol className="min-w-56 flex-1 space-y-5 text-sm">
           <li>
-            <p className="text-muted">1. Scan with your phone's camera, or open</p>
+            <p className="text-muted">
+              1. Scan with your phone's camera. It pairs by itself. Or open
+            </p>
             <p className="mt-1 font-mono text-text select-all">{url}</p>
           </li>
           <li>
-            <p className="text-muted">2. Enter this code</p>
+            <p className="text-muted">2. If you typed the address, enter this code</p>
             <div className="mt-1 flex items-center gap-4">
               <span
                 className="font-mono text-4xl font-semibold tracking-wider text-glaze"

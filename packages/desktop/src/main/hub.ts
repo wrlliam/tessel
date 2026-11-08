@@ -158,6 +158,8 @@ export class Hub {
     this.devices.onChange(() => this.emit())
     this.pairing.onChange(() => {
       this.scheduleCodeRotation()
+      // The QR codes carry the current code, so they change with it.
+      void this.refreshNetwork(true)
       this.emit()
     })
     this.server = new TesselServer({
@@ -746,8 +748,11 @@ export class Hub {
         ? `http://${hosts[0]}:${port}/tessel-ca.crt`
         : undefined
     const qrCodes: Record<string, string> = {}
+    // The code rides in the fragment, which browsers never send to a server, so scanning pairs
+    // straight away. It's the same code shown on screen, single-use and short-lived.
+    const code = this.pairing.get().code
     for (const url of urls) {
-      qrCodes[url] = await QRCode.toDataURL(url, {
+      qrCodes[url] = await QRCode.toDataURL(`${url}#pair=${code}`, {
         margin: 1,
         width: 480,
         color: { dark: '#0E1116', light: '#F4F6F8' },

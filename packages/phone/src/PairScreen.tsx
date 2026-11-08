@@ -1,6 +1,12 @@
 import type { PairResponse } from '@tessel/core'
-import { useRef, useState, type FormEvent } from 'react'
-import { chooseAnotherComputer, guessDeviceName, inNativeApp, isStandalone } from './device.ts'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import {
+  chooseAnotherComputer,
+  guessDeviceName,
+  inNativeApp,
+  isStandalone,
+  takePairCode,
+} from './device.ts'
 import { Wordmark } from './Logo.tsx'
 
 interface Props {
@@ -9,7 +15,9 @@ interface Props {
 }
 
 export function PairScreen({ notice, onPaired }: Props) {
-  const [code, setCode] = useState('')
+  // Scanning the QR code on the computer brings the code along; pair with it straight away.
+  const [scanned] = useState(takePairCode)
+  const [code, setCode] = useState(scanned ?? '')
   const [name, setName] = useState(guessDeviceName)
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
@@ -39,6 +47,14 @@ export function PairScreen({ notice, onPaired }: Props) {
       setBusy(false)
     }
   }
+
+  useEffect(() => {
+    if (!scanned) return
+    // Started after render, once, for the code the page was opened with.
+    const t = setTimeout(() => void pair(scanned), 0)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function onCodeChange(value: string) {
     const digits = value.replace(/\D/g, '').slice(0, 6)

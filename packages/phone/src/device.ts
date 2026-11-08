@@ -152,3 +152,14 @@ export function watchLocation(
   )
   return () => navigator.geolocation.clearWatch(id)
 }
+
+/**
+ * The pairing code from a scanned QR link (…/#pair=123456), removed from the address so it
+ * isn't kept in history or a Home Screen bookmark.
+ */
+export function takePairCode(): string | undefined {
+  const match = /(?:^|[#&])pair=(\d{6})(?:&|$)/.exec(location.hash)
+  if (!location.hash.includes('pair=')) return undefined
+  history.replaceState(null, '', location.pathname + location.search)
+  return match?.[1]
+}
