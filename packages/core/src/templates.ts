@@ -537,7 +537,8 @@ export const templates: TileTemplate[] = [
     id: 'spotify-like',
     category: 'Media and sound',
     name: 'Spotify: like song',
-    description: 'Saves the playing song to your Liked Songs.',
+    description:
+      'Adds the playing song to your Liked Songs, bringing Spotify forward first. Pressing it on a song you already like removes it again (that is how Spotify’s shortcut works).',
     tile: { label: 'Like', icon: 'heart', colour: '#212833', graph: app('spotify.like') },
   },
 

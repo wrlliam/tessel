@@ -97,6 +97,19 @@ export function createWin32(deps: {
       await powershell(volumeScript(level))
     },
 
+    async focusApp(app: string, signal: AbortSignal) {
+      // A running app is brought forward through its window; otherwise it's started.
+      const name = app.replace(/'/g, "''")
+      const { stdout } = await powershell(
+        `$w = New-Object -ComObject WScript.Shell; $p = Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and ($_.ProcessName -like '*${name.replace(/\s+/g, '*')}*' -or $_.MainWindowTitle -like '*${name}*') } | Select-Object -First 1; if ($p) { [void]$w.AppActivate($p.Id); 'found' }`,
+      ).catch(() => ({ stdout: '' }))
+      if (!stdout.includes('found')) {
+        await this.openApp(app)
+        await new Promise((r) => setTimeout(r, 1200))
+      }
+      if (!signal.aborted) await new Promise((r) => setTimeout(r, 250))
+    },
+
     async getVolume() {
       const { stdout } = await powershell(readVolumeScript)
       const [level, muted] = stdout.trim().split(',')

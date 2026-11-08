@@ -50,6 +50,27 @@ export function createDarwin(deps: { run: Run }) {
       )
     },
 
+    async focusApp(app: string, signal: AbortSignal) {
+      await this.openApp(app)
+      // lsappinfo needs no permission; poll until the app owns the front, up to 2.5 s.
+      const want =
+        app
+          .split('/')
+          .pop()
+          ?.replace(/\.app$/i, '')
+          .toLowerCase() ?? ''
+      const end = Date.now() + 2500
+      while (Date.now() < end && !signal.aborted) {
+        const front = await deps
+          .run('lsappinfo', ['front'])
+          .then((r) => deps.run('lsappinfo', ['info', '-only', 'name', r.stdout.trim()]))
+          .then((r) => /"([^"]+)"/.exec(r.stdout)?.[1]?.toLowerCase() ?? '')
+          .catch(() => '')
+        if (front && (front === want || front.includes(want) || want.includes(front))) return
+        await new Promise((r) => setTimeout(r, 100))
+      }
+    },
+
     setDarkMode: (on: OnOff) =>
       script(
         `tell application "System Events" to tell appearance preferences to set dark mode to ${on === 'toggle' ? 'not dark mode' : on}`,

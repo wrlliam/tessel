@@ -92,6 +92,8 @@ export interface Platform {
   /** The song playing in Spotify or the system's media player, if any. */
   nowPlaying?(): Promise<NowPlayingInfo | undefined>
   readClipboard?(): Promise<string>
+  /** Brings an app (opening it if needed) to the front, and waits until it is there. */
+  focusApp?(app: string, signal: AbortSignal): Promise<void>
   /** The output volume (0 to 100) and whether it's muted. */
   getVolume?(): Promise<{ level: number; muted: boolean }>
   /** Names of open apps, lowercased letters and digits only. */

@@ -253,8 +253,14 @@ export const appCommand = defineBlock({
       throw new UserFacingError(`${entry.app}: ${entry.label} isn't available on ${osName[os]}`)
     const app = entry.focus?.[os]
     if (focus && app) {
-      await ctx.platform.openApp(app)
-      await wait(FOCUS_SETTLE_MS, ctx.signal)
+      // Shortcuts only work in the app's own window: wait until it's really in front.
+      if (ctx.platform.focusApp) {
+        await ctx.platform.focusApp(app, ctx.signal)
+        await wait(120, ctx.signal)
+      } else {
+        await ctx.platform.openApp(app)
+        await wait(FOCUS_SETTLE_MS, ctx.signal)
+      }
     }
     await ctx.platform.pressCombo(resolveCombo(parseCombo(keys), os))
   },
