@@ -120,6 +120,15 @@ body {
     justify-content: flex-start;
     text-align: left;
   }
+  .key-fill {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    pointer-events: none;
+    transition:
+      width 80ms linear,
+      height 80ms linear;
+  }
   .key-light {
     position: absolute;
     width: 6px;

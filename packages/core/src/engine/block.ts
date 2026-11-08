@@ -12,7 +12,8 @@ export interface PortDef {
   label?: string
 }
 
-export type TriggerType = 'press' | 'longPress' | 'release' | 'pageOpen' | 'schedule' | 'plugin'
+export type TriggerType =
+  'press' | 'longPress' | 'release' | 'pageOpen' | 'schedule' | 'plugin' | 'slide'
 
 export interface TriggerEvent {
   type: TriggerType
@@ -42,6 +43,8 @@ export interface RunContext {
   switchPage(pageId: string): void
   /** Presses another tile and waits for it to finish. */
   runTile(tileId: string): Promise<void>
+  /** For blocks that wait on purpose: lets the run go on for `ms` more than the usual limit. */
+  extendTimeout(ms: number): void
   /** Reads inputs and renders params again, for blocks that wait on something changing. */
   refreshParams(): Promise<unknown>
 }

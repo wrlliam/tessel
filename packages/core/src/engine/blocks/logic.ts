@@ -92,6 +92,7 @@ export const delay = defineBlock({
   defaults: { ms: 500 },
   run: (ctx, { ms }) =>
     new Promise<void>((resolve, reject) => {
+      ctx.extendTimeout(ms)
       const timer = setTimeout(resolve, ms)
       ctx.signal.addEventListener(
         'abort',

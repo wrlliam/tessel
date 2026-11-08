@@ -19,6 +19,8 @@ export interface TileOverride {
   label?: string
   colour?: string
   icon?: string
+  /** Slider position, 0 to 100. */
+  value?: number
 }
 
 export interface ConnectionState {
@@ -148,7 +150,9 @@ export class Connection {
         return
       case 'tileState': {
         const { type: _, tileId, ...override } = msg
-        this.set({ overrides: { ...this.state.overrides, [tileId]: override } })
+        // A look and a slider position arrive separately; keep both.
+        const merged = { ...this.state.overrides[tileId], ...override }
+        this.set({ overrides: { ...this.state.overrides, [tileId]: merged } })
         return
       }
       case 'pong':

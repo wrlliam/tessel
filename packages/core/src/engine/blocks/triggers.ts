@@ -101,4 +101,44 @@ export function nextRuns(pattern: string, count = 3, from?: Date): Date[] {
   }
 }
 
-export const triggerBlocks = [onPress, onLongPress, onRelease, onPageOpen, onSchedule]
+const SlideParams = z
+  .object({
+    min: z.number().default(0),
+    max: z.number().default(100),
+    step: z.number().positive().default(1),
+  })
+  .refine((p) => p.max > p.min, { message: 'Highest must be more than lowest', path: ['max'] })
+
+/** Maps a slider position (0 to 100) onto min..max, rounded to step. */
+export function slideValue(position: number, p: { min: number; max: number; step: number }) {
+  const raw = p.min + ((p.max - p.min) * Math.min(100, Math.max(0, position))) / 100
+  const stepped = Math.round((raw - p.min) / p.step) * p.step + p.min
+  return Math.min(p.max, Math.max(p.min, Number(stepped.toFixed(6))))
+}
+
+export const onSlide = defineBlock({
+  id: 'trigger.slide',
+  category: 'trigger',
+  name: 'On slide',
+  description:
+    'Starts when a slider tile is dragged on the phone. value goes from Lowest to Highest, e.g. 0 to 100 for volume, and is kept in {{state.value}}.',
+  trigger: 'slide',
+  inputs: [],
+  outputs: [flowOut, { id: 'value', kind: 'value', type: 'number', label: 'value' }],
+  paramsSchema: SlideParams,
+  fields: [
+    { key: 'min', label: 'Lowest', widget: 'number' },
+    { key: 'max', label: 'Highest', widget: 'number' },
+    { key: 'step', label: 'Step', widget: 'number' },
+  ],
+  defaults: { min: 0, max: 100, step: 1 },
+  run: (ctx, p) => {
+    const position = Number(ctx.trigger.data?.['value'] ?? 0)
+    const value = slideValue(Number.isFinite(position) ? position : 0, p)
+    // Lets the tile show it, e.g. label {{state.value}}%.
+    ctx.tileState.set('value', value)
+    return { values: { value } }
+  },
+})
+
+export const triggerBlocks = [onPress, onLongPress, onRelease, onSlide, onPageOpen, onSchedule]

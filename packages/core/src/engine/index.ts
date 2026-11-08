@@ -19,5 +19,8 @@ export {
   createRegistry,
   cronError,
   nextRuns,
+  slideValue,
+  describeWeather,
+  formatDuration,
 } from './blocks/index.ts'
 export { APP_COMMANDS, type AppCommand } from './blocks/apps.ts'

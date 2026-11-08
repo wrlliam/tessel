@@ -55,6 +55,10 @@ export interface TesselServerOptions {
   logger: Logger
   onPress?: (event: PressEvent) => void
   onPageChange?: (deviceId: string, pageId: string) => void
+  /** A slider tile was dragged; value is 0 to 100. */
+  onSlide?: (event: { deviceId: string; tileId: string; value: number }) => void
+  /** A phone shared where it is, after the desktop asked. */
+  onLocation?: (deviceId: string, at: { lat: number; lon: number; accuracy?: number }) => void
   onPhonesChanged?: (phones: ConnectedPhone[]) => void
   /** Sent to a phone right after its profile, e.g. live tile states. */
   welcomeMessages?: () => ServerMessage[]
@@ -372,6 +376,22 @@ export class TesselServer {
         case 'press':
           if (!this.hasTile(msg.tileId)) return
           this.opts.onPress?.({ deviceId: client.device.id, tileId: msg.tileId, phase: msg.phase })
+          return
+        case 'slide':
+          if (
+            !this.profile.pages.some((p) =>
+              p.tiles.some((t) => t.id === msg.tileId && t.kind === 'slider'),
+            )
+          )
+            return
+          this.opts.onSlide?.({ deviceId: client.device.id, tileId: msg.tileId, value: msg.value })
+          return
+        case 'location':
+          this.opts.onLocation?.(client.device.id, {
+            lat: msg.lat,
+            lon: msg.lon,
+            ...(msg.accuracy !== undefined && { accuracy: msg.accuracy }),
+          })
           return
         case 'pageChange':
           if (!this.profile.pages.some((p) => p.id === msg.pageId)) return

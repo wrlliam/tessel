@@ -16,7 +16,7 @@ export const PhoneTile = z.object({
   colour: HexColour,
   position: z.object({ col: z.int(), row: z.int() }),
   span: z.object({ w: z.int(), h: z.int() }),
-  kind: z.enum(['action', 'folder']),
+  kind: z.enum(['action', 'folder', 'slider']),
   /** Folder tiles: the folder page they open. */
   targetPageId: z.string().optional(),
 })
@@ -79,11 +79,13 @@ export const PhoneSettings = z.object({
   /** Darkness of the dim overlay when a phone turns Dim screen on, 20 to 90 percent. */
   dimLevel: z.int().min(20).max(90).default(60),
   /**
-   * Phone held sideways: 'fill' stretches keys to use the whole screen, 'fit' keeps them square,
-   * 'rotate' swaps rows and columns.
+   * Phone held sideways: 'reflow' lays the keys out again in wide rows, 'fill' stretches the
+   * grid to the whole screen, 'fit' keeps keys square, 'rotate' swaps rows and columns.
    */
-  landscape: z.enum(['fill', 'fit', 'rotate']).default('fill'),
+  landscape: z.enum(['reflow', 'fill', 'fit', 'rotate']).default('reflow'),
   header: z.boolean().default(true),
+  /** Ask the phone for its location, for weather and other live tiles. */
+  shareLocation: z.boolean().default(false),
 })
 export type PhoneSettings = z.infer<typeof PhoneSettings>
 export const defaultPhoneSettings = (): PhoneSettings => PhoneSettings.parse({})
@@ -104,12 +106,27 @@ export const PageChangeMessage = z.object({
   type: z.literal('pageChange'),
   pageId: z.string().min(1).max(64),
 })
+/** A slider tile was dragged to `value` (0 to 100). Phones send these at most ~20 times a second. */
+export const SlideMessage = z.object({
+  type: z.literal('slide'),
+  tileId: TileId,
+  value: z.number().min(0).max(100),
+})
+/** The phone's position, sent only when the desktop asks for it and the person allows it. */
+export const LocationMessage = z.object({
+  type: z.literal('location'),
+  lat: z.number().min(-90).max(90),
+  lon: z.number().min(-180).max(180),
+  accuracy: z.number().min(0).optional(),
+})
 export const PingMessage = z.object({ type: z.literal('ping'), t: z.number() })
 
 export const ClientMessage = z.discriminatedUnion('type', [
   HelloMessage,
   PressMessage,
   PageChangeMessage,
+  SlideMessage,
+  LocationMessage,
   PingMessage,
 ])
 export type ClientMessage = z.infer<typeof ClientMessage>
@@ -123,6 +140,8 @@ export const TileStateMessage = z.object({
   colour: HexColour.optional(),
   /** An empty string removes the icon. */
   icon: z.string().optional(),
+  /** Slider tiles: where the bar sits, 0 to 100. */
+  value: z.number().min(0).max(100).optional(),
 })
 export const PongMessage = z.object({ type: z.literal('pong'), t: z.number() })
 export const PhoneSettingsMessage = z.object({

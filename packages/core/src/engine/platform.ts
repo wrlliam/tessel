@@ -38,6 +38,17 @@ export interface ShellResult {
   stderr: string
 }
 
+export interface NowPlayingInfo {
+  title: string
+  artist: string
+  album?: string
+  app?: string
+  playing: boolean
+  /** Seconds. */
+  position?: number
+  duration?: number
+}
+
 /** What blocks may ask of the computer. Each OS supplies its own adapter. */
 export interface Platform {
   os: OS
@@ -61,6 +72,10 @@ export interface Platform {
   /** Runs a command the user wrote on a tile. The desktop decides whether shell commands are allowed. */
   runShell(command: string, signal: AbortSignal): Promise<ShellResult>
   http(request: HttpRequest): Promise<HttpResponse>
+  /** The song playing in Spotify or the system's media player, if any. */
+  nowPlaying?(): Promise<NowPlayingInfo | undefined>
+  /** Last known location, e.g. shared by a phone. */
+  location?(): { lat: number; lon: number; name?: string } | undefined
 }
 
 /** Thrown when a feature has no implementation on this OS; shown to the user as-is. */

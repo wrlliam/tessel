@@ -1,7 +1,7 @@
 import { KeyFace, keyVars } from '@tessel/brand/key'
 import type { PhonePage, PhoneProfile, PhoneSettings, PhoneTile } from '@tessel/core'
 import type { TileOverride } from './connection.ts'
-import { cellsFor, GAP, orient } from './layout.ts'
+import { cellsFor, GAP, orient, reflow } from './layout.ts'
 
 interface Props {
   profile: PhoneProfile
@@ -12,6 +12,8 @@ interface Props {
   pressedId: string | undefined
   disabled: boolean
   settings: PhoneSettings
+  /** Slider positions being dragged on this phone, ahead of the desktop's echo. */
+  dragging: Record<string, number>
 }
 
 const BACK: PhoneTile = {
@@ -26,6 +28,7 @@ const BACK: PhoneTile = {
 
 /** Draws one page of keys. Gestures are handled by the Pager around it. */
 export function PageGrid({
+  dragging,
   profile,
   page,
   width,
@@ -36,14 +39,20 @@ export function PageGrid({
   settings,
 }: Props) {
   const sideways = width > height
-  const shown = orient(page, sideways && settings.landscape === 'rotate')
+  const gap = GAP[settings.spacing]
+  const mode = sideways ? settings.landscape : 'fit'
+  // Folders keep their layout: the Back key must stay in the corner.
+  const shown =
+    mode === 'reflow' && page.kind !== 'folder'
+      ? reflow(page, width, height, gap)
+      : orient(page, mode === 'rotate')
   const cells = cellsFor(
     width,
     height,
     shown.cols,
     shown.rows,
-    GAP[settings.spacing],
-    sideways && settings.landscape === 'fill',
+    gap,
+    mode === 'fill' || mode === 'reflow',
   )
   if (cells.width <= 0 || cells.height <= 0) return null
   const stepX = cells.width + cells.gap
@@ -85,6 +94,14 @@ export function PageGrid({
               ...keyVars(look.colour, kind === 'back' ? 'tinted' : settings.keyStyle),
             }}
           >
+            {kind === 'slider' && (
+              <SliderFill
+                position={dragging[t.id] ?? overrides[t.id]?.value ?? 50}
+                vertical={h > w * 1.1}
+                colour={look.colour}
+                solid={settings.keyStyle === 'solid'}
+              />
+            )}
             <KeyFace
               look={look}
               size={Math.min(w, h)}
@@ -98,5 +115,29 @@ export function PageGrid({
         )
       })}
     </div>
+  )
+}
+
+/** The filled part of a slider key, from the bottom (tall keys) or the left (wide keys). */
+function SliderFill(props: {
+  position: number
+  vertical: boolean
+  colour: string
+  solid: boolean
+}) {
+  const pct = `${Math.max(0, Math.min(100, props.position))}%`
+  const background = props.solid
+    ? 'rgb(255 255 255 / 0.22)'
+    : `color-mix(in oklab, ${props.colour} 42%, transparent)`
+  return (
+    <span
+      aria-hidden
+      className="key-fill"
+      style={
+        props.vertical
+          ? { height: pct, width: '100%', background }
+          : { width: pct, height: '100%', background }
+      }
+    />
   )
 }

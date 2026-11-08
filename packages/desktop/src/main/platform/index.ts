@@ -3,6 +3,7 @@ import { clipboard, ClipboardItem, dialog, Notification, shell, systemPreference
 import { readdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { createCommon, type ShellPolicy } from './common.ts'
+import { createNowPlaying } from './now-playing.ts'
 import { createDarwin } from './darwin.ts'
 import { launch, run } from './exec.ts'
 import { createInput, type Nut } from './input.ts'
@@ -94,5 +95,5 @@ export function createPlatform(shellPolicy: () => ShellPolicy): Platform {
             listDir: (d) => readdir(d),
             readFile: (p) => readFile(p, 'utf8'),
           })
-  return { os, ...native, ...input, ...common }
+  return { os, ...native, ...input, ...common, nowPlaying: createNowPlaying(os, run) }
 }

@@ -103,6 +103,11 @@ export class Hub {
   private listening = false
   private serverError: string | undefined
   private urls: string[] = []
+  /** Slider positions (0 to 100) of the active profile, as phones show them. */
+  private positions = new Map<string, number>()
+  private sliding = new Set<string>()
+  private pendingSlide = new Map<string, number>()
+  private platform: Platform
   private caUrl: string | undefined
   private qrCodes: Record<string, string> = {}
   private log: LogEntry[] = []
@@ -125,6 +130,7 @@ export class Hub {
   }
 
   constructor(private opts: HubOptions) {
+    this.platform = { ...opts.platform, location: () => this.settings.location }
     this.store = settingsStore(join(opts.dataDir, 'settings.json'))
     this.devices = new DeviceRegistry(join(opts.dataDir, 'devices.json'))
     this.library = new ProfileLibrary(join(opts.dataDir, 'profiles'), (m) => this.logger.warn(m))
@@ -164,12 +170,19 @@ export class Hub {
       mdns: opts.mdns ?? true,
       onPress: (e) => void this.press(e),
       onPageChange: (_deviceId, pageId) => void this.pageOpened(pageId),
+      onSlide: (e) => void this.slide(e.tileId, e.value),
+      onLocation: (_deviceId, at) => void this.setLocation(at.lat, at.lon),
       onPhonesChanged: (phones) => {
         this.phones = phones
         this.emit()
       },
       welcomeMessages: () => [
         { type: 'phoneSettings', settings: this.settings.phone },
+        ...[...this.positions].map(([tileId, value]) => ({
+          type: 'tileState' as const,
+          tileId,
+          value,
+        })),
         ...[...this.live].map(([tileId, look]) => tileStateMessage(tileId, look)),
       ],
     })
@@ -459,6 +472,52 @@ export class Hub {
     await engine.trigger(tile, { type: 'release' })
   }
 
+  /**
+   * A slider moved. Drags arrive many times a second, so while the tile runs only the newest
+   * position is kept, then run once more when it finishes.
+   */
+  async slide(tileId: string, position: number): Promise<void> {
+    const profileId = this.library.activeId
+    const tile = this.findTile(profileId, tileId)
+    if (!tile || tile.kind !== 'slider' || this.paused) return
+    this.positions.set(tileId, position)
+    this.server.broadcast({ type: 'tileState', tileId, value: position })
+    if (this.sliding.has(tileId)) {
+      this.pendingSlide.set(tileId, position)
+      return
+    }
+    this.sliding.add(tileId)
+    const runtime = this.runtime(profileId)
+    try {
+      let next: number | undefined = position
+      while (next !== undefined) {
+        this.pendingSlide.delete(tileId)
+        await runtime.engine.trigger(tile, { type: 'slide', data: { value: next } })
+        next = this.pendingSlide.get(tileId)
+      }
+    } finally {
+      this.sliding.delete(tileId)
+      runtime.setTileState(tileId, 'position', this.positions.get(tileId) ?? position)
+    }
+  }
+
+  /** Where phones are, for weather tiles. Only kept when Share location is on. */
+  async setLocation(lat: number, lon: number) {
+    if (!this.settings.phone.shareLocation) return
+    const prev = this.settings.location
+    // Ignore small moves so the settings file isn't rewritten on every report.
+    if (prev && Math.abs(prev.lat - lat) < 0.01 && Math.abs(prev.lon - lon) < 0.01) return
+    this.settings = { ...this.settings, location: { lat, lon, at: Date.now() } }
+    await this.store.save(this.settings)
+    this.emit()
+  }
+
+  async finishTour() {
+    this.settings = { ...this.settings, toured: true }
+    await this.store.save(this.settings)
+    this.emit()
+  }
+
   /** Runs On page open for every tile on the page a phone just showed. */
   async pageOpened(pageId: string) {
     if (this.paused) return
@@ -483,7 +542,7 @@ export class Hub {
     if (!runtime) {
       runtime = new ProfileRuntime({
         registry: this.registry,
-        platform: this.opts.platform,
+        platform: this.platform,
         get: () => this.library.get(profileId) as Profile,
         replace: (p) => this.library.put(p),
         persist: (p) => this.library.save(p),
@@ -508,10 +567,14 @@ export class Hub {
   /** Points phones at the active profile with fresh run-time looks. */
   private activate() {
     this.overrides.clear()
+    this.positions.clear()
     const active = this.library.active()
     for (const tile of tilesOf(active)) {
       const look = savedLook(active, tile.id)
       if (look) this.overrides.set(tile.id, look)
+      const position = active.tileState[tile.id]?.['position']
+      if (tile.kind === 'slider')
+        this.positions.set(tile.id, typeof position === 'number' ? position : 50)
     }
     this.live.clear()
     this.server.setProfile(this.library.active())

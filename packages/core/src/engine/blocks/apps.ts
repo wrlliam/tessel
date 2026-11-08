@@ -17,6 +17,25 @@ const all = (combo: string): Record<OS, string> => ({ darwin: combo, win32: comb
 const zoom = { darwin: 'zoom.us', win32: 'Zoom', linux: 'Zoom' }
 const teams = { darwin: 'Microsoft Teams', win32: 'Microsoft Teams', linux: 'Microsoft Teams' }
 const discord = { darwin: 'Discord', win32: 'Discord', linux: 'Discord' }
+const vesktop = { darwin: 'Vesktop', win32: 'Vesktop', linux: 'vesktop' }
+
+/** Discord's shortcuts. Vesktop, the Vencord desktop app, uses the same ones. */
+const discordCommands = (prefix: string, app: string, focus: Record<OS, string>): AppCommand[] =>
+  (
+    [
+      ['mute', 'Mute or unmute', 'mod+shift+m'],
+      ['deafen', 'Deafen or undeafen', 'mod+shift+d'],
+      ['switcher', 'Quick switcher', 'mod+k'],
+      ['answer', 'Answer a call', 'mod+enter'],
+      ['decline', 'Decline a call', 'escape'],
+      ['upload', 'Upload a file', 'mod+shift+u'],
+      ['emoji', 'Emoji picker', 'mod+e'],
+      ['inbox', 'Open the inbox', 'mod+i'],
+      ['read', 'Mark server read', 'shift+escape'],
+      ['unread', 'Next unread channel', 'alt+shift+down'],
+    ] as const
+  ).map(([id, label, keys]) => ({ id: `${prefix}.${id}`, app, label, focus, keys: all(keys) }))
+
 const spotify = { darwin: 'Spotify', win32: 'Spotify', linux: 'Spotify' }
 const code = {
   darwin: 'Visual Studio Code',
@@ -79,20 +98,8 @@ export const APP_COMMANDS: AppCommand[] = [
   { id: 'teams.leave', app: 'Teams', label: 'Leave call', focus: teams, keys: all('mod+shift+h') },
   { id: 'meet.mute', app: 'Google Meet', label: 'Mute or unmute', keys: all('mod+d') },
   { id: 'meet.video', app: 'Google Meet', label: 'Camera on or off', keys: all('mod+e') },
-  {
-    id: 'discord.mute',
-    app: 'Discord',
-    label: 'Mute or unmute',
-    focus: discord,
-    keys: all('mod+shift+m'),
-  },
-  {
-    id: 'discord.deafen',
-    app: 'Discord',
-    label: 'Deafen or undeafen',
-    focus: discord,
-    keys: all('mod+shift+d'),
-  },
+  ...discordCommands('discord', 'Discord', discord),
+  ...discordCommands('vesktop', 'Vesktop', vesktop),
   {
     id: 'slack.jump',
     app: 'Slack',

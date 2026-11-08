@@ -46,7 +46,8 @@ export const Tile = z
     colour: HexColour.default('#161B22'),
     position: z.object({ col: z.int().min(0), row: z.int().min(0) }),
     span: z.object({ w: z.int().min(1), h: z.int().min(1) }).default({ w: 1, h: 1 }),
-    kind: z.enum(['action', 'folder']).default('action'),
+    /** Slider tiles show a bar on the phone; dragging it runs On slide with the new value. */
+    kind: z.enum(['action', 'folder', 'slider']).default('action'),
     /** Sub-page opened by a folder tile. */
     targetPageId: Id.optional(),
     graph: Graph.default({ nodes: [], edges: [] }),

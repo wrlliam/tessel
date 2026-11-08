@@ -68,7 +68,8 @@ describe('phone settings', () => {
       keyStyle: 'tinted',
       spacing: 'regular',
       dimLevel: 60,
-      landscape: 'fill',
+      landscape: 'reflow',
+      shareLocation: false,
     })
     const msg = { type: 'phoneSettings', settings: { ...settings, theme: 'dark' } }
     expect(parseServerMessage(JSON.stringify(msg))).toEqual({ ok: true, message: msg })

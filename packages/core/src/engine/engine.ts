@@ -196,6 +196,25 @@ class Run {
     }
   }
 
+  private timer?: ReturnType<typeof setTimeout>
+  private deadline = 0
+
+  /** Pushes the run's time limit out so it ends no sooner than `ms` from now plus the usual limit. */
+  extendTimeout(ms: number) {
+    const deadline = Date.now() + ms + this.engine.timeoutMs
+    if (deadline <= this.deadline) return
+    this.armTimer(deadline - Date.now())
+  }
+
+  private armTimer(ms: number) {
+    clearTimeout(this.timer)
+    this.deadline = Date.now() + ms
+    const seconds = Math.round((Date.now() - this.startedAt + ms) / 1000)
+    this.timer = setTimeout(() => this.stop('timeout', `Stopped after ${seconds} s`), ms)
+  }
+
+  private startedAt = Date.now()
+
   stop(status: StopRun['status'], message: string) {
     if (!this.controller.signal.aborted) this.controller.abort(new StopRun(status, message))
   }
@@ -204,10 +223,8 @@ class Run {
     const { engine, tile } = this
     const started = performance.now()
     engine.emit({ type: 'run:start', runId: this.id, tileId: tile.id, trigger: this.event.type })
-    const timer = setTimeout(
-      () => this.stop('timeout', `Stopped after ${Math.round(engine.timeoutMs / 1000)} s`),
-      engine.timeoutMs,
-    )
+    this.startedAt = Date.now()
+    this.armTimer(engine.timeoutMs)
 
     let status: RunStatus = 'ok'
     let error: string | undefined
@@ -230,7 +247,7 @@ class Run {
       error = (err as Error).message
       if (err instanceof NodeFailure && err.nodeId) failedNodeId = err.nodeId
     } finally {
-      clearTimeout(timer)
+      clearTimeout(this.timer)
     }
 
     for (const node of tile.graph.nodes) {
@@ -332,6 +349,7 @@ class Run {
         },
         switchPage: (pageId) => this.engine.opts.onSwitchPage?.(pageId),
         runTile: (tileId) => this.runOther(tileId),
+        extendTimeout: (ms) => this.extendTimeout(ms),
         refreshParams: async () =>
           this.renderParams(node, def, await this.resolveInputs(node, depth)),
       }

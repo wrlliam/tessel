@@ -21,7 +21,12 @@ interface Props {
   settings: PhoneSettings
   onNav: (nav: Nav) => void
   onPress: (tileId: string, phase: 'down' | 'up') => void
+  /** A slider tile moved to `value`, 0 to 100. */
+  onSlide: (tileId: string, value: number) => void
 }
+
+/** Slider updates sent to the desktop at most this often while dragging. */
+const SLIDE_EVERY_MS = 50
 
 interface Gesture {
   pointer: number
@@ -31,6 +36,13 @@ interface Gesture {
   tile?: { id: string; kind: string; target?: string }
   committed: boolean
   swiping: boolean
+  /** Dragging a slider key: its box and which way it runs. */
+  slider?: {
+    rect: DOMRect
+    vertical: boolean
+    sentAt: number
+    timer?: ReturnType<typeof setTimeout>
+  }
   timer?: ReturnType<typeof setTimeout>
 }
 
@@ -49,12 +61,50 @@ function useBoxSize() {
   return [ref, size] as const
 }
 
-export function Pager({ profile, nav, overrides, disabled, settings, onNav, onPress }: Props) {
+export function Pager({
+  profile,
+  nav,
+  overrides,
+  disabled,
+  settings,
+  onNav,
+  onPress,
+  onSlide,
+}: Props) {
   const [ref, box] = useBoxSize()
   const gesture = useRef<Gesture | null>(null)
   const pressedAt = useRef(0)
   const [pressed, setPressed] = useState<string>()
   const [drag, setDrag] = useState(0)
+  const [dragging, setDragging] = useState<Record<string, number>>({})
+
+  function slideTo(g: Gesture, x: number, y: number, final: boolean) {
+    const s = g.slider
+    const id = g.tile?.id
+    if (!s || !id) return
+    const raw = s.vertical ? (s.rect.bottom - y) / s.rect.height : (x - s.rect.left) / s.rect.width
+    const value = Math.round(Math.max(0, Math.min(1, raw)) * 100)
+    setDragging((d) => ({ ...d, [id]: value }))
+    clearTimeout(s.timer)
+    const send = () => {
+      s.sentAt = performance.now()
+      onSlide(id, value)
+    }
+    const wait = SLIDE_EVERY_MS - (performance.now() - s.sentAt)
+    if (final || wait <= 0) send()
+    else s.timer = setTimeout(send, wait)
+    if (final) {
+      // Keep showing the dragged position until the desktop's echo has had time to land.
+      setTimeout(
+        () =>
+          setDragging((d) => {
+            const { [id]: _, ...rest } = d
+            return rest
+          }),
+        600,
+      )
+    }
+  }
   const inFolder = nav.folders.length > 0
   const pages = swipePages(profile)
   const canSwipe = !inFolder && pages.length > 1
@@ -87,6 +137,11 @@ export function Pager({ profile, nav, overrides, disabled, settings, onNav, onPr
       pressedAt.current = performance.now()
       setPressed(data.tileId)
       if (settings.haptics) haptic()
+      if (g.tile.kind === 'slider' && el) {
+        const rect = el.getBoundingClientRect()
+        g.slider = { rect, vertical: rect.height > rect.width * 1.1, sentAt: 0 }
+        slideTo(g, e.clientX, e.clientY, false)
+      }
       if (g.tile.kind === 'action') {
         g.timer = setTimeout(() => {
           if (gesture.current === g && g.tile) {
@@ -110,6 +165,10 @@ export function Pager({ profile, nav, overrides, disabled, settings, onNav, onPr
   function move(e: PointerEvent<HTMLDivElement>) {
     const g = gesture.current
     if (!g || e.pointerId !== g.pointer) return
+    if (g.slider) {
+      slideTo(g, e.clientX, e.clientY, false)
+      return
+    }
     const dx = e.clientX - g.x
     const dy = e.clientY - g.y
     if (!g.swiping && canSwipe && Math.abs(dx) > SLOP && Math.abs(dx) > Math.abs(dy)) {
@@ -141,6 +200,10 @@ export function Pager({ profile, nav, overrides, disabled, settings, onNav, onPr
     const tile = g.tile
     if (!tile) return
     release()
+    if (g.slider) {
+      slideTo(g, e.clientX, e.clientY, true)
+      return
+    }
     if (tile.kind === 'back') onNav(back(nav))
     else if (tile.kind === 'folder' && tile.target) onNav(openFolder(nav, tile.target))
     else {
@@ -174,6 +237,7 @@ export function Pager({ profile, nav, overrides, disabled, settings, onNav, onPr
           width={box.width}
           height={box.height}
           overrides={overrides}
+          dragging={dragging}
           pressedId={pressed}
           disabled={disabled}
         />

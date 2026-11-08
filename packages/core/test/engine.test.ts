@@ -173,10 +173,29 @@ describe('engine', () => {
   })
 
   it('times out long runs', async () => {
-    const { engine } = setup({ timeoutMs: 30 })
-    const graph = chain(node('p', 'trigger.press'), node('d', 'logic.delay', { ms: 5000 }))
+    const registry = createRegistry()
+    registry.register(
+      defineBlock({
+        id: 'test.hang',
+        category: 'plugin',
+        name: 'Hang',
+        description: '',
+        inputs: [flowIn],
+        outputs: [flowOut],
+        paramsSchema: z.object({}),
+        run: () => new Promise(() => {}),
+      }),
+    )
+    const { engine } = setup({ registry, timeoutMs: 30 })
+    const graph = chain(node('p', 'trigger.press'), node('w', 'test.hang'))
     const result = await engine.trigger(tile(graph), press)
-    expect(result).toMatchObject({ status: 'timeout', nodes: { d: 'error' } })
+    expect(result).toMatchObject({ status: 'timeout', nodes: { w: 'error' } })
+  })
+
+  it('lets Delay run past the usual limit, then times out what comes after', async () => {
+    const { engine } = setup({ timeoutMs: 30 })
+    const graph = chain(node('p', 'trigger.press'), node('d', 'logic.delay', { ms: 60 }))
+    expect(await engine.trigger(tile(graph), press)).toMatchObject({ status: 'ok' })
   })
 
   it('caps steps per run', async () => {

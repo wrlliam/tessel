@@ -1,3 +1,5 @@
+import awakeVideo from './assets/awake.mp4'
+
 const TOKEN_KEY = 'tessel.token'
 
 export function loadToken(): string | null {
@@ -64,26 +66,89 @@ export function haptic() {
   navigator.vibrate?.(10)
 }
 
-/** Keeps the screen on while visible: natively in the iOS app, otherwise via Wake Lock (HTTPS only). */
+/**
+ * Keeps the screen on while visible: natively in the iOS app, with Wake Lock where the browser
+ * allows it (HTTPS), and otherwise with a tiny muted video playing inline, which stops Safari
+ * from dimming over plain http. Browsers only start video after a tap, so it starts on the
+ * first touch.
+ */
 export function keepAwake(): () => void {
   const keep = native()?.KeepAwake
   if (keep) {
     void keep.keepAwake().catch(() => {})
     return () => void keep.allowSleep().catch(() => {})
   }
-  if (!('wakeLock' in navigator)) return () => {}
-  let sentinel: WakeLockSentinel | undefined
-  const request = () => {
-    if (document.visibilityState !== 'visible') return
-    navigator.wakeLock
-      .request('screen')
-      .then((s) => (sentinel = s))
-      .catch(() => {})
+  if ('wakeLock' in navigator && window.isSecureContext) {
+    let sentinel: WakeLockSentinel | undefined
+    const request = () => {
+      if (document.visibilityState !== 'visible') return
+      navigator.wakeLock
+        .request('screen')
+        .then((s) => (sentinel = s))
+        .catch(() => {})
+    }
+    request()
+    document.addEventListener('visibilitychange', request)
+    return () => {
+      document.removeEventListener('visibilitychange', request)
+      void sentinel?.release()
+    }
   }
-  request()
-  document.addEventListener('visibilitychange', request)
+  return videoKeepAwake()
+}
+
+function videoKeepAwake(): () => void {
+  const video = document.createElement('video')
+  video.src = awakeVideo
+  video.muted = true
+  video.loop = true
+  video.playsInline = true
+  video.setAttribute('playsinline', '')
+  video.setAttribute('aria-hidden', 'true')
+  Object.assign(video.style, {
+    position: 'fixed',
+    width: '1px',
+    height: '1px',
+    opacity: '0.01',
+    pointerEvents: 'none',
+    bottom: '0',
+    left: '0',
+  })
+  document.body.append(video)
+  const play = () => void video.play().catch(() => {})
+  const onVisible = () => {
+    if (document.visibilityState === 'visible') play()
+  }
+  // Needs a user gesture the first time; every touch is fine, play() is a no-op while playing.
+  document.addEventListener('pointerdown', play, { passive: true })
+  document.addEventListener('visibilitychange', onVisible)
+  play()
   return () => {
-    document.removeEventListener('visibilitychange', request)
-    void sentinel?.release()
+    document.removeEventListener('pointerdown', play)
+    document.removeEventListener('visibilitychange', onVisible)
+    video.pause()
+    video.remove()
   }
+}
+
+/** Reports where the phone is every few minutes, after the browser asks the person. */
+export function watchLocation(
+  report: (at: { lat: number; lon: number; accuracy?: number }) => void,
+): () => void {
+  if (!('geolocation' in navigator)) return () => {}
+  let last = 0
+  const id = navigator.geolocation.watchPosition(
+    (pos) => {
+      if (Date.now() - last < 5 * 60_000) return
+      last = Date.now()
+      report({
+        lat: Number(pos.coords.latitude.toFixed(3)),
+        lon: Number(pos.coords.longitude.toFixed(3)),
+        accuracy: Math.round(pos.coords.accuracy),
+      })
+    },
+    () => {},
+    { enableHighAccuracy: false, maximumAge: 10 * 60_000, timeout: 30_000 },
+  )
+  return () => navigator.geolocation.clearWatch(id)
 }
