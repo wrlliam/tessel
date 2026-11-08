@@ -156,6 +156,21 @@ export function createLinux(deps: LinuxDeps) {
         ['set-volume', '@DEFAULT_AUDIO_SINK@', (level / 100).toFixed(2)],
       ),
 
+    async getVolume() {
+      try {
+        const vol = (await deps.run('pactl', ['get-sink-volume', '@DEFAULT_SINK@'])).stdout
+        const mute = (await deps.run('pactl', ['get-sink-mute', '@DEFAULT_SINK@'])).stdout
+        return { level: Number(/(\d+)%/.exec(vol)?.[1] ?? 0), muted: /yes/i.test(mute) }
+      } catch (err) {
+        if (!isMissingProgram(err)) throw err
+        const out = (await deps.run('wpctl', ['get-volume', '@DEFAULT_AUDIO_SINK@'])).stdout
+        return {
+          level: Math.round(Number(/([\d.]+)/.exec(out)?.[1] ?? 0) * 100),
+          muted: /MUTED/.test(out),
+        }
+      }
+    },
+
     setMuted: (on: OnOff) => {
       const arg = on === 'toggle' ? 'toggle' : on ? '1' : '0'
       return audio(

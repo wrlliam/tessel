@@ -202,7 +202,7 @@ function vmGain(id: string, target: 'strip' | 'bus', index: number, label: strin
     category: 'Voicemeeter',
     plugin: 'voicemeeter',
     name: `${label} gain slider`,
-    description: `Drag to set the gain of ${target} ${index}, from -60 to +12 dB.`,
+    description: `Drag to set the gain of ${target} ${index}, from -60 to +12 dB. Hold it to reset to 0 dB.`,
     tile: {
       label,
       icon: 'sliders-horizontal',
@@ -210,11 +210,32 @@ function vmGain(id: string, target: 'strip' | 'bus', index: number, label: strin
       kind: 'slider',
       concurrency: 'restart',
       appearanceBindings: [bind('label', `${label} {{state.value ?? 0}} dB`)],
-      graph: slider('voicemeeter.setGain', { target, index, gain: 0 }, 'gain', {
-        min: -60,
-        max: 12,
-        step: 0.5,
-      }),
+      graph: {
+        ...slider('voicemeeter.setGain', { target, index, gain: 0 }, 'gain', {
+          min: -60,
+          max: 12,
+          step: 0.5,
+        }),
+        nodes: [
+          ...slider('voicemeeter.setGain', { target, index, gain: 0 }, 'gain', {
+            min: -60,
+            max: 12,
+            step: 0.5,
+          }).nodes,
+          node('hold', 'trigger.longPress', {}, 0, 160),
+          node('reset', 'voicemeeter.setGain', { target, index, gain: 0 }, 288, 160),
+          node('bar', 'action.setSlider', { value: 0, tile: '' }, 576, 160),
+        ],
+        edges: [
+          ...slider('voicemeeter.setGain', { target, index, gain: 0 }, 'gain', {
+            min: -60,
+            max: 12,
+            step: 0.5,
+          }).edges,
+          wire('hold', 'out', 'reset'),
+          wire('reset', 'out', 'bar'),
+        ],
+      },
     },
   }
 }
@@ -786,19 +807,40 @@ export const templates: TileTemplate[] = [
     id: 'slider-volume',
     category: 'Sliders',
     name: 'Volume slider',
-    description: "Drag to set the computer's volume.",
+    description:
+      "Drag to set the computer's volume; the bar follows when the volume changes anywhere else. Hold it to mute or unmute.",
     tile: {
       label: 'Volume',
       icon: 'volume-2',
       colour: '#22D3C5',
       kind: 'slider',
       concurrency: 'restart',
-      appearanceBindings: [bind('label', 'Volume {{state.value ?? 50}}%')],
-      graph: slider('action.setSetting', { setting: 'volume', level: 50 }, 'level', {
-        min: 0,
-        max: 100,
-        step: 1,
-      }),
+      appearanceBindings: [
+        bind('label', '{{state.muted ? "Muted" : "Volume " + (state.value ?? 50) + "%"}}'),
+        bind('icon', '{{state.muted ? "volume-x" : "volume-2"}}'),
+      ],
+      graph: {
+        nodes: [
+          node('slide', 'trigger.slide', { min: 0, max: 100, step: 1 }, 0),
+          node('set', 'action.setSetting', { setting: 'volume', level: 50 }, 288),
+          node('hold', 'trigger.longPress', {}, 0, 160),
+          node('mute', 'action.setSetting', { setting: 'mute', value: 'toggle' }, 288, 160),
+          node('tick', 'trigger.schedule', { cron: '*/2 * * * * *' }, 0, 320),
+          node('read', 'data.getVolume', {}, 288, 320),
+          node('changed', 'logic.changed', { key: 'lastVolume' }, 576, 320),
+          node('follow', 'action.setSlider', { value: 0, tile: '' }, 864, 320),
+        ],
+        edges: [
+          wire('slide', 'out', 'set'),
+          wire('slide', 'value', 'set', 'level'),
+          wire('hold', 'out', 'mute'),
+          wire('tick', 'out', 'read'),
+          wire('read', 'out', 'changed'),
+          wire('read', 'level', 'changed', 'value'),
+          wire('changed', 'changed', 'follow'),
+          wire('read', 'level', 'follow', 'value'),
+        ],
+      },
     },
   },
   {

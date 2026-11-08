@@ -1,6 +1,6 @@
 import { UserFacingError, type OnOff } from '@tessel/core'
 import type { Launch, Run } from './exec.ts'
-import { muteScript, volumeScript } from './win-audio.ts'
+import { readVolumeScript, muteScript, volumeScript } from './win-audio.ts'
 
 interface StartApp {
   Name: string
@@ -95,6 +95,12 @@ export function createWin32(deps: {
 
     setVolume: async (level: number) => {
       await powershell(volumeScript(level))
+    },
+
+    async getVolume() {
+      const { stdout } = await powershell(readVolumeScript)
+      const [level, muted] = stdout.trim().split(',')
+      return { level: Number(level) || 0, muted: muted?.trim().toLowerCase() === 'true' }
     },
 
     setMuted: async (on: OnOff) => {

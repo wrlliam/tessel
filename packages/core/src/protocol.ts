@@ -110,7 +110,8 @@ export const HelloMessage = z.object({
 export const PressMessage = z.object({
   type: z.literal('press'),
   tileId: TileId,
-  phase: z.enum(['down', 'up']),
+  /** 'hold': the phone saw a long press itself (sliders, where dragging decides first). */
+  phase: z.enum(['down', 'up', 'hold']),
 })
 export const PageChangeMessage = z.object({
   type: z.literal('pageChange'),

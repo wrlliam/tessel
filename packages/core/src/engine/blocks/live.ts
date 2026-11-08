@@ -423,4 +423,60 @@ export const zxScript = defineBlock({
   },
 })
 
-export const liveBlocks = [countdown, nowPlaying, weather, getClipboard, toast, changed, zxScript]
+export const getVolume = defineBlock({
+  id: 'data.getVolume',
+  category: 'data',
+  name: 'Get volume',
+  description:
+    "Reads the computer's output volume (0 to 100) and whether it's muted, which it also keeps in {{state.muted}}.",
+  inputs: [flowIn],
+  outputs: [
+    flowOut,
+    num('level', 'volume'),
+    { id: 'muted', kind: 'value', type: 'boolean', label: 'muted' },
+  ],
+  paramsSchema: z.object({}),
+  fields: [],
+  defaults: {},
+  run: async (ctx) => {
+    if (!ctx.platform.getVolume) throw new UnsupportedError('Reading the volume', ctx.platform.os)
+    const { level, muted } = await ctx.platform.getVolume()
+    // Kept on the tile too, so a volume tile can show {{state.muted}}.
+    ctx.tileState.set('muted', muted)
+    return { values: { level: Math.round(level), muted } }
+  },
+})
+
+export const setSlider = defineBlock({
+  id: 'action.setSlider',
+  category: 'action',
+  name: 'Set slider',
+  description:
+    "Moves a slider tile's bar, e.g. to follow the volume when it changes elsewhere. The value is in the slider's own range (its On slide Lowest to Highest).",
+  inputs: [flowIn, { id: 'value', kind: 'value', type: 'number' }],
+  outputs: [flowOut],
+  paramsSchema: z.object({
+    value: z.coerce.number(),
+    tile: z.string().max(64).default(''),
+  }),
+  fields: [
+    { key: 'tile', label: 'Which slider', widget: 'tile', placeholder: 'This tile' },
+    { key: 'value', label: 'Value', widget: 'number' },
+  ],
+  defaults: { value: 0, tile: '' },
+  run: (ctx, p) => {
+    ctx.setSlider(p.value, p.tile ? { tileId: p.tile } : undefined)
+  },
+})
+
+export const liveBlocks = [
+  getVolume,
+  setSlider,
+  countdown,
+  nowPlaying,
+  weather,
+  getClipboard,
+  toast,
+  changed,
+  zxScript,
+]

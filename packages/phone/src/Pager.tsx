@@ -11,6 +11,8 @@ const COMMIT_MS = 150
 const SLOP = 10
 /** Movement that cancels a tap that hasn't fired yet. */
 const CANCEL = 24
+/** A slider held this long without moving counts as a long press. */
+const HOLD_MS = 500
 const MIN_PRESS_MS = 90
 
 interface Props {
@@ -20,7 +22,7 @@ interface Props {
   disabled: boolean
   settings: PhoneSettings
   onNav: (nav: Nav) => void
-  onPress: (tileId: string, phase: 'down' | 'up') => void
+  onPress: (tileId: string, phase: 'down' | 'up' | 'hold') => void
   /** A slider tile moved to `value`, 0 to 100. */
   onSlide: (tileId: string, value: number) => void
   /** Editing keys: taps pick a key instead of pressing it. */
@@ -45,6 +47,10 @@ interface Gesture {
     vertical: boolean
     sentAt: number
     timer?: ReturnType<typeof setTimeout>
+    /** Moved far enough to count as a drag rather than a tap or hold. */
+    dragging: boolean
+    held: boolean
+    hold?: ReturnType<typeof setTimeout>
   }
   timer?: ReturnType<typeof setTimeout>
 }
@@ -149,8 +155,23 @@ export function Pager({
       }
       if (g.tile.kind === 'slider' && el) {
         const rect = el.getBoundingClientRect()
-        g.slider = { rect, vertical: rect.height > rect.width * 1.1, sentAt: 0 }
-        slideTo(g, e.clientX, e.clientY, false)
+        // Drag sets the value; a tap presses the tile and a still hold long-presses it, so
+        // a slider can also reset, mute or switch something.
+        const slider: NonNullable<Gesture['slider']> = {
+          rect,
+          vertical: rect.height > rect.width * 1.1,
+          sentAt: 0,
+          dragging: false,
+          held: false,
+        }
+        const id = g.tile.id
+        slider.hold = setTimeout(() => {
+          if (gesture.current !== g || slider.dragging) return
+          slider.held = true
+          if (settings.haptics) haptic()
+          onPress(id, 'hold')
+        }, HOLD_MS)
+        g.slider = slider
       }
       if (g.tile.kind === 'action') {
         g.timer = setTimeout(() => {
@@ -167,6 +188,7 @@ export function Pager({
 
   function dropTile(g: Gesture) {
     clearTimeout(g.timer)
+    clearTimeout(g.slider?.hold)
     if (g.tile && g.committed) onPress(g.tile.id, 'up')
     if (g.tile) release()
     delete g.tile
@@ -176,7 +198,12 @@ export function Pager({
     const g = gesture.current
     if (!g || e.pointerId !== g.pointer) return
     if (g.slider) {
-      slideTo(g, e.clientX, e.clientY, false)
+      const s = g.slider
+      if (!s.dragging && !s.held && Math.hypot(e.clientX - g.x, e.clientY - g.y) > SLOP) {
+        s.dragging = true
+        clearTimeout(s.hold)
+      }
+      if (s.dragging) slideTo(g, e.clientX, e.clientY, false)
       return
     }
     const dx = e.clientX - g.x
@@ -215,7 +242,13 @@ export function Pager({
       return
     }
     if (g.slider) {
-      slideTo(g, e.clientX, e.clientY, true)
+      const s = g.slider
+      clearTimeout(s.hold)
+      if (s.dragging) slideTo(g, e.clientX, e.clientY, true)
+      else if (!s.held) {
+        onPress(tile.id, 'down')
+        onPress(tile.id, 'up')
+      }
       return
     }
     if (tile.kind === 'back') onNav(back(nav))

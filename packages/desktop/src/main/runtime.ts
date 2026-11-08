@@ -24,6 +24,7 @@ export interface RuntimeHost {
   /** Variables or tile state changed, so live appearance may need updating. */
   onStateChanged(): void
   onSwitchPage(pageId: string): void
+  onSetSlider?(tileId: string, value: number): void
   findTile(tileId: string): RunnableTile | undefined
   onSaveError(err: Error): void
 }
@@ -59,6 +60,7 @@ export class ProfileRuntime {
           })),
       },
       onSwitchPage: (pageId) => host.onSwitchPage(pageId),
+      onSetSlider: (tileId, value) => host.onSetSlider?.(tileId, value),
       findTile: (tileId) => host.findTile(tileId),
     })
   }

@@ -41,6 +41,8 @@ export interface RunContext {
   tileState: { get(key: string): unknown; set(key: string, value: unknown): void }
   /** Shows a page or folder on connected phones. */
   switchPage(pageId: string): void
+  /** Moves a slider tile's bar to `value` in its own range; this tile unless another is named. */
+  setSlider(value: number, opts?: { tileId?: string }): void
   /** Presses another tile and waits for it to finish. */
   runTile(tileId: string): Promise<void>
   /** For blocks that wait on purpose: lets the run go on for `ms` more than the usual limit. */

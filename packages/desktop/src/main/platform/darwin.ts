@@ -62,6 +62,16 @@ export function createDarwin(deps: { run: Run }) {
 
     setVolume: (level: number) => script(`set volume output volume ${Math.round(level)}`),
 
+    async getVolume() {
+      const { stdout } = await deps.run('osascript', [
+        '-e',
+        'set v to get volume settings',
+        '-e',
+        'return (output volume of v as text) & "," & (output muted of v as text)',
+      ])
+      return parseVolume(stdout)
+    },
+
     async setBrightness(level: number) {
       // macOS has no built-in command for this; the open-source `brightness` tool does it.
       try {
@@ -86,4 +96,11 @@ export function createDarwin(deps: { run: Run }) {
       await deps.run('pmset', ['sleepnow'])
     },
   }
+}
+
+/** "42,false" -> { level: 42, muted: false }. "missing value" (no output device) reads as 0. */
+export function parseVolume(text: string): { level: number; muted: boolean } {
+  const [level, muted] = text.trim().split(',')
+  const n = Number(level)
+  return { level: Number.isFinite(n) ? n : 0, muted: muted?.trim() === 'true' }
 }

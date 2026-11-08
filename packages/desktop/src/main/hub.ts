@@ -66,6 +66,9 @@ export interface PhoneEdit {
   }
 }
 
+/** After a drag, Set slider waits this long before moving the bar. */
+const SLIDE_QUIET_MS = 1500
+
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex')
 
 const applyLook = (t: Tile, look: PhoneEdit['look']): Tile => {
@@ -134,6 +137,8 @@ export class Hub {
   private urls: string[] = []
   /** Slider positions (0 to 100) of the active profile, as phones show them. */
   private positions = new Map<string, number>()
+  /** When a phone last dragged each slider, so Set slider doesn't fight the finger. */
+  private lastSlide = new Map<string, number>()
   /** Open app tiles whose app is running, as phones show it. */
   private activity = new Map<string, boolean>()
   private appTimer?: NodeJS.Timeout
@@ -624,6 +629,11 @@ export class Hub {
     const key = `${deviceId}:${tileId}`
     // With a long press trigger, a short tap fires On press on release instead of on touch.
     const longPress = hasTrigger(tile, 'trigger.longPress')
+    // Sliders time the hold on the phone, since dragging has to be ruled out first.
+    if (phase === 'hold') {
+      if (longPress) await engine.trigger(tile, { type: 'longPress' })
+      return
+    }
     if (phase === 'down') {
       if (!longPress) {
         await engine.trigger(tile, { type: 'press' })
@@ -656,6 +666,7 @@ export class Hub {
     const tile = this.findTile(profileId, tileId)
     if (!tile || tile.kind !== 'slider' || this.paused) return
     this.positions.set(tileId, position)
+    this.lastSlide.set(tileId, Date.now())
     this.server.broadcast({ type: 'tileState', tileId, value: position })
     if (this.sliding.has(tileId)) {
       this.pendingSlide.set(tileId, position)
@@ -698,6 +709,28 @@ export class Hub {
       this.activity.set(tileId, active)
       this.server.broadcast({ type: 'tileState', tileId, active })
     }
+  }
+
+  /**
+   * Moves a slider's bar from a block (Set slider), e.g. when the volume changed elsewhere.
+   * `value` is in the slider's own range; ignored for a moment after a phone dragged it.
+   */
+  setSliderValue(profileId: string, tileId: string, value: number) {
+    const tile = this.findTile(profileId, tileId)
+    if (!tile || tile.kind !== 'slider' || !Number.isFinite(value)) return
+    if (Date.now() - (this.lastSlide.get(tileId) ?? 0) < SLIDE_QUIET_MS) return
+    const range = tile.graph.nodes.find((n) => n.type === 'trigger.slide')?.params ?? {}
+    const min = Number(range['min'] ?? 0)
+    const max = Number(range['max'] ?? 100)
+    const position = max > min ? Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100)) : 0
+    const runtime = this.runtime(profileId)
+    runtime.setTileState(tileId, 'value', value)
+    if (profileId !== this.library.activeId) return
+    const rounded = Math.round(position * 10) / 10
+    if (this.positions.get(tileId) === rounded) return
+    this.positions.set(tileId, rounded)
+    this.server.broadcast({ type: 'tileState', tileId, value: rounded })
+    runtime.setTileState(tileId, 'position', rounded)
   }
 
   /** Where phones are, for weather tiles. Only kept when Share location is on. */
@@ -752,6 +785,7 @@ export class Hub {
         onStateChanged: () => {
           if (profileId === this.library.activeId) this.pushAppearances()
         },
+        onSetSlider: (tileId, value) => this.setSliderValue(profileId, tileId, value),
         onSwitchPage: (pageId) => {
           if (profileId === this.library.activeId)
             this.server.broadcast({ type: 'pageChange', pageId })

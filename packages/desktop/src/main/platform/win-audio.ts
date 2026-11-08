@@ -29,6 +29,7 @@ public static class TesselAudio {
     return (IAudioEndpointVolume)o;
   }
   public static void SetVolume(float v) { Marshal.ThrowExceptionForHR(Endpoint().SetMasterVolumeLevelScalar(v, Guid.Empty)); }
+  public static float GetVolume() { float v; Marshal.ThrowExceptionForHR(Endpoint().GetMasterVolumeLevelScalar(out v)); return v; }
   public static bool GetMute() { bool m; Marshal.ThrowExceptionForHR(Endpoint().GetMute(out m)); return m; }
   public static void SetMute(bool m) { Marshal.ThrowExceptionForHR(Endpoint().SetMute(m, Guid.Empty)); }
 }
@@ -40,3 +41,6 @@ export const volumeScript = (level: number) =>
 
 export const muteScript = (on: boolean | 'toggle') =>
   `${AUDIO_TYPE}[TesselAudio]::SetMute(${on === 'toggle' ? '-not [TesselAudio]::GetMute()' : on ? '$true' : '$false'})`
+
+/** Prints "42,False". */
+export const readVolumeScript = `${AUDIO_TYPE}'{0},{1}' -f [math]::Round([TesselAudio]::GetVolume() * 100), [TesselAudio]::GetMute()`

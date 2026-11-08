@@ -483,6 +483,41 @@ describe('Hub settings', () => {
 })
 
 describe('Hub phone settings and remembered looks', () => {
+  it('moves a slider from a block in its own range, but not right after a drag; hold runs On long press', async () => {
+    const { hub, platform } = await makeHub()
+    const profile = structuredClone(hub.getProfile('default')!)
+    const tile = profile.pages[0]!.tiles.find((t) => t.id === 'lock')!
+    tile.kind = 'slider'
+    tile.graph = {
+      nodes: [
+        {
+          id: 's',
+          type: 'trigger.slide',
+          params: { min: -60, max: 12, step: 0.5 },
+          position: { x: 0, y: 0 },
+        },
+        { id: 'h', type: 'trigger.longPress', params: {}, position: { x: 0, y: 0 } },
+        { id: 'l', type: 'action.lockScreen', params: {}, position: { x: 0, y: 0 } },
+      ],
+      edges: [{ id: 'e', from: { nodeId: 'h', port: 'out' }, to: { nodeId: 'l', port: 'in' } }],
+    }
+    await hub.saveProfile(profile)
+    const sent: Array<{ tileId?: string; value?: number }> = []
+    const server = (hub as unknown as { server: { broadcast: (m: unknown) => void } }).server
+    server.broadcast = (m) => void sent.push(m as { tileId?: string; value?: number })
+
+    hub.setSliderValue('default', 'lock', 0)
+    expect(sent.filter((m) => m.tileId === 'lock').at(-1)?.value).toBeCloseTo(83.3, 1)
+    expect(hub.getProfile('default')!.tileState['lock']?.['value']).toBe(0)
+
+    await hub.slide('lock', 20)
+    hub.setSliderValue('default', 'lock', 12)
+    expect(sent.filter((m) => m.tileId === 'lock').at(-1)?.value).toBe(20)
+
+    await hub.press({ deviceId: 'd', tileId: 'lock', phase: 'hold' })
+    expect(platform.lockScreen).toHaveBeenCalledTimes(1)
+  })
+
   it('lights Open app tiles while their app runs', async () => {
     const { hub } = await makeHub()
     const profile = structuredClone(hub.getProfile('default')!)

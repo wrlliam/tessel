@@ -44,7 +44,7 @@ export interface ConnectedPhone {
 export interface PressEvent {
   deviceId: string
   tileId: string
-  phase: 'down' | 'up'
+  phase: 'down' | 'up' | 'hold'
 }
 
 export interface TesselServerOptions {

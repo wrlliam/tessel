@@ -37,7 +37,7 @@ describe('client messages', () => {
   })
 
   it('rejects a bad press phase', () => {
-    const r = parseClientMessage(JSON.stringify({ type: 'press', tileId: 'a', phase: 'hold' }))
+    const r = parseClientMessage(JSON.stringify({ type: 'press', tileId: 'a', phase: 'tap' }))
     expect(r.ok).toBe(false)
   })
 })

@@ -66,6 +66,7 @@ export interface EngineOptions {
     set(tileId: string, key: string, value: unknown): void
   }
   onSwitchPage?: (pageId: string) => void
+  onSetSlider?: (tileId: string, value: number) => void
   /** Looks up another tile in the same profile, for Run another tile. */
   findTile?: (tileId: string) => RunnableTile | undefined
   now?: () => Date
@@ -348,6 +349,8 @@ class Run {
           set: (key, value) => this.engine.opts.tileState?.set(this.tile.id, key, value),
         },
         switchPage: (pageId) => this.engine.opts.onSwitchPage?.(pageId),
+        setSlider: (value, opts) =>
+          this.engine.opts.onSetSlider?.(opts?.tileId || this.tile.id, value),
         runTile: (tileId) => this.runOther(tileId),
         extendTimeout: (ms) => this.extendTimeout(ms),
         refreshParams: async () =>
