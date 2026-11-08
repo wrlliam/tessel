@@ -46,13 +46,14 @@ JSON text frames, max 4 KB from the phone, max 40 messages per second (more clos
 
 ### Desktop → phone
 
-| Message      | Fields                                                                    | Notes                                                                 |
-| ------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `profile`    | `profile: PhoneProfile`                                                   | Pages and tiles without graphs. Re-sent whenever the profile changes. |
-| `tileState`  | `tileId`, optional `label`, `colour`, `icon`                              | Live appearance override.                                             |
-| `pageChange` | `pageId: string`                                                          | Desktop asks the phone to show a page.                                |
-| `pong`       | `t: number`                                                               |                                                                       |
-| `error`      | `code: 'unauthorized' \| 'protocol-mismatch' \| 'bad-message'`, `message` | Human-readable message.                                               |
+| Message         | Fields                                                                    | Notes                                                                 |
+| --------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `profile`       | `profile: PhoneProfile`                                                   | Pages and tiles without graphs. Re-sent whenever the profile changes. |
+| `phoneSettings` | `settings: PhoneSettings`                                                 | How the phone looks and behaves. Sent on connect and when changed.    |
+| `tileState`     | `tileId`, optional `label`, `colour`, `icon`                              | Live appearance override.                                             |
+| `pageChange`    | `pageId: string`                                                          | Desktop asks the phone to show a page.                                |
+| `pong`          | `t: number`                                                               |                                                                       |
+| `error`         | `code: 'unauthorized' \| 'protocol-mismatch' \| 'bad-message'`, `message` | Human-readable message.                                               |
 
 ### Close codes
 
@@ -67,6 +68,25 @@ JSON text frames, max 4 KB from the phone, max 40 messages per second (more clos
 ### Liveness
 
 The desktop sends WebSocket pings every 15 s and drops sockets that miss one. The phone sends `ping` every 10 s and reconnects if no `pong` arrives within 4 s, which catches sockets that died while the phone slept.
+
+## Phone settings
+
+`PhoneSettings` (all fields have defaults, so older desktops can omit them):
+
+| Field       | Values                             | Default   |
+| ----------- | ---------------------------------- | --------- |
+| `theme`     | `system`, `dark`, `light`          | `system`  |
+| `keyStyle`  | `tinted`, `solid`                  | `tinted`  |
+| `labels`    | boolean                            | `true`    |
+| `labelSize` | `small`, `regular`, `large`        | `regular` |
+| `spacing`   | `compact`, `regular`, `roomy`      | `regular` |
+| `haptics`   | boolean                            | `true`    |
+| `keepAwake` | boolean                            | `true`    |
+| `dimLevel`  | integer 20–90 (overlay opacity, %) | `60`      |
+| `landscape` | `fill`, `fit`, `rotate`            | `fill`    |
+| `header`    | boolean                            | `true`    |
+
+The phone caches the last settings and applies them before it connects.
 
 ## Pages and folders
 

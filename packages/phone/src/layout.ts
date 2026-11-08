@@ -5,9 +5,41 @@ export interface GridFit {
   gap: number
 }
 
-/** Largest square tile size that fits `cols` x `rows` into the given box. */
-export function fitGrid(width: number, height: number, cols: number, rows: number): GridFit {
-  const gap = Math.round(Math.min(width, height) * 0.03)
+export interface Cells {
+  /** Cell width and height; equal unless the grid is stretched to fill. */
+  width: number
+  height: number
+  gap: number
+}
+
+/** Cell size for a grid: square keys that fit, or keys stretched to fill the whole box. */
+export function cellsFor(
+  width: number,
+  height: number,
+  cols: number,
+  rows: number,
+  gap: number,
+  fill: boolean,
+): Cells {
+  if (!fill) {
+    const { size } = fitGrid(width, height, cols, rows, gap)
+    return { width: size, height: size, gap }
+  }
+  const w = Math.floor((width - gap * (cols - 1)) / cols)
+  const h = Math.floor((height - gap * (rows - 1)) / rows)
+  return { width: Math.max(w, 0), height: Math.max(h, 0), gap }
+}
+
+export const GAP = { compact: 8, regular: 12, roomy: 16 } as const
+
+/** Largest square key size that fits `cols` x `rows` into the given box. */
+export function fitGrid(
+  width: number,
+  height: number,
+  cols: number,
+  rows: number,
+  gap: number = GAP.regular,
+): GridFit {
   const size = Math.floor(
     Math.min((width - gap * (cols - 1)) / cols, (height - gap * (rows - 1)) / rows),
   )
@@ -27,14 +59,4 @@ export function orient(page: PhonePage, landscape: boolean): PhonePage {
       span: { w: t.span.h, h: t.span.w },
     })),
   }
-}
-
-/** Ink or Paper text, whichever reads better on the tile colour. */
-export function textOn(hex: string): string {
-  const [r, g, b] = [1, 3, 5].map((i) => {
-    const c = parseInt(hex.slice(i, i + 2), 16) / 255
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-  }) as [number, number, number]
-  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
-  return luminance > 0.25 ? '#0E1116' : '#F4F6F8'
 }

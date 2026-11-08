@@ -3,6 +3,7 @@ import {
   createRegistry,
   describeBlock,
   Graph,
+  PhoneSettings,
   Profile,
   resolveAppearance,
   sameAppearance,
@@ -62,6 +63,20 @@ export interface HubOptions {
 }
 
 const tilesOf = (p: Profile) => p.pages.flatMap((pg) => pg.tiles)
+
+/** Tile state key holding a look set with "Keep it after Tessel restarts". */
+const LOOK_KEY = 'appearance'
+
+function savedLook(profile: Profile, tileId: string): Partial<Appearance> | undefined {
+  const raw = profile.tileState[tileId]?.[LOOK_KEY]
+  if (typeof raw !== 'string') return undefined
+  try {
+    const parsed = JSON.parse(raw) as Partial<Appearance>
+    return typeof parsed === 'object' && parsed ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
 const hasTrigger = (t: Tile, type: string) => t.graph.nodes.some((n) => n.type === type)
 const baseLook = (t: Tile): Appearance => ({ label: t.label, colour: t.colour, icon: t.icon ?? '' })
 
@@ -151,7 +166,10 @@ export class Hub {
         this.phones = phones
         this.emit()
       },
-      welcomeMessages: () => [...this.live].map(([tileId, look]) => tileStateMessage(tileId, look)),
+      welcomeMessages: () => [
+        { type: 'phoneSettings', settings: this.settings.phone },
+        ...[...this.live].map(([tileId, look]) => tileStateMessage(tileId, look)),
+      ],
     })
   }
 
@@ -187,6 +205,7 @@ export class Hub {
         logLevel: this.settings.logLevel,
       },
       plugins: this.plugins?.list() ?? [],
+      phoneSettings: this.settings.phone,
       blocksVersion: this.blocksVersion,
     }
     if (this.serverError) state.serverError = this.serverError
@@ -328,6 +347,18 @@ export class Hub {
     return this.settings.shell
   }
 
+  /** Changes how phones look and behave, and tells connected phones straight away. */
+  async updatePhoneSettings(patch: unknown): Promise<SaveResult> {
+    const parsed = PhoneSettings.safeParse({ ...this.settings.phone, ...(patch as object) })
+    if (!parsed.success)
+      return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid setting' }
+    this.settings = { ...this.settings, phone: parsed.data }
+    await this.store.save(this.settings)
+    this.server.broadcast({ type: 'phoneSettings', settings: parsed.data })
+    this.emit()
+    return { ok: true }
+  }
+
   /** Applies a settings change; a new port restarts sharing. */
   async updateSettings(patch: unknown): Promise<SaveResult> {
     const { port, shell, theme, logLevel } = patch as Partial<Settings>
@@ -448,7 +479,8 @@ export class Hub {
         replace: (p) => this.library.put(p),
         persist: (p) => this.library.save(p),
         onEvent: (e) => this.handleEngineEvent(profileId, e),
-        onAppearance: (tileId, change) => this.changeAppearance(profileId, tileId, change),
+        onAppearance: (tileId, change, remember) =>
+          this.changeAppearance(profileId, tileId, change, remember),
         onStateChanged: () => {
           if (profileId === this.library.activeId) this.pushAppearances()
         },
@@ -467,6 +499,11 @@ export class Hub {
   /** Points phones at the active profile with fresh run-time looks. */
   private activate() {
     this.overrides.clear()
+    const active = this.library.active()
+    for (const tile of tilesOf(active)) {
+      const look = savedLook(active, tile.id)
+      if (look) this.overrides.set(tile.id, look)
+    }
     this.live.clear()
     this.server.setProfile(this.library.active())
     this.pushAppearances()
@@ -530,7 +567,20 @@ export class Hub {
     this.subscribePlugins()
   }
 
-  private changeAppearance(profileId: string, tileId: string, change: AppearanceChange) {
+  private changeAppearance(
+    profileId: string,
+    tileId: string,
+    change: AppearanceChange,
+    remember: boolean,
+  ) {
+    const profile = this.library.get(profileId)
+    if (!profile || !tilesOf(profile).some((t) => t.id === tileId)) return
+    const saved = savedLook(profile, tileId)
+    // A remembered look is kept in the tile's saved state; reset always clears it.
+    if (remember || change === 'reset') {
+      const look = applyChange(saved, change)
+      this.runtime(profileId).setTileState(tileId, LOOK_KEY, look ? JSON.stringify(look) : null)
+    }
     if (profileId !== this.library.activeId) return
     const next = applyChange(this.overrides.get(tileId), change)
     if (next) this.overrides.set(tileId, next)

@@ -1,3 +1,4 @@
+import { PhoneSettings } from '@tessel/core'
 import { createJsonStore } from '@tessel/server'
 import { z } from 'zod'
 
@@ -9,6 +10,8 @@ export const Settings = z.object({
   theme: z.enum(['system', 'dark', 'light']).default('system'),
   /** Lowest level kept in the activity log. */
   logLevel: z.enum(['info', 'warn', 'error']).default('info'),
+  /** Sent to every connected phone. */
+  phone: PhoneSettings.default(PhoneSettings.parse({})),
 })
 export type Settings = z.infer<typeof Settings>
 

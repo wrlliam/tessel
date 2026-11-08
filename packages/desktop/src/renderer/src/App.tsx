@@ -74,6 +74,7 @@ export function App() {
           liveAppearance={state.liveAppearance}
           theme={state.settings.theme}
           blocksVersion={state.blocksVersion}
+          keyStyle={state.phoneSettings.keyStyle}
         />
       </Tabs.Content>
       <Tabs.Content value="phones" className="flex min-h-0 flex-1 flex-col">

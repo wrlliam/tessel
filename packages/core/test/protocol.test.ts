@@ -58,3 +58,19 @@ describe('toPhoneProfile', () => {
     expect(tile).not.toHaveProperty('appearanceBindings')
   })
 })
+
+describe('phone settings', () => {
+  it('fills defaults and round-trips as a message', async () => {
+    const { defaultPhoneSettings, parseServerMessage } = await import('../src/index.ts')
+    const settings = defaultPhoneSettings()
+    expect(settings).toMatchObject({
+      theme: 'system',
+      keyStyle: 'tinted',
+      spacing: 'regular',
+      dimLevel: 60,
+      landscape: 'fill',
+    })
+    const msg = { type: 'phoneSettings', settings: { ...settings, theme: 'dark' } }
+    expect(parseServerMessage(JSON.stringify(msg))).toEqual({ ok: true, message: msg })
+  })
+})

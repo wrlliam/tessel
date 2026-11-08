@@ -59,7 +59,7 @@ export interface EngineOptions {
   platform: Platform
   globals: VariableStore
   onEvent?: (event: EngineEvent) => void
-  onAppearance?: (tileId: string, change: AppearanceChange) => void
+  onAppearance?: (tileId: string, change: AppearanceChange, remember: boolean) => void
   /** Per-tile values that last between runs (Toggle). */
   tileState?: {
     get(tileId: string, key: string): unknown
@@ -320,7 +320,12 @@ class Run {
         locals: this.locals,
         signal,
         now: () => this.engine.opts.now?.() ?? new Date(),
-        setAppearance: (change) => this.engine.opts.onAppearance?.(this.tile.id, change),
+        setAppearance: (change, opts) =>
+          this.engine.opts.onAppearance?.(
+            opts?.tileId || this.tile.id,
+            change,
+            opts?.remember ?? false,
+          ),
         tileState: {
           get: (key) => this.engine.opts.tileState?.get(this.tile.id, key),
           set: (key, value) => this.engine.opts.tileState?.set(this.tile.id, key, value),

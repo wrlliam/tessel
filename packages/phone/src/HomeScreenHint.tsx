@@ -1,3 +1,4 @@
+import { Share } from 'lucide-react'
 import { useState } from 'react'
 import { inNativeApp, isIosSafari, isStandalone } from './device.ts'
 
@@ -17,14 +18,14 @@ export function HomeScreenHint() {
   )
   if (hidden) return null
   return (
-    <div className="mx-3 mb-2 flex items-center gap-3 rounded-xl bg-surface px-4 py-3 text-sm">
+    <div className="mx-4 mb-3 flex items-center gap-3 rounded-2xl bg-surface py-2 pr-2 pl-4 text-sm shadow-[inset_0_0_0_1px_var(--key-line)]">
+      <Share className="size-[18px] shrink-0 text-muted" aria-hidden />
       <p className="flex-1 text-muted">
-        For full screen, tap Share, then <span className="text-text">Add to Home Screen</span>.
-        You'll pair once more there.
+        Full screen: Share, then <span className="text-text">Add to Home Screen</span>
       </p>
       <button
         type="button"
-        className="min-h-11 px-2 text-glaze"
+        className="min-h-11 px-3 text-glaze"
         onClick={() => {
           try {
             localStorage.setItem(KEY, '1')

@@ -1,7 +1,11 @@
 import { useState } from 'react'
+import { cachedSettings } from './connection.ts'
 import { clearToken, loadToken, saveToken } from './device.ts'
+import { applyTheme } from './theme.ts'
 import { PairScreen } from './PairScreen.tsx'
 import { Surface } from './Surface.tsx'
+
+applyTheme(cachedSettings().theme)
 
 export function App() {
   const [token, setToken] = useState(loadToken)

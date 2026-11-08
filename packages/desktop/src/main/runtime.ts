@@ -20,7 +20,7 @@ export interface RuntimeHost {
   replace(profile: Profile): void
   persist(profile: Profile): Promise<void>
   onEvent(event: EngineEvent): void
-  onAppearance(tileId: string, change: AppearanceChange): void
+  onAppearance(tileId: string, change: AppearanceChange, remember: boolean): void
   /** Variables or tile state changed, so live appearance may need updating. */
   onStateChanged(): void
   onSwitchPage(pageId: string): void
@@ -46,7 +46,7 @@ export class ProfileRuntime {
         all: () => ({ ...host.get().variables }),
       },
       onEvent: (e) => host.onEvent(e),
-      onAppearance: (tileId, change) => host.onAppearance(tileId, change),
+      onAppearance: (tileId, change, remember) => host.onAppearance(tileId, change, remember),
       tileState: {
         get: (tileId, key) => host.get().tileState[tileId]?.[key],
         set: (tileId, key, value) =>

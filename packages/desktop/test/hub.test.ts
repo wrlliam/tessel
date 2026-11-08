@@ -480,3 +480,64 @@ describe('Hub settings', () => {
     expect(hub.state().urls[0]).toContain(`:${port}/`)
   })
 })
+
+describe('Hub phone settings and remembered looks', () => {
+  it('saves phone settings and rejects bad values', async () => {
+    const { hub, dataDir } = await makeHub()
+    expect(
+      await hub.updatePhoneSettings({ theme: 'light', landscape: 'rotate', dimLevel: 80 }),
+    ).toEqual({ ok: true })
+    expect(hub.state().phoneSettings).toMatchObject({
+      theme: 'light',
+      landscape: 'rotate',
+      dimLevel: 80,
+      keyStyle: 'tinted',
+    })
+    expect((await hub.updatePhoneSettings({ dimLevel: 5 })).ok).toBe(false)
+    const saved = JSON.parse(await readFile(join(dataDir, 'settings.json'), 'utf8'))
+    expect(saved.data.phone.theme).toBe('light')
+  })
+
+  it('remembers a look set on another tile across restarts', async () => {
+    const { hub, dataDir } = await makeHub()
+    const profile = structuredClone(hub.getProfile('default')!)
+    const tile = profile.pages[0]!.tiles.find((t) => t.id === 'lock')!
+    tile.graph = {
+      nodes: [
+        { id: 'p', type: 'trigger.press', params: {}, position: { x: 0, y: 0 } },
+        {
+          id: 's',
+          type: 'action.setTileAppearance',
+          params: {
+            tile: 'email',
+            label: 'Sent',
+            colour: '#22D3C5',
+            icon: '',
+            reset: false,
+            remember: true,
+          },
+          position: { x: 0, y: 0 },
+        },
+      ],
+      edges: [{ id: 'e', from: { nodeId: 'p', port: 'out' }, to: { nodeId: 's', port: 'in' } }],
+    }
+    await hub.saveProfile(profile)
+    await hub.press({ deviceId: 'd', tileId: 'lock', phase: 'down' })
+    expect(hub.state().liveAppearance['email']).toMatchObject({ label: 'Sent', colour: '#22D3C5' })
+    await hub.dispose()
+
+    const again = new Hub({
+      dataDir,
+      platform: mockPlatform(),
+      phoneDir: dataDir,
+      addresses: () => [],
+      mdns: false,
+    })
+    hubs.push(again)
+    await again.init()
+    expect(again.state().liveAppearance['email']).toMatchObject({
+      label: 'Sent',
+      colour: '#22D3C5',
+    })
+  })
+})

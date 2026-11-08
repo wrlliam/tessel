@@ -1,5 +1,7 @@
 import {
   CloseCode,
+  defaultPhoneSettings,
+  PhoneSettings,
   PROTOCOL_VERSION,
   parseServerMessage,
   type ClientMessage,
@@ -25,6 +27,20 @@ export interface ConnectionState {
   overrides: Record<string, TileOverride>
   /** Page the desktop asked to show, with a counter so asking twice still counts. */
   requestedPage?: { pageId: string; seq: number }
+  settings: PhoneSettings
+}
+
+const SETTINGS_KEY = 'tessel.phoneSettings'
+
+/** Last settings the desktop sent, so the theme is right before the phone reconnects. */
+export function cachedSettings(): PhoneSettings {
+  try {
+    const parsed = PhoneSettings.safeParse(JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? 'null'))
+    if (parsed.success) return parsed.data
+  } catch {
+    // Storage blocked or unreadable; use defaults.
+  }
+  return defaultPhoneSettings()
 }
 
 const PING_EVERY_MS = 10_000
@@ -48,7 +64,11 @@ export class Connection {
   private pongTimer?: ReturnType<typeof setTimeout>
   private stopped = false
   private listeners = new Set<() => void>()
-  state: ConnectionState = { status: { kind: 'connecting', attempt: 0 }, overrides: {} }
+  state: ConnectionState = {
+    status: { kind: 'connecting', attempt: 0 },
+    overrides: {},
+    settings: cachedSettings(),
+  }
 
   constructor(
     private token: string,
@@ -139,6 +159,14 @@ export class Connection {
           this.stopped = true
           this.set({ status: { kind: 'mismatch', message: msg.message } })
         }
+        return
+      case 'phoneSettings':
+        try {
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(msg.settings))
+        } catch {
+          // Storage blocked; settings still apply for this visit.
+        }
+        this.set({ settings: msg.settings })
         return
       case 'pageChange':
         this.set({

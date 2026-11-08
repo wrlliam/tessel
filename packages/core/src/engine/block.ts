@@ -31,8 +31,11 @@ export interface RunContext {
   locals: Map<string, unknown>
   signal: AbortSignal
   now(): Date
-  /** Changes how this tile looks on the phone until the next change or reset. */
-  setAppearance(change: AppearanceChange): void
+  /**
+   * Changes how a tile looks on the phone, this tile unless another is named. With `remember`
+   * the look is saved with the profile and survives restarts.
+   */
+  setAppearance(change: AppearanceChange, opts?: { tileId?: string; remember?: boolean }): void
   /** Values this tile keeps between runs (Toggle), saved with the profile. */
   tileState: { get(key: string): unknown; set(key: string, value: unknown): void }
   /** Shows a page or folder on connected phones. */

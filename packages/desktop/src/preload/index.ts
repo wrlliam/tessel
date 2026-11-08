@@ -36,6 +36,7 @@ const api: TesselApi = {
   restartPlugin: (id) => ipcRenderer.invoke(Channel.restartPlugin, id),
   removePlugin: (id) => ipcRenderer.invoke(Channel.removePlugin, id),
   addPlugin: (kind) => ipcRenderer.invoke(Channel.addPlugin, kind),
+  updatePhoneSettings: (patch) => ipcRenderer.invoke(Channel.updatePhoneSettings, patch),
   updatePluginSettings: (id, values) =>
     ipcRenderer.invoke(Channel.updatePluginSettings, id, values),
   onEngineEvent: (listener) => {

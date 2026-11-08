@@ -13,7 +13,7 @@ import { cn } from '../lib/cn.ts'
 import { Popover, PopoverAnchor, PopoverContent } from '../ui/popover.tsx'
 import { fits, freeCells, type Cell } from './layout.ts'
 import { useEditor } from './store.ts'
-import { TileFace, textOn } from './TileFace.tsx'
+import { KeyFace, keyVars, type KeyStyle } from '@tessel/brand/key'
 
 const CELL = 64
 const GAP = 8
@@ -30,11 +30,12 @@ const place = (col: number, row: number, w = 1, h = 1) => ({
 interface Props {
   page: Page
   live: Record<string, Appearance>
+  keyStyle: KeyStyle
   onTemplates: (cell: Cell) => void
 }
 
 /** Phone-shaped preview of a page. Drag tiles to move them; drag the corner of the selected tile to resize. */
-export function TileGrid({ page, live, onTemplates }: Props) {
+export function TileGrid({ page, live, keyStyle, onTemplates }: Props) {
   const selected = useEditor((s) => s.selectedTileId)
   const running = useEditor((s) => s.runningTiles)
   const { moveTile, resizeTile, addTile, addFolder } = useEditor.getState()
@@ -136,6 +137,7 @@ export function TileGrid({ page, live, onTemplates }: Props) {
               look={live[t.id] ?? { label: t.label, colour: t.colour, icon: t.icon ?? '' }}
               selected={t.id === selected}
               running={running[t.id] === true}
+              keyStyle={keyStyle}
               onResize={(span) => resizeTile(t.id, span)}
             />
           ))}
@@ -198,10 +200,11 @@ interface TileProps {
   look: Appearance
   selected: boolean
   running: boolean
+  keyStyle: KeyStyle
   onResize: (span: { w: number; h: number }) => void
 }
 
-function GridTile({ page, tile, look, selected, running, onResize }: TileProps) {
+function GridTile({ page, tile, look, selected, running, keyStyle, onResize }: TileProps) {
   const { selectTile } = useEditor.getState()
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: tile.id })
   const [resize, setResize] = useState<{
@@ -252,16 +255,14 @@ function GridTile({ page, tile, look, selected, running, onResize }: TileProps) 
         aria-pressed={selected}
         aria-label={`${tile.kind === 'folder' ? 'Folder' : 'Tile'} ${look.label || 'Untitled'}`}
         onClick={() => selectTile(tile.id)}
-        className={cn(
-          'flex size-full flex-col justify-between overflow-hidden p-2 text-left text-[11px] leading-tight font-semibold',
-          selected && 'ring-2 ring-glaze ring-offset-2 ring-offset-bg',
-          running && 'ring-2 ring-ember',
-        )}
-        style={{ borderRadius: 'inherit', background: look.colour, color: textOn(look.colour) }}
+        data-pressed={running}
+        className={cn('key size-full', selected && 'outline-2 outline-offset-2 outline-glaze')}
+        style={{ borderRadius: 'inherit', ...keyVars(look.colour, keyStyle) }}
       >
-        <TileFace
+        <KeyFace
           look={look}
           size={Math.min(shown.w, shown.h) * CELL}
+          labelSize="small"
           folder={tile.kind === 'folder'}
         />
       </button>

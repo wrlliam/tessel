@@ -1,6 +1,7 @@
 import type { PhonePage } from '@tessel/core'
 import { describe, expect, it } from 'vitest'
-import { fitGrid, orient, textOn } from '../src/layout.ts'
+import { textOn } from '@tessel/brand/key'
+import { fitGrid, GAP, orient } from '../src/layout.ts'
 
 describe('fitGrid', () => {
   it('fits a 3x5 grid on a portrait phone, limited by width', () => {
@@ -8,6 +9,13 @@ describe('fitGrid', () => {
     expect(3 * size + 2 * gap).toBeLessThanOrEqual(390)
     expect(5 * size + 4 * gap).toBeLessThanOrEqual(760)
     expect(size).toBeGreaterThanOrEqual(64)
+  })
+
+  it('uses the spacing setting for gaps', () => {
+    expect(fitGrid(390, 760, 3, 5, GAP.roomy).gap).toBe(16)
+    expect(fitGrid(390, 760, 3, 5, GAP.compact).size).toBeGreaterThan(
+      fitGrid(390, 760, 3, 5, GAP.roomy).size,
+    )
   })
 
   it('never returns a negative size', () => {

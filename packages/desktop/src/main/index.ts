@@ -146,6 +146,11 @@ async function start() {
       ? hub.plugin().updateSettings(id, values as Record<string, unknown>)
       : undefined,
   )
+  ipcMain.handle(Channel.updatePhoneSettings, (_e, patch: unknown) =>
+    patch && typeof patch === 'object'
+      ? hub.updatePhoneSettings(patch)
+      : { ok: false, error: 'Nothing to change' },
+  )
   ipcMain.handle(Channel.validateGraph, (_e, graph: unknown) => hub.checkGraph(graph))
   ipcMain.handle(Channel.testRun, (_e, profileId: unknown, tileId: unknown) => {
     if (str(profileId) && str(tileId)) return hub.testRun(profileId, tileId)

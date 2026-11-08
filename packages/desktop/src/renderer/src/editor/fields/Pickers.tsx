@@ -1,19 +1,19 @@
 import { Select } from '../../ui/input.tsx'
 import { useEditor } from '../store.ts'
 
-export function PagePicker({
-  id,
-  value,
-  onChange,
-}: {
+interface PickerProps {
   id: string
   value: string
   onChange: (v: string) => void
-}) {
+  /** Label for the empty choice, e.g. "This tile". */
+  placeholder?: string | undefined
+}
+
+export function PagePicker({ id, value, onChange, placeholder }: PickerProps) {
   const pages = useEditor((s) => s.profile?.pages ?? [])
   return (
     <Select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">Choose…</option>
+      <option value="">{placeholder ?? 'Choose…'}</option>
       {pages.map((p) => (
         <option key={p.id} value={p.id}>
           {p.kind === 'folder' ? `Folder: ${p.name}` : p.name}
@@ -23,15 +23,7 @@ export function PagePicker({
   )
 }
 
-export function TilePicker({
-  id,
-  value,
-  onChange,
-}: {
-  id: string
-  value: string
-  onChange: (v: string) => void
-}) {
+export function TilePicker({ id, value, onChange, placeholder }: PickerProps) {
   const profile = useEditor((s) => s.profile)
   const current = useEditor((s) => s.selectedTileId)
   const options = (profile?.pages ?? []).flatMap((p) =>
@@ -41,7 +33,7 @@ export function TilePicker({
   )
   return (
     <Select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">Choose…</option>
+      <option value="">{placeholder ?? 'Choose…'}</option>
       {options.map((o) => (
         <option key={o.id} value={o.id}>
           {o.label}

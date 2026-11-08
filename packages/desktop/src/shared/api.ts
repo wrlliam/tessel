@@ -5,6 +5,7 @@ import type {
   Graph,
   GraphIssue,
   JsonValue,
+  PhoneSettings,
   Profile,
 } from '@tessel/core'
 import type { PairingCode } from '@tessel/server'
@@ -50,6 +51,7 @@ export interface DesktopState {
   liveAppearance: Record<string, Appearance>
   settings: AppSettings
   plugins: PluginInfo[]
+  phoneSettings: PhoneSettings
   /** Changes when plugin blocks are added or removed. */
   blocksVersion: number
 }
@@ -102,6 +104,8 @@ export interface TesselApi {
   /** Opens a picker. kind 'dev' uses the folder in place and reloads it when files change. */
   addPlugin(kind: 'folder' | 'zip' | 'dev'): Promise<SaveResult | { ok: false; cancelled: true }>
   updatePluginSettings(id: string, values: Record<string, unknown>): Promise<void>
+  /** Changes how connected phones look and behave. */
+  updatePhoneSettings(patch: Partial<PhoneSettings>): Promise<SaveResult>
 }
 
 export type SaveResult = { ok: true } | { ok: false; error: string }
@@ -134,4 +138,5 @@ export const Channel = {
   removePlugin: 'plugins:remove',
   addPlugin: 'plugins:add',
   updatePluginSettings: 'plugins:settings',
+  updatePhoneSettings: 'phone:settings',
 } as const

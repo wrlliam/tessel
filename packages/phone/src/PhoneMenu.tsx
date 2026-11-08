@@ -1,5 +1,7 @@
+import { LogOut, Monitor, MoonStar } from 'lucide-react'
 import { useState } from 'react'
 import { chooseAnotherComputer, inNativeApp } from './device.ts'
+import { Sheet, SheetRow } from './Sheet.tsx'
 
 const DIM_KEY = 'tessel.dim'
 
@@ -12,65 +14,48 @@ export function loadDim() {
 }
 
 interface Props {
+  open: boolean
+  onClose: () => void
   dim: boolean
   onDim: (on: boolean) => void
   onForget: () => void
 }
 
-export function PhoneMenu({ dim, onDim, onForget }: Props) {
-  const [open, setOpen] = useState(false)
+export function PhoneMenu({ open, onClose, dim, onDim, onForget }: Props) {
   const [confirm, setConfirm] = useState(false)
+  const close = () => {
+    setConfirm(false)
+    onClose()
+  }
   return (
-    <div className="relative">
-      <button
-        type="button"
-        aria-label="Menu"
-        aria-expanded={open}
+    <Sheet open={open} onClose={close} label="Menu">
+      <SheetRow
+        icon={<MoonStar />}
+        label="Dim screen"
+        detail={dim ? 'On' : 'Off'}
         onClick={() => {
-          setOpen(!open)
-          setConfirm(false)
+          try {
+            localStorage.setItem(DIM_KEY, dim ? '0' : '1')
+          } catch {
+            // Storage blocked: keep it for this session only.
+          }
+          onDim(!dim)
         }}
-        className="flex size-11 items-center justify-center rounded-full text-xl text-muted"
-      >
-        ⋯
-      </button>
-      {open && (
-        <div className="absolute right-0 bottom-12 z-10 w-56 space-y-1 rounded-2xl border border-line bg-surface p-2 text-sm shadow-xl">
-          <button
-            type="button"
-            role="switch"
-            aria-checked={dim}
-            className="flex min-h-11 w-full items-center justify-between rounded-xl px-3 text-left"
-            onClick={() => {
-              const next = !dim
-              try {
-                localStorage.setItem(DIM_KEY, next ? '1' : '0')
-              } catch {
-                // Storage blocked: keep it for this session only.
-              }
-              onDim(next)
-            }}
-          >
-            Dim screen <span className="text-muted">{dim ? 'On' : 'Off'}</span>
-          </button>
-          {inNativeApp() && (
-            <button
-              type="button"
-              className="flex min-h-11 w-full items-center rounded-xl px-3 text-left"
-              onClick={chooseAnotherComputer}
-            >
-              Choose another computer
-            </button>
-          )}
-          <button
-            type="button"
-            className="flex min-h-11 w-full items-center rounded-xl px-3 text-left text-signal"
-            onClick={() => (confirm ? onForget() : setConfirm(true))}
-          >
-            {confirm ? 'Tap again to forget' : 'Forget this computer'}
-          </button>
-        </div>
+      />
+      {inNativeApp() && (
+        <SheetRow
+          icon={<Monitor />}
+          label="Choose another computer"
+          onClick={chooseAnotherComputer}
+        />
       )}
-    </div>
+      <SheetRow
+        icon={<LogOut />}
+        label={confirm ? 'Tap again to forget this computer' : 'Forget this computer'}
+        danger
+        onClick={() => (confirm ? onForget() : setConfirm(true))}
+      />
+      <p className="px-3 pt-3 font-mono text-xs text-muted">Connected to {location.host}</p>
+    </Sheet>
   )
 }

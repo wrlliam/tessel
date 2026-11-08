@@ -66,6 +66,28 @@ export function toPhoneProfile(profile: Profile): PhoneProfile {
   }
 }
 
+/** How phones look and behave. Set on the desktop, applied by every connected phone. */
+export const PhoneSettings = z.object({
+  theme: z.enum(['system', 'dark', 'light']).default('system'),
+  /** 'tinted' shows a tile's colour on a dark key; 'solid' fills the key with it. */
+  keyStyle: z.enum(['tinted', 'solid']).default('tinted'),
+  labels: z.boolean().default(true),
+  labelSize: z.enum(['small', 'regular', 'large']).default('regular'),
+  spacing: z.enum(['compact', 'regular', 'roomy']).default('regular'),
+  haptics: z.boolean().default(true),
+  keepAwake: z.boolean().default(true),
+  /** Darkness of the dim overlay when a phone turns Dim screen on, 20 to 90 percent. */
+  dimLevel: z.int().min(20).max(90).default(60),
+  /**
+   * Phone held sideways: 'fill' stretches keys to use the whole screen, 'fit' keeps them square,
+   * 'rotate' swaps rows and columns.
+   */
+  landscape: z.enum(['fill', 'fit', 'rotate']).default('fill'),
+  header: z.boolean().default(true),
+})
+export type PhoneSettings = z.infer<typeof PhoneSettings>
+export const defaultPhoneSettings = (): PhoneSettings => PhoneSettings.parse({})
+
 // Phone -> desktop
 export const HelloMessage = z.object({
   type: z.literal('hello'),
@@ -103,6 +125,10 @@ export const TileStateMessage = z.object({
   icon: z.string().optional(),
 })
 export const PongMessage = z.object({ type: z.literal('pong'), t: z.number() })
+export const PhoneSettingsMessage = z.object({
+  type: z.literal('phoneSettings'),
+  settings: PhoneSettings,
+})
 export const ErrorCode = z.enum(['unauthorized', 'protocol-mismatch', 'bad-message'])
 export type ErrorCode = z.infer<typeof ErrorCode>
 export const ErrorMessage = z.object({
@@ -117,6 +143,7 @@ export const ServerMessage = z.discriminatedUnion('type', [
   PageChangeMessage,
   PongMessage,
   ErrorMessage,
+  PhoneSettingsMessage,
 ])
 export type ServerMessage = z.infer<typeof ServerMessage>
 

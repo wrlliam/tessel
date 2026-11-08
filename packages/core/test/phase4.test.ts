@@ -120,7 +120,7 @@ describe('appearance', () => {
       edges: [wire('p.out', 's.in')],
     }
     await engine.trigger(tile(graph), press)
-    expect(onAppearance).toHaveBeenCalledWith('tile', { label: 'On', colour: '#F25C6E' })
+    expect(onAppearance).toHaveBeenCalledWith('tile', { label: 'On', colour: '#F25C6E' }, false)
   })
 })
 

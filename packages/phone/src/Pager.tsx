@@ -1,4 +1,4 @@
-import type { PhoneProfile } from '@tessel/core'
+import type { PhoneProfile, PhoneSettings } from '@tessel/core'
 import { useLayoutEffect, useRef, useState, type PointerEvent } from 'react'
 import type { TileOverride } from './connection.ts'
 import { haptic } from './device.ts'
@@ -18,6 +18,7 @@ interface Props {
   nav: Nav
   overrides: Record<string, TileOverride>
   disabled: boolean
+  settings: PhoneSettings
   onNav: (nav: Nav) => void
   onPress: (tileId: string, phase: 'down' | 'up') => void
 }
@@ -48,7 +49,7 @@ function useBoxSize() {
   return [ref, size] as const
 }
 
-export function Pager({ profile, nav, overrides, disabled, onNav, onPress }: Props) {
+export function Pager({ profile, nav, overrides, disabled, settings, onNav, onPress }: Props) {
   const [ref, box] = useBoxSize()
   const gesture = useRef<Gesture | null>(null)
   const pressedAt = useRef(0)
@@ -57,6 +58,8 @@ export function Pager({ profile, nav, overrides, disabled, onNav, onPress }: Pro
   const inFolder = nav.folders.length > 0
   const pages = swipePages(profile)
   const canSwipe = !inFolder && pages.length > 1
+  // Portrait keys sit at the bottom, where a thumb reaches; sideways they're centred.
+  const align = box.width > box.height ? 'items-center' : 'items-end'
 
   function release() {
     const wait = Math.max(0, MIN_PRESS_MS - (performance.now() - pressedAt.current))
@@ -83,7 +86,7 @@ export function Pager({ profile, nav, overrides, disabled, onNav, onPress }: Pro
       }
       pressedAt.current = performance.now()
       setPressed(data.tileId)
-      haptic()
+      if (settings.haptics) haptic()
       if (g.tile.kind === 'action') {
         g.timer = setTimeout(() => {
           if (gesture.current === g && g.tile) {
@@ -165,6 +168,8 @@ export function Pager({ profile, nav, overrides, disabled, onNav, onPress }: Pro
     return (
       page && (
         <PageGrid
+          profile={profile}
+          settings={settings}
           page={page}
           width={box.width}
           height={box.height}
@@ -184,7 +189,7 @@ export function Pager({ profile, nav, overrides, disabled, onNav, onPress }: Pro
       onContextMenu={(e) => e.preventDefault()}
     >
       {inFolder ? (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className={`absolute inset-0 flex justify-center ${align}`}>
           {grid(currentPage(profile, nav)?.id ?? '')}
         </div>
       ) : (
@@ -193,13 +198,13 @@ export function Pager({ profile, nav, overrides, disabled, onNav, onPress }: Pro
           style={{
             width: box.width * pages.length,
             transform: `translateX(${-nav.index * box.width + drag}px)`,
-            transition: drag === 0 ? 'transform 220ms ease-out' : 'none',
+            transition: drag === 0 ? 'transform 300ms var(--ease)' : 'none',
           }}
         >
           {pages.map((p) => (
             <div
               key={p.id}
-              className="flex h-full shrink-0 items-center justify-center"
+              className={`flex h-full shrink-0 justify-center ${align}`}
               style={{ width: box.width }}
               aria-hidden={p !== pages[nav.index] || undefined}
             >

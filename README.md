@@ -32,7 +32,11 @@ macOS gives a universal `.dmg`, Windows an NSIS `.exe`, Linux an `.AppImage` and
 
 ## On the phone
 
-Swipe sideways or tap the dots to change page. Folder tiles open their page; Back returns. A tap fires when you lift your finger (or after a short hold), so starting a swipe on a tile never presses it. The **⋯** menu has **Dim screen** (a dark overlay for OLED phones; tiles still work) and **Forget this computer**.
+Swipe sideways or tap the dots to change page. Folder tiles open their page; Back returns. A tap fires when you lift your finger (or after a short hold), so starting a swipe on a tile never presses it. The **⋯** menu has **Dim screen** (a dark overlay for OLED phones; tiles still work), **Choose another computer** (iPhone app) and **Forget this computer**.
+
+**Phone settings live on the desktop.** The **Phones** tab has an **On the phone** card with a live preview: theme (follow the phone, dark, light), key colour (tinted keys keep the face neutral with a coloured light; solid fills the key), labels and their size, spacing, the page name bar, vibrate on press, keep the screen on and dim strength. Changes reach connected phones at once, and phones keep the last settings for when they reconnect.
+
+**Held sideways.** **Fill** stretches the keys across the whole screen (wide keys put the icon beside the label), **Fit** keeps keys square and centred, **Rotate** swaps rows and columns.
 
 ## Connect your iPhone
 
@@ -85,9 +89,11 @@ The window has four tabs: **Editor**, **Phones** (pairing and devices), **Plugin
 - **Right:** the inspector for the selected block's settings, its wires (connect and disconnect without a mouse), and the tile: label, icon (a named icon or one emoji), colour, position, size, what a press does while it is still running, and **live appearance**.
 - **Bottom:** the run log. Click a failed run to jump to the block that failed.
 
-**Live appearance.** A tile's label, colour or icon can follow variables, e.g. label `Count: {{var.count ?? 0}}`, and the **Set tile appearance** block can change them while a tile runs (use it for status, like a mute tile turning red). The phone and the editor's grid show the live look.
+**Live appearance.** A tile's label, colour or icon can follow variables, e.g. label `Count: {{var.count ?? 0}}`, and the **Set tile appearance** block can change them while a tile runs (use it for status, like a mute tile turning red). It can change this tile or any other tile in the profile, and with **Keep it after Tessel restarts** the new look is saved; **Reset** returns a tile to its settings. The phone and the editor's grid show the live look.
 
-**Templates:** Open an app, Mute mic in Discord, Dark mode by time of day, Type my email, Counter, Play / pause, Mute sound with status, Open a website, Lock screen (on long press, so it isn't locked by accident).
+**Templates** (about 40, searchable, in groups): Meetings (Zoom, Teams, Google Meet and Discord mute, camera, share, raise hand, leave), Media and sound, Apps (Spotify, Slack, VS Code, browser tabs), System (screenshot, record screen, emoji picker, show desktop, dark mode, lock), Productivity and Examples. Mute tiles in meeting apps flip their own status, so if you also mute in the app itself they can drift until the next press.
+
+**App command** sends a known shortcut to an app, picking the right keys for your OS and optionally bringing the app to the front first: Zoom, Microsoft Teams, Google Meet, Discord, Slack, Spotify, VS Code, the browser, and system shortcuts. Commands an app doesn't have on your OS say so when pressed.
 
 **Import and export.** A profile exports as a `.tessel` file (a zip of JSON, including its variables, so check them before sharing). Importing shows which blocks the profile uses and asks before adding it as a new profile.
 
@@ -105,12 +111,12 @@ The window has four tabs: **Editor**, **Phones** (pairing and devices), **Plugin
 
 Every tile is a small graph: a trigger, then blocks joined by wires. Flow wires set the order; value wires carry data (`Get time` › `hour` into `If`).
 
-| Category | Blocks                                                                                                                                                                                                                   |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Trigger  | On press, On long press, On release, On page open, On schedule                                                                                                                                                           |
-| Action   | Open app, Open URL, Open file, Type text, Key combo, Media key, Mouse, Set clipboard, Notification, HTTP request, Run shell command, Switch page, Run another tile, Set tile appearance, Set setting, Lock screen, Sleep |
-| Logic    | If, Switch, Compare, Toggle, Delay, Repeat, Wait until                                                                                                                                                                   |
-| Data     | Get time, Get variable, Set variable, Math, Text, Random                                                                                                                                                                 |
+| Category | Blocks                                                                                                                                                                                                                                |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Trigger  | On press, On long press, On release, On page open, On schedule                                                                                                                                                                        |
+| Action   | Open app, App command, Open URL, Open file, Type text, Key combo, Media key, Mouse, Set clipboard, Notification, HTTP request, Run shell command, Switch page, Run another tile, Set tile appearance, Set setting, Lock screen, Sleep |
+| Logic    | If, Switch, Compare, Toggle, Delay, Repeat, Wait until                                                                                                                                                                                |
+| Data     | Get time, Get variable, Set variable, Math, Text, Random                                                                                                                                                                              |
 
 **Triggers.** On press fires as soon as the phone commits the tap. If a tile also has **On long press**, the two take turns: a short tap fires On press when you lift, holding half a second fires On long press instead. **On release** fires when you lift. **On page open** fires when a phone shows the tile's page. **On schedule** takes a cron pattern (`0 9 * * 1-5` is 9:00 on weekdays; a sixth field adds seconds) and runs for the profile phones are using, in the computer's time zone; the editor shows the next three times.
 
@@ -234,6 +240,5 @@ Set `TESSEL_DATA_DIR` to use a different folder (handy for testing without touch
 - Over plain `http://` on the LAN, Safari gives no Wake Lock and no service worker (offline cache). Add to Home Screen and full-screen mode still work. Optional local HTTPS (a stretch goal in the brief) isn't built.
 - No haptics in Safari (no Vibration API); the iPhone app has them.
 - The server runs in Electron's main process. It's small; it moves to a utility process if it ever gets heavy.
-- In landscape, a tall grid swaps rows and columns.
 - Typing non-ASCII text (accents, emoji) goes through the clipboard: Tessel pastes it, then restores what was there before.
 - Windows volume and mute take about a second per change (PowerShell compiles a small Core Audio helper each time).

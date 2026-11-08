@@ -159,10 +159,14 @@ function ParamField({ field, node, os }: { field: FieldDef; node: GraphNode; os:
       )
       break
     case 'page':
-      control = <PagePicker id={id} value={text(value)} onChange={set} />
+      control = (
+        <PagePicker id={id} value={text(value)} onChange={set} placeholder={field.placeholder} />
+      )
       break
     case 'tile':
-      control = <TilePicker id={id} value={text(value)} onChange={set} />
+      control = (
+        <TilePicker id={id} value={text(value)} onChange={set} placeholder={field.placeholder} />
+      )
       break
     case 'text':
       control = (

@@ -1,15 +1,17 @@
-import { TileIcon } from '@tessel/brand/icons'
-import type { PhonePage, PhoneTile } from '@tessel/core'
+import { KeyFace, keyVars } from '@tessel/brand/key'
+import type { PhonePage, PhoneProfile, PhoneSettings, PhoneTile } from '@tessel/core'
 import type { TileOverride } from './connection.ts'
-import { fitGrid, orient, textOn } from './layout.ts'
+import { cellsFor, GAP, orient } from './layout.ts'
 
 interface Props {
+  profile: PhoneProfile
   page: PhonePage
   width: number
   height: number
   overrides: Record<string, TileOverride>
   pressedId: string | undefined
   disabled: boolean
+  settings: PhoneSettings
 }
 
 const BACK: PhoneTile = {
@@ -22,49 +24,76 @@ const BACK: PhoneTile = {
   span: { w: 1, h: 1 },
 }
 
-/** Draws one page. Gestures are handled by the Pager around it. */
-export function PageGrid({ page, width, height, overrides, pressedId, disabled }: Props) {
-  const shown = orient(page, width > height)
-  const { size, gap } = fitGrid(width, height, shown.cols, shown.rows)
-  if (size <= 0) return null
-  const step = size + gap
+/** Draws one page of keys. Gestures are handled by the Pager around it. */
+export function PageGrid({
+  profile,
+  page,
+  width,
+  height,
+  overrides,
+  pressedId,
+  disabled,
+  settings,
+}: Props) {
+  const sideways = width > height
+  const shown = orient(page, sideways && settings.landscape === 'rotate')
+  const cells = cellsFor(
+    width,
+    height,
+    shown.cols,
+    shown.rows,
+    GAP[settings.spacing],
+    sideways && settings.landscape === 'fill',
+  )
+  if (cells.width <= 0 || cells.height <= 0) return null
+  const stepX = cells.width + cells.gap
+  const stepY = cells.height + cells.gap
+  const radius = Math.round(Math.min(cells.width, cells.height) * 0.2)
   const tiles = page.kind === 'folder' ? [BACK, ...shown.tiles] : shown.tiles
 
   return (
     <div
       className="relative"
-      style={{ width: shown.cols * step - gap, height: shown.rows * step - gap }}
+      style={{ width: shown.cols * stepX - cells.gap, height: shown.rows * stepY - cells.gap }}
     >
       {tiles.map((t) => {
-        const tile = { ...t, ...overrides[t.id] }
-        const short = Math.min(t.span.w, t.span.h) * size
+        const look = { label: t.label, colour: t.colour, icon: t.icon ?? '', ...overrides[t.id] }
+        const w = t.span.w * stepX - cells.gap
+        const h = t.span.h * stepY - cells.gap
         const kind = t.id === BACK.id ? 'back' : t.kind
-        const icon = tile.icon || (t.kind === 'folder' ? 'folder' : '')
+        const folder = kind === 'folder'
+        const count = folder
+          ? profile.pages.find((p) => p.id === t.targetPageId)?.tiles.length
+          : undefined
         return (
           <div
             key={t.id}
             role="button"
-            aria-label={kind === 'folder' ? `${tile.label} folder` : tile.label}
+            aria-label={folder ? `${look.label}, folder` : look.label}
             aria-disabled={disabled || undefined}
             data-tile-id={t.id}
             data-tile-kind={kind}
             data-target={t.targetPageId}
             data-pressed={pressedId === t.id}
-            className="tile absolute flex flex-col justify-between overflow-hidden text-left leading-tight font-semibold aria-disabled:opacity-60"
+            className="key absolute aria-disabled:opacity-50"
             style={{
-              left: t.position.col * step,
-              top: t.position.row * step,
-              width: t.span.w * step - gap,
-              height: t.span.h * step - gap,
-              borderRadius: short * 0.2,
-              padding: Math.round(size * 0.1),
-              fontSize: Math.max(11, Math.min(18, size * 0.13)),
-              background: tile.colour,
-              color: textOn(tile.colour),
+              left: t.position.col * stepX,
+              top: t.position.row * stepY,
+              width: w,
+              height: h,
+              borderRadius: radius,
+              ...keyVars(look.colour, kind === 'back' ? 'tinted' : settings.keyStyle),
             }}
           >
-            <TileIcon icon={icon} size={Math.round(short * 0.3)} />
-            <span className="line-clamp-3 [overflow-wrap:anywhere]">{tile.label}</span>
+            <KeyFace
+              look={look}
+              size={Math.min(w, h)}
+              labels={settings.labels}
+              labelSize={settings.labelSize}
+              folder={folder}
+              wide={w > h * 2}
+              {...(count !== undefined && { count })}
+            />
           </div>
         )
       })}

@@ -1,3 +1,4 @@
+import type { KeyStyle } from '@tessel/brand/key'
 import type { Appearance, OS, TileTemplate } from '@tessel/core'
 import { LayoutTemplate } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -63,6 +64,7 @@ interface Props {
   liveAppearance: Record<string, Appearance>
   theme: 'system' | 'dark' | 'light'
   blocksVersion: number
+  keyStyle: KeyStyle
 }
 
 export function Editor({
@@ -72,6 +74,7 @@ export function Editor({
   liveAppearance,
   theme,
   blocksVersion,
+  keyStyle,
 }: Props) {
   useEditorSync(activeProfileId)
   useBlockReload(blocksVersion)
@@ -112,7 +115,12 @@ export function Editor({
                   <LayoutTemplate /> Templates
                 </Button>
               </div>
-              <TileGrid page={page} live={live} onTemplates={(cell) => setGallery({ cell })} />
+              <TileGrid
+                page={page}
+                live={live}
+                keyStyle={keyStyle}
+                onTemplates={(cell) => setGallery({ cell })}
+              />
               <Notice />
               <p className="text-xs text-muted">
                 Drag tiles to move them. Drag the corner of the selected tile to resize.
@@ -138,6 +146,7 @@ export function Editor({
         open={gallery !== null}
         onOpenChange={(open) => !open && setGallery(null)}
         onPick={pickTemplate}
+        keyStyle={keyStyle}
       />
     </div>
   )

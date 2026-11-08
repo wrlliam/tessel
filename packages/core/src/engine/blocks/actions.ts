@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { defineBlock, flowIn, flowOut } from '../block.ts'
 import { parseCombo, resolveCombo } from '../combo.ts'
 import { toBool } from '../expression.ts'
+import { appCommand } from './apps.ts'
 
 const text = (message: string) => z.string().trim().min(1, message)
 const bool = z.preprocess(
@@ -448,7 +449,7 @@ export const setTileAppearance = defineBlock({
   category: 'action',
   name: 'Set tile appearance',
   description:
-    'Changes how this tile looks on the phone, e.g. to show a status. Leave a field empty to keep it.',
+    'Changes the name, icon or colour of this tile or another one on the phone, e.g. to show a status. Leave a field empty to keep it.',
   inputs: [flowIn, { id: 'label', kind: 'value', type: 'string' }],
   outputs: [flowOut],
   paramsSchema: z.object({
@@ -459,8 +460,11 @@ export const setTileAppearance = defineBlock({
     ]),
     icon: optionalText,
     reset: bool,
+    tile: optionalText,
+    remember: bool.optional(),
   }),
   fields: [
+    { key: 'tile', label: 'Which tile', widget: 'tile', placeholder: 'This tile' },
     { key: 'label', label: 'Label', widget: 'text', placeholder: '{{var.count}}' },
     { key: 'colour', label: 'Colour', widget: 'text', placeholder: '#F25C6E' },
     {
@@ -471,20 +475,26 @@ export const setTileAppearance = defineBlock({
       help: 'An icon name from the tile icon picker, or one emoji.',
     },
     { key: 'reset', label: 'Reset to the tile’s own look', widget: 'toggle' },
+    { key: 'remember', label: 'Keep it after Tessel restarts', widget: 'toggle' },
   ],
-  defaults: { label: '', colour: '', icon: '', reset: false },
-  run: (ctx, { label, colour, icon, reset }) => {
-    if (reset) return ctx.setAppearance('reset')
-    ctx.setAppearance({
-      ...(label !== '' && { label }),
-      ...(colour !== '' && { colour }),
-      ...(icon !== '' && { icon }),
-    })
+  defaults: { tile: '', label: '', colour: '', icon: '', reset: false, remember: false },
+  run: (ctx, { label, colour, icon, reset, tile, remember }) => {
+    const opts = { remember: remember ?? false, ...(tile !== '' && { tileId: tile }) }
+    if (reset) return ctx.setAppearance('reset', opts)
+    ctx.setAppearance(
+      {
+        ...(label !== '' && { label }),
+        ...(colour !== '' && { colour }),
+        ...(icon !== '' && { icon }),
+      },
+      opts,
+    )
   },
 })
 
 export const actionBlocks = [
   openApp,
+  appCommand,
   openUrl,
   openFile,
   typeText,
