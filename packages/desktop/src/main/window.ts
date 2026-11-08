@@ -1,9 +1,10 @@
-import { BrowserWindow, shell } from 'electron'
+import { BrowserWindow, Notification, shell } from 'electron'
 import { resource } from './paths.ts'
 import { fileURLToPath } from 'node:url'
 
 let win: BrowserWindow | undefined
 let quitting = false
+let toldAboutTray = false
 
 export const markQuitting = () => (quitting = true)
 
@@ -46,6 +47,16 @@ export function showWindow() {
     if (quitting) return
     e.preventDefault()
     win?.hide()
+    if (!toldAboutTray && Notification.isSupported()) {
+      toldAboutTray = true
+      new Notification({
+        title: 'Tessel is still running',
+        body:
+          process.platform === 'darwin'
+            ? 'Your phone keeps working. Open Tessel or quit it from the menu bar.'
+            : 'Your phone keeps working. Open Tessel or quit it from the tray icon.',
+      }).show()
+    }
   })
   win.on('closed', () => (win = undefined))
 

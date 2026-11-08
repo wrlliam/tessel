@@ -276,4 +276,22 @@ export const weather = defineBlock({
   },
 })
 
-export const liveBlocks = [countdown, nowPlaying, weather]
+export const getClipboard = defineBlock({
+  id: 'data.getClipboard',
+  category: 'data',
+  name: 'Get clipboard',
+  description:
+    'Reads the text on the clipboard. To use what is selected, run Key combo Cmd/Ctrl+C and a short Delay first.',
+  inputs: [flowIn],
+  outputs: [flowOut, text('text')],
+  paramsSchema: z.object({}),
+  fields: [],
+  defaults: {},
+  run: async (ctx) => {
+    if (!ctx.platform.readClipboard)
+      throw new UnsupportedError('Reading the clipboard', ctx.platform.os)
+    return { values: { text: await ctx.platform.readClipboard() } }
+  },
+})
+
+export const liveBlocks = [countdown, nowPlaying, weather, getClipboard]

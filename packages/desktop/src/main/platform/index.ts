@@ -78,6 +78,7 @@ export function createPlatform(shellPolicy: () => ShellPolicy): Platform {
     openExternal: (url) => shell.openExternal(url),
     openPath: (p) => shell.openPath(p),
     writeClipboard: (text) => clipboard.writeText(text),
+    readClipboard: async () => clipboard.readText(),
     notify: (title, body) => {
       if (Notification.isSupported()) new Notification({ title, body }).show()
     },

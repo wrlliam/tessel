@@ -10,8 +10,9 @@ import type {
 } from '@tessel/core'
 import type { PairingCode } from '@tessel/server'
 import type { PluginInfo } from '../main/plugins/manager.ts'
+import type { UpdateState } from '../main/updater.ts'
 
-export type { PluginInfo }
+export type { PluginInfo, UpdateState }
 
 export interface LogEntry {
   id: number
@@ -58,6 +59,8 @@ export interface DesktopState {
   location?: { lat: number; lon: number; at: number }
   /** First-run tour finished or skipped. */
   toured: boolean
+  version: string
+  update: UpdateState
   /** Changes when plugin blocks are added or removed. */
   blocksVersion: number
 }
@@ -68,6 +71,8 @@ export interface AppSettings {
   logLevel: 'info' | 'warn' | 'error'
   /** Serve https:// as well, with a certificate phones install once. */
   https: boolean
+  /** Check GitHub for new versions every few hours. */
+  autoUpdate: boolean
 }
 
 export interface ProfileEngineEvent {
@@ -115,6 +120,9 @@ export interface TesselApi {
   /** Changes how connected phones look and behave. */
   updatePhoneSettings(patch: Partial<PhoneSettings>): Promise<SaveResult>
   finishTour(): Promise<void>
+  checkForUpdate(): Promise<void>
+  /** Restarts into a downloaded update, or opens the download page. */
+  installUpdate(): Promise<void>
 }
 
 export type SaveResult = { ok: true } | { ok: false; error: string }
@@ -149,4 +157,6 @@ export const Channel = {
   updatePluginSettings: 'plugins:settings',
   updatePhoneSettings: 'phone:settings',
   finishTour: 'app:tour-done',
+  checkForUpdate: 'update:check',
+  installUpdate: 'update:install',
 } as const

@@ -74,6 +74,7 @@ export interface Platform {
   http(request: HttpRequest): Promise<HttpResponse>
   /** The song playing in Spotify or the system's media player, if any. */
   nowPlaying?(): Promise<NowPlayingInfo | undefined>
+  readClipboard?(): Promise<string>
   /** Last known location, e.g. shared by a phone. */
   location?(): { lat: number; lon: number; name?: string } | undefined
 }

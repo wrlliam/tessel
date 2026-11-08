@@ -6,6 +6,8 @@ export type TemplateCategory =
   | 'Sliders'
   | 'Live tiles'
   | 'Voicemeeter'
+  | 'Soundpad'
+  | 'AI and search'
   | 'Apps'
   | 'System'
   | 'Productivity'
@@ -243,6 +245,50 @@ function vmRoute(id: string, index: number, output: string): TileTemplate {
     },
   }
 }
+
+/** Copies what is selected, then reads it: the start of "do something with the selection". */
+const selection = [
+  node('copy', 'action.keyCombo', { combo: 'mod+c' }, 288),
+  node('wait', 'logic.delay', { ms: 200 }, 576),
+  node('clip', 'data.getClipboard', {}, 864),
+]
+const selectionWires = [
+  wire('press', 'out', 'copy'),
+  wire('copy', 'out', 'wait'),
+  wire('wait', 'out', 'clip'),
+]
+
+/** Selection -> a plugin AI block -> `then` with the answer wired into `thenPort`. */
+function aiTile(
+  ai: { type: string; params: Record<string, unknown> },
+  then: { type: string; params: Record<string, unknown>; port: string },
+  after: ReturnType<typeof node>[] = [],
+) {
+  return {
+    nodes: [
+      press,
+      ...selection,
+      node('ai', ai.type, ai.params, 1152),
+      node('then', then.type, then.params, 1440),
+      ...after,
+    ],
+    edges: [
+      ...selectionWires,
+      wire('clip', 'out', 'ai'),
+      wire('clip', 'text', 'ai', 'text'),
+      wire('ai', 'out', 'then'),
+      wire('ai', 'answer', 'then', then.port),
+      ...(after[0] ? [wire('then', 'out', after[0].id)] : []),
+    ],
+  }
+}
+
+const ollama = (prompt: string) => ({
+  type: 'ollama.ask',
+  params: { prompt, model: '', system: '' },
+})
+const gemini = (prompt: string) => ({ type: 'google.gemini', params: { prompt, model: '' } })
+const showAnswer = { type: 'action.notify', params: { title: 'Tessel', body: '' }, port: 'body' }
 
 export const templates: TileTemplate[] = [
   // Meetings
@@ -920,6 +966,196 @@ export const templates: TileTemplate[] = [
       },
     },
   },
+
+  // Soundpad
+  {
+    id: 'soundpad-play',
+    category: 'Soundpad',
+    plugin: 'soundpad',
+    name: 'Play a sound',
+    description:
+      'Plays sound 1 from Soundpad on your speakers and mic. Change the number or type part of a name.',
+    tile: {
+      label: 'Sound 1',
+      icon: 'audio-waveform',
+      colour: '#FF7A59',
+      graph: simple('soundpad.play', { sound: '1', where: 'both' }),
+    },
+  },
+  {
+    id: 'soundpad-random',
+    category: 'Soundpad',
+    plugin: 'soundpad',
+    name: 'Random sound',
+    description: 'Plays a random sound from Soundpad.',
+    tile: {
+      label: 'Random',
+      icon: 'shuffle',
+      colour: '#8B7CF6',
+      graph: simple('soundpad.random', { category: '' }),
+    },
+  },
+  {
+    id: 'soundpad-stop',
+    category: 'Soundpad',
+    plugin: 'soundpad',
+    name: 'Stop sound',
+    description: 'Stops whatever Soundpad is playing.',
+    tile: {
+      label: 'Stop',
+      icon: 'square',
+      colour: '#212833',
+      graph: simple('soundpad.control', { action: 'stop' }),
+    },
+  },
+  {
+    id: 'soundpad-again',
+    category: 'Soundpad',
+    plugin: 'soundpad',
+    name: 'Play again',
+    description: 'Replays the last sound.',
+    tile: {
+      label: 'Again',
+      icon: 'repeat',
+      colour: '#212833',
+      graph: simple('soundpad.control', { action: 'again' }),
+    },
+  },
+  {
+    id: 'soundpad-volume',
+    category: 'Soundpad',
+    plugin: 'soundpad',
+    name: 'Soundpad volume slider',
+    description: "Drag to set Soundpad's volume.",
+    tile: {
+      label: 'Soundpad',
+      icon: 'volume-2',
+      colour: '#FF7A59',
+      kind: 'slider',
+      concurrency: 'restart',
+      appearanceBindings: [bind('label', 'Soundpad {{state.value ?? 80}}%')],
+      graph: slider('soundpad.volume', { level: 80 }, 'level', { min: 0, max: 100, step: 1 }),
+    },
+  },
+
+  // AI and search
+  {
+    id: 'ai-explain-ollama',
+    category: 'AI and search',
+    plugin: 'ollama',
+    name: 'Explain the selection (Ollama)',
+    description:
+      'Copies the selected text, asks your local Ollama model to explain it, and shows the answer as a notification.',
+    tile: {
+      label: 'Explain',
+      icon: 'bot',
+      colour: '#8B7CF6',
+      graph: aiTile(ollama('Explain this simply, in a few sentences:'), showAnswer),
+    },
+  },
+  {
+    id: 'ai-rewrite-ollama',
+    category: 'AI and search',
+    plugin: 'ollama',
+    name: 'Rewrite the selection (Ollama)',
+    description:
+      'Rewrites the selected text to read more clearly and pastes it over the selection.',
+    tile: {
+      label: 'Rewrite',
+      icon: 'file-text',
+      colour: '#8B7CF6',
+      graph: aiTile(
+        ollama('Rewrite this to be clear and friendly. Reply with only the rewritten text:'),
+        { type: 'action.setClipboard', params: { text: '' }, port: 'text' },
+        [node('paste', 'action.keyCombo', { combo: 'mod+v' }, 1728)],
+      ),
+    },
+  },
+  {
+    id: 'ai-translate-ollama',
+    category: 'AI and search',
+    plugin: 'ollama',
+    name: 'Translate the selection (Ollama)',
+    description: 'Translates the selected text into English and copies the result.',
+    tile: {
+      label: 'Translate',
+      icon: 'languages',
+      colour: '#8B7CF6',
+      graph: aiTile(ollama('Translate this into English. Reply with only the translation:'), {
+        type: 'action.setClipboard',
+        params: { text: '' },
+        port: 'text',
+      }),
+    },
+  },
+  {
+    id: 'ai-summary-gemini',
+    category: 'AI and search',
+    plugin: 'google',
+    name: 'Summarise the selection (Gemini)',
+    description:
+      'Copies the selected text, asks Gemini for a short summary and shows it. Needs a Gemini API key in the Google plugin.',
+    tile: {
+      label: 'Summarise',
+      icon: 'message-square-text',
+      colour: '#4FA3F7',
+      graph: aiTile(gemini('Summarise this in two sentences:'), showAnswer),
+    },
+  },
+  {
+    id: 'google-selection',
+    category: 'AI and search',
+    plugin: 'google',
+    name: 'Google the selection',
+    description: 'Searches Google for the selected text in your browser.',
+    tile: {
+      label: 'Google it',
+      icon: 'search',
+      colour: '#4FA3F7',
+      graph: {
+        nodes: [
+          press,
+          ...selection,
+          node('search', 'google.search', { where: 'web', query: '' }, 1152),
+          node('open', 'action.openUrl', { url: 'https://' }, 1440),
+        ],
+        edges: [
+          ...selectionWires,
+          wire('clip', 'out', 'search'),
+          wire('clip', 'text', 'search', 'text'),
+          wire('search', 'out', 'open'),
+          wire('search', 'url', 'open', 'url'),
+        ],
+      },
+    },
+  },
+  {
+    id: 'google-maps-selection',
+    category: 'AI and search',
+    plugin: 'google',
+    name: 'Show the selection on a map',
+    description: 'Opens the selected address or place in Google Maps.',
+    tile: {
+      label: 'Map it',
+      icon: 'map-pin',
+      colour: '#22D3C5',
+      graph: {
+        nodes: [
+          press,
+          ...selection,
+          node('search', 'google.search', { where: 'maps', query: '' }, 1152),
+          node('open', 'action.openUrl', { url: 'https://' }, 1440),
+        ],
+        edges: [
+          ...selectionWires,
+          wire('clip', 'out', 'search'),
+          wire('clip', 'text', 'search', 'text'),
+          wire('search', 'out', 'open'),
+          wire('search', 'url', 'open', 'url'),
+        ],
+      },
+    },
+  },
 ]
 
 export const TEMPLATE_CATEGORIES: TemplateCategory[] = [
@@ -928,6 +1164,8 @@ export const TEMPLATE_CATEGORIES: TemplateCategory[] = [
   'Sliders',
   'Live tiles',
   'Voicemeeter',
+  'Soundpad',
+  'AI and search',
   'Apps',
   'System',
   'Productivity',
@@ -941,7 +1179,16 @@ export interface PageTemplate {
   description: string
   cols: number
   rows: number
-  tiles: Array<{ template: string; col: number; row: number; w?: number; h?: number }>
+  tiles: Array<{
+    template: string
+    col: number
+    row: number
+    w?: number
+    h?: number
+    label?: string
+    /** Merged into the params of the template's main block (node id "action"). */
+    params?: Record<string, unknown>
+  }>
 }
 
 export const pageTemplates: PageTemplate[] = [
@@ -1021,6 +1268,23 @@ export const pageTemplates: PageTemplate[] = [
     ],
   },
   {
+    id: 'page-soundboard',
+    name: 'Soundboard',
+    description:
+      'Three Soundpad sounds, random, replay, stop and a volume slider. Needs the Soundpad plugin (Windows).',
+    cols: 3,
+    rows: 4,
+    tiles: [
+      { template: 'soundpad-play', col: 0, row: 0 },
+      { template: 'soundpad-play', col: 1, row: 0, label: 'Sound 2', params: { sound: '2' } },
+      { template: 'soundpad-play', col: 2, row: 0, label: 'Sound 3', params: { sound: '3' } },
+      { template: 'soundpad-random', col: 0, row: 1 },
+      { template: 'soundpad-again', col: 1, row: 1 },
+      { template: 'soundpad-stop', col: 2, row: 1 },
+      { template: 'soundpad-volume', col: 0, row: 2, w: 3 },
+    ],
+  },
+  {
     id: 'page-desk',
     name: 'Desk',
     description: 'Clock, weather, focus timers and everyday system keys.',
@@ -1058,6 +1322,11 @@ export function buildPage(
     Object.assign(variables, t.variables)
     if (t.plugin) plugins.add(t.plugin)
     const tile = structuredClone(t.tile)
+    if (slot.label) tile.label = slot.label
+    if (slot.params)
+      tile.graph.nodes = tile.graph.nodes.map((n) =>
+        n.id === 'action' ? { ...n, params: { ...n.params, ...slot.params } } : n,
+      )
     tiles.push({
       kind: 'action',
       concurrency: 'queue',

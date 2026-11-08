@@ -12,6 +12,8 @@ export const Settings = z.object({
   logLevel: z.enum(['info', 'warn', 'error']).default('info'),
   /** Also serve https:// on the same port, with a local certificate phones install once. */
   https: z.boolean().default(false),
+  /** Check GitHub for new versions every few hours. */
+  autoUpdate: z.boolean().default(true),
   /** Last location a phone shared, for weather tiles. Kept so tiles work before a phone connects. */
   location: z.object({ lat: z.number(), lon: z.number(), at: z.number() }).optional(),
   /** First-run tour finished or skipped. */

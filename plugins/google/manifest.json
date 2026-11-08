@@ -1,0 +1,28 @@
+{
+  "id": "google",
+  "name": "Google",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Search Google, Maps, Images or Translate for any text, and ask Gemini with your own API key.",
+  "author": "Tessel",
+  "main": "dist/index.js",
+  "permissions": ["network"],
+  "icon": "search",
+  "settingsSchema": {
+    "type": "object",
+    "properties": {
+      "apiKey": {
+        "type": "string",
+        "title": "Gemini API key",
+        "description": "Only needed for Ask Gemini. Get one at aistudio.google.com.",
+        "secret": true,
+        "default": ""
+      },
+      "model": {
+        "type": "string",
+        "title": "Gemini model",
+        "default": "gemini-2.5-flash"
+      }
+    }
+  }
+}

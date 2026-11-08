@@ -2,11 +2,22 @@ import { createRegistry, defineBlock, flowOut, templates, Tile, validateGraph } 
 import { describe, expect, it } from 'vitest'
 import { MockVoicemeeter } from '../../../plugins/voicemeeter/src/mock.ts'
 import { createVoicemeeterPlugin } from '../../../plugins/voicemeeter/src/plugin.ts'
+import { createOllamaPlugin } from '../../../plugins/ollama/src/plugin.ts'
+import { createGooglePlugin } from '../../../plugins/google/src/plugin.ts'
+import { createSoundpadPlugin } from '../../../plugins/soundpad/src/plugin.ts'
 
 // Templates that use first-party plugin blocks, checked against the plugins' own definitions.
 describe('plugin templates', () => {
   const registry = createRegistry()
-  const plugins = { voicemeeter: createVoicemeeterPlugin(async () => new MockVoicemeeter()) }
+  const never = async () => {
+    throw new Error('not used')
+  }
+  const plugins = {
+    voicemeeter: createVoicemeeterPlugin(async () => new MockVoicemeeter()),
+    ollama: createOllamaPlugin(never),
+    google: createGooglePlugin(never),
+    soundpad: createSoundpadPlugin(never),
+  }
   for (const [id, plugin] of Object.entries(plugins)) {
     for (const b of plugin.blocks ?? [])
       registry.register(

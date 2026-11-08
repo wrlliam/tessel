@@ -545,8 +545,10 @@ export class PluginManager {
         id: `${pluginId}.${b.id}`,
         category: 'plugin',
         paramsSchema: permissive,
-        run: (ctx, params, input) =>
-          this.run(entry, b.id, ctx, params as Record<string, unknown>, input),
+        run: (ctx, params, input) => {
+          if (b.timeoutSeconds) ctx.extendTimeout(Math.min(600, b.timeoutSeconds) * 1000)
+          return this.run(entry, b.id, ctx, params as Record<string, unknown>, input)
+        },
       })),
       ...description.triggers.map((t): BlockDefinition => ({
         ...t,

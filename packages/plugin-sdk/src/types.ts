@@ -77,6 +77,8 @@ export interface PluginBlock<P = unknown> {
   paramsSchema: ParamsSchema<P>
   fields?: FieldDef[]
   defaults?: Record<string, unknown>
+  /** For slow work, e.g. asking an AI model: how long a run may take, up to 600 s. Default 30 s. */
+  timeoutSeconds?: number
   run(
     ctx: BlockRunContext,
     params: P,

@@ -22,9 +22,18 @@ extraResources:
   # First-party plugins with their own dependencies (see scripts/stage-plugins.ts).
   - from: ../../build/plugins
     to: plugins
+# Where installed copies look for updates (electron-updater reads latest*.yml from the release).
+publish:
+  provider: github
+  owner: wrlliam
+  repo: tessel
+  releaseType: release
 mac:
   target:
     - target: dmg
+      arch: universal
+    # The updater on macOS reads the zip.
+    - target: zip
       arch: universal
   category: public.app-category.utilities
   # Plugins carry koffi binaries for every platform; they're the same in both halves of the universal app.

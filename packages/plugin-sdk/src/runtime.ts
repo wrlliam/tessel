@@ -122,7 +122,11 @@ export function runPlugin(
       }
       case 'describe':
         return {
-          blocks: [...blocks.values()].map((b) => ({ ...describeBlock(b), inputs: b.inputs })),
+          blocks: [...blocks.values()].map((b) => ({
+            ...describeBlock(b),
+            inputs: b.inputs,
+            ...(b.timeoutSeconds && { timeoutSeconds: Math.min(600, b.timeoutSeconds) }),
+          })),
           triggers: [...triggers.values()].map((t) => ({
             ...describeBlock(t),
             outputs: [flowOut, ...t.outputs],

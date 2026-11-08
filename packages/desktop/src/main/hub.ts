@@ -45,7 +45,7 @@ const NETWORK_POLL_MS = 10_000
 const LONG_PRESS_MS = 500
 const LEVELS = { info: 0, warn: 1, error: 2 } as const
 
-export type HubState = Omit<DesktopState, 'platform' | 'startOnLogin'>
+export type HubState = Omit<DesktopState, 'platform' | 'startOnLogin' | 'version' | 'update'>
 
 export interface HubOptions {
   dataDir: string
@@ -219,6 +219,7 @@ export class Hub {
         theme: this.settings.theme,
         logLevel: this.settings.logLevel,
         https: this.settings.https,
+        autoUpdate: this.settings.autoUpdate,
       },
       plugins: this.plugins?.list() ?? [],
       phoneSettings: this.settings.phone,
@@ -381,9 +382,11 @@ export class Hub {
 
   /** Applies a settings change; a new port restarts sharing. */
   async updateSettings(patch: unknown): Promise<SaveResult> {
-    const { port, shell, theme, logLevel, https } = patch as Partial<Settings>
+    const { port, shell, theme, logLevel, https, autoUpdate } = patch as Partial<Settings>
     const allowed = Object.fromEntries(
-      Object.entries({ port, shell, theme, logLevel, https }).filter(([, v]) => v !== undefined),
+      Object.entries({ port, shell, theme, logLevel, https, autoUpdate }).filter(
+        ([, v]) => v !== undefined,
+      ),
     )
     const parsed = Settings.safeParse({ ...this.settings, ...allowed })
     if (!parsed.success)

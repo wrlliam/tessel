@@ -19,6 +19,7 @@ export interface CommonDeps {
   openExternal: (url: string) => Promise<void>
   openPath: (path: string) => Promise<string>
   writeClipboard: (text: string) => Promise<void>
+  readClipboard?: () => Promise<string>
   notify: (title: string, body: string) => void
 }
 
@@ -80,6 +81,7 @@ export function createCommon(deps: CommonDeps) {
     },
 
     setClipboard: (text: string) => deps.writeClipboard(text),
+    ...(deps.readClipboard && { readClipboard: deps.readClipboard }),
 
     async notify(title: string, body: string) {
       deps.notify(title, body)

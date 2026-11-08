@@ -10,6 +10,7 @@ export interface BlockDescriptor {
   outputs: PortDef[]
   fields?: FieldDef[]
   defaults?: Record<string, unknown>
+  timeoutSeconds?: number
 }
 
 export interface Description {

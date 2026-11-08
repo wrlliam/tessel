@@ -13,13 +13,21 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            files: bin/*.dmg
+            files: |
+              bin/*.dmg
+              bin/*.zip
+              bin/*.blockmap
+              bin/latest-mac.yml
           - os: windows-latest
-            files: bin/*.exe
+            files: |
+              bin/*.exe
+              bin/*.blockmap
+              bin/latest.yml
           - os: ubuntu-latest
             files: |
               bin/*.AppImage
               bin/*.deb
+              bin/latest-linux.yml
     runs-on: ${{ matrix.os }}
     env:
       # Signing is optional. Without these secrets the builds are unsigned (see docs/packaging.md).

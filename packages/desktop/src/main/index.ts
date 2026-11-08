@@ -10,6 +10,7 @@ import { pluginRunner, builtinPluginsDir } from './paths.ts'
 import { addPluginWithDialog } from './plugins/dialogs.ts'
 import { exportWithDialog, importWithDialog } from './transfer-dialogs.ts'
 import { TesselTray } from './tray.ts'
+import { Updater } from './updater.ts'
 import { currentWindow, markQuitting, showWindow } from './window.ts'
 
 // Lets tests and side-by-side installs use their own settings, devices and profiles.
@@ -50,11 +51,16 @@ async function start() {
         'You are on Wayland, which blocks the usual way of simulating keys. Tessel uses ydotool instead: install it and keep the ydotoold service running for Type text, Key combo, Media key and Mouse blocks.',
     }),
     startOnLogin: loginItemsSupported ? app.getLoginItemSettings().openAtLogin : null,
+    version: app.getVersion(),
+    update: updater.state,
   })
+  const updater = new Updater(() => broadcast())
+  updater.start(() => hub.state().settings.autoUpdate)
 
   const setStartOnLogin = (on: boolean) => {
     if (!loginItemsSupported) return
-    app.setLoginItemSettings({ openAtLogin: on })
+    // Started at login, Tessel waits in the tray/menu bar instead of opening its window.
+    app.setLoginItemSettings({ openAtLogin: on, args: ['--hidden'] })
     broadcast()
   }
 
@@ -89,6 +95,11 @@ async function start() {
       ? hub.updateSettings(patch)
       : { ok: false, error: 'Nothing to change' },
   )
+  ipcMain.handle(Channel.checkForUpdate, () => updater.check())
+  ipcMain.handle(Channel.installUpdate, () => {
+    markQuitting()
+    updater.install()
+  })
   ipcMain.handle(Channel.newPairingCode, () => hub.newPairingCode())
   ipcMain.handle(Channel.revokeDevice, (_e, id: unknown) => {
     if (typeof id === 'string') return hub.revokeDevice(id)
@@ -162,7 +173,10 @@ async function start() {
 
   await hub.init()
   broadcast()
-  showWindow()
+  const atLogin =
+    process.argv.includes('--hidden') ||
+    (process.platform === 'darwin' && app.getLoginItemSettings().wasOpenedAtLogin)
+  if (!atLogin) showWindow()
 
   // Keep running in the tray when the window closes.
   app.on('window-all-closed', () => {})

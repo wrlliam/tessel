@@ -144,6 +144,41 @@ export function SettingsView({ state }: { state: DesktopState }) {
             </Select>
           </Row>
         </section>
+        <section aria-labelledby="updates">
+          <h2 id="updates" className="font-display text-lg font-semibold">
+            Updates
+          </h2>
+          <Row label={`Tessel ${state.version}`} help={updateText(state.update)}>
+            <div className="flex items-center gap-2">
+              {state.update.status === 'ready' ||
+              (state.update.status === 'available' && !state.update.canInstall) ? (
+                <Button variant="primary" onClick={() => void window.tessel.installUpdate()}>
+                  {state.update.status === 'ready' ? 'Restart to update' : 'Download'}
+                </Button>
+              ) : (
+                <Button
+                  disabled={
+                    state.update.status === 'checking' || state.update.status === 'downloading'
+                  }
+                  onClick={() => void window.tessel.checkForUpdate()}
+                >
+                  Check now
+                </Button>
+              )}
+            </div>
+          </Row>
+          <Row
+            label="Check automatically"
+            help="Looks for a new release on GitHub every few hours."
+          >
+            <Switch
+              label="Check for updates automatically"
+              hideLabel
+              checked={state.settings.autoUpdate}
+              onChange={(autoUpdate) => void update({ autoUpdate })}
+            />
+          </Row>
+        </section>
         {message && (
           <p role="alert" className="text-sm text-signal">
             {message}
@@ -152,4 +187,25 @@ export function SettingsView({ state }: { state: DesktopState }) {
       </div>
     </main>
   )
+}
+
+function updateText(u: DesktopState['update']): string {
+  switch (u.status) {
+    case 'checking':
+      return 'Checking…'
+    case 'none':
+      return `Up to date. Checked ${new Date(u.checkedAt).toLocaleTimeString()}`
+    case 'available':
+      return u.canInstall
+        ? `Version ${u.version} is downloading`
+        : `Version ${u.version} is out. Download it, then replace Tessel in Applications`
+    case 'downloading':
+      return `Downloading ${u.version}: ${u.percent}%`
+    case 'ready':
+      return `Version ${u.version} is ready`
+    case 'error':
+      return u.message
+    default:
+      return 'Updates come from GitHub releases'
+  }
 }

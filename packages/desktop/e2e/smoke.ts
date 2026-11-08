@@ -33,6 +33,14 @@ try {
   page.on('pageerror', (e) => errors.push(e.message))
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
 
+  step('first run shows the tour; Next moves on, Skip closes it for good')
+  const tour = page.getByRole('dialog', { name: 'Your phone, as a deck of keys' })
+  await tour.waitFor()
+  await page.getByRole('button', { name: 'Next' }).click()
+  await page.getByRole('dialog', { name: 'Connect your phone' }).waitFor()
+  await page.getByRole('button', { name: 'Skip' }).click()
+  await page.getByRole('dialog').waitFor({ state: 'detached' })
+
   step('editor opens on the first tile')
   await page.getByRole('button', { name: 'Test run' }).waitFor()
 
@@ -104,6 +112,15 @@ try {
 
   step('add a page and switch to it')
   await page.getByRole('button', { name: 'Page', exact: true }).click()
+  await page.getByRole('button', { name: /^Blank page/ }).click()
+  await page.getByText('Tiles on “Page 2”').waitFor()
+
+  step('a ready-made page arrives filled')
+  await page.getByRole('button', { name: 'Page', exact: true }).click()
+  await page.getByRole('button', { name: /^Music/ }).click()
+  await page.getByText('Tiles on “Music”').waitFor()
+  await page.getByRole('button', { name: /Tile Volume/ }).waitFor()
+  await page.getByRole('button', { name: /^Page 2$/ }).click()
   await page.getByText('Tiles on “Page 2”').waitFor()
 
   step('add a folder; its page gets a Back slot')
@@ -137,6 +154,7 @@ try {
   step('Set setting shows only the fields for the chosen setting')
   await page.getByRole('tab', { name: 'Editor' }).click()
   await page.getByRole('button', { name: 'Page', exact: true }).click()
+  await page.getByRole('button', { name: /^Blank page/ }).click()
   await page.getByRole('button', { name: 'Add something in row 1, column 1' }).click()
   await page.getByRole('button', { name: 'Blank tile' }).click()
   await page

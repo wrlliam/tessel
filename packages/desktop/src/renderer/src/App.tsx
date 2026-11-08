@@ -1,7 +1,7 @@
 import logoUrl from '@tessel/brand/logo-mark.svg'
 import type { OS } from '@tessel/core'
 import { Tabs } from 'radix-ui'
-import { useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { DesktopState } from '../../shared/api.ts'
 import { Editor } from './editor/Editor.tsx'
 import { cn } from './lib/cn.ts'
@@ -9,13 +9,17 @@ import { PhonesView } from './PhonesView.tsx'
 import { PluginsView } from './PluginsView.tsx'
 import { SettingsView } from './SettingsView.tsx'
 import { Switch } from './Switch.tsx'
+import { Tour, type TabName } from './Tour.tsx'
 import { useDesktopState } from './useDesktopState.ts'
 
-const tab =
+const tabClass =
   'rounded-lg px-3 py-1 text-sm text-muted hover:text-text data-[state=active]:bg-line data-[state=active]:text-text'
 
 export function App() {
   const state = useDesktopState()
+  const [tab, setTab] = useState<TabName>('editor')
+  const [touring, setTouring] = useState(true)
+  const showTab = useCallback((t: TabName) => setTab(t), [])
   const theme = state?.settings.theme
   useEffect(() => {
     const root = document.documentElement
@@ -25,7 +29,21 @@ export function App() {
   if (!state) return null
 
   return (
-    <Tabs.Root defaultValue="editor" className="flex h-full flex-col">
+    <Tabs.Root
+      value={tab}
+      onValueChange={(v) => setTab(v as TabName)}
+      className="flex h-full flex-col"
+    >
+      {!state.toured && touring && (
+        <Tour
+          onTab={showTab}
+          onDone={() => {
+            setTouring(false)
+            setTab('editor')
+            void window.tessel.finishTour()
+          }}
+        />
+      )}
       <header
         className={cn(
           'drag flex items-center gap-4 border-b border-line px-4 py-2.5',
@@ -35,16 +53,16 @@ export function App() {
         <img src={logoUrl} alt="" className="size-6" />
         <h1 className="font-display text-lg font-semibold tracking-tight">Tessel</h1>
         <Tabs.List aria-label="Sections" className="ml-4 flex gap-1">
-          <Tabs.Trigger value="editor" className={tab}>
+          <Tabs.Trigger value="editor" className={tabClass}>
             Editor
           </Tabs.Trigger>
-          <Tabs.Trigger value="phones" className={tab}>
+          <Tabs.Trigger value="phones" className={tabClass}>
             Phones
           </Tabs.Trigger>
-          <Tabs.Trigger value="plugins" className={tab}>
+          <Tabs.Trigger value="plugins" className={tabClass}>
             Plugins
           </Tabs.Trigger>
-          <Tabs.Trigger value="settings" className={tab}>
+          <Tabs.Trigger value="settings" className={tabClass}>
             Settings
           </Tabs.Trigger>
         </Tabs.List>

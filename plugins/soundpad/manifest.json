@@ -1,0 +1,12 @@
+{
+  "id": "soundpad",
+  "name": "Soundpad",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Play, stop and pick sounds in Soundpad (the Steam soundboard app) through its remote control. Soundpad must be running.",
+  "author": "Tessel",
+  "main": "dist/index.js",
+  "platforms": ["win32"],
+  "permissions": ["network"],
+  "icon": "audio-waveform"
+}

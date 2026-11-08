@@ -1,0 +1,27 @@
+{
+  "id": "ollama",
+  "name": "Ollama",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "description": "Ask a local AI model running in Ollama, e.g. to explain or rewrite the text you copied. Nothing leaves your computer.",
+  "author": "Tessel",
+  "main": "dist/index.js",
+  "permissions": ["network"],
+  "icon": "bot",
+  "settingsSchema": {
+    "type": "object",
+    "properties": {
+      "host": {
+        "type": "string",
+        "title": "Ollama address",
+        "default": "http://127.0.0.1:11434"
+      },
+      "model": {
+        "type": "string",
+        "title": "Model",
+        "description": "Used when a block doesn't name one. Install it with: ollama pull <model>",
+        "default": "llama3.2"
+      }
+    }
+  }
+}

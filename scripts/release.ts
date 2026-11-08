@@ -14,9 +14,11 @@ const { version } = JSON.parse(
 const tag = `v${version}`
 const publish = process.argv.includes('--publish')
 
-const installers = /\.(dmg|exe|AppImage|deb)$/
+// Installers, plus the files installed copies read to update themselves.
+const installers = /\.(dmg|exe|AppImage|deb|zip|blockmap)$/
+const updateInfo = /^latest(-mac|-linux)?\.yml$/
 const files = (await readdir(bin).catch(() => []))
-  .filter((f) => installers.test(f) && f.includes(version))
+  .filter((f) => (installers.test(f) && f.includes(version)) || updateInfo.test(f))
   .map((f) => join(bin, f))
 if (files.length === 0) {
   console.error(`No installers for ${version} in bin/. Run \`pnpm package:mac-win\` first.`)
