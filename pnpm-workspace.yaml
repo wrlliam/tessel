@@ -9,3 +9,5 @@ allowBuilds:
   electron: true
   esbuild: true
   koffi: true
+  # Squirrel.Windows tooling; Tessel ships NSIS, so its download script is not needed.
+  electron-winstaller: false
