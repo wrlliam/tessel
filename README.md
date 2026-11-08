@@ -46,7 +46,7 @@ pnpm package:mac-win  # on a Mac: the macOS and Windows installers
 pnpm release          # upload bin/ installers to a draft GitHub release (needs gh)
 ```
 
-macOS gives a universal `.dmg`, Windows an NSIS `.exe`, Linux an `.AppImage` and `.deb`. CI builds all three on a version tag. Signing is stubbed: see [docs/packaging.md](docs/packaging.md) for what each OS needs and how to open unsigned builds.
+macOS gives a universal `.dmg`, Windows an NSIS `.exe`, Linux an `.AppImage` and `.deb`. Every push to `main` builds all three in CI and publishes them as a new release. Signing is stubbed: see [docs/packaging.md](docs/packaging.md) for what each OS needs and how to open unsigned builds.
 
 ## On the phone
 

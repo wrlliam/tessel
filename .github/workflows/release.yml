@@ -1,13 +1,37 @@
 name: Release
 
+# Every push to main is released: installers for macOS, Windows and Linux are built and
+# published as v<major>.<minor>.<run number>, with notes listing the commits since the last one.
+# Installed copies of Tessel find it through the latest*.yml files and update themselves.
 on:
   push:
-    tags: ['v*']
+    branches: [main]
   workflow_dispatch:
 
+# One release at a time, in push order; a newer push doesn't cancel one that's building.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
 jobs:
+  version:
+    name: Pick the version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: v
+        run: |
+          base=$(node -p "require('./packages/desktop/package.json').version.split('.').slice(0, 2).join('.')")
+          echo "version=${base}.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
   package:
     name: Package (${{ matrix.os }})
+    needs: version
     strategy:
       fail-fast: false
       matrix:
@@ -30,6 +54,7 @@ jobs:
               bin/latest-linux.yml
     runs-on: ${{ matrix.os }}
     env:
+      VERSION: ${{ needs.version.outputs.version }}
       # Signing is optional. Without these secrets the builds are unsigned (see docs/packaging.md).
       CSC_LINK: ${{ secrets.CSC_LINK }}
       CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
@@ -45,6 +70,10 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Stamp the version
+        shell: bash
+        run: |
+          node -e "const f='packages/desktop/package.json';const p=require('./'+f);p.version=process.env.VERSION;require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
       - name: Package
         shell: bash
         run: |
@@ -58,8 +87,36 @@ jobs:
           name: tessel-${{ matrix.os }}
           path: ${{ matrix.files }}
           if-no-files-found: error
-      - if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v3
+
+  release:
+    name: Publish v${{ needs.version.outputs.version }}
+    needs: [version, package]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
         with:
-          files: ${{ matrix.files }}
-          draft: true
+          fetch-depth: 0
+      - uses: actions/download-artifact@v7
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          {
+            echo "## Download"
+            echo
+            echo "- **macOS** (Apple silicon and Intel): \`Tessel-${VERSION}-universal.dmg\`"
+            echo "- **Windows** (x64): \`Tessel-Setup-${VERSION}.exe\`"
+            echo "- **Linux**: \`.AppImage\` or \`.deb\`"
+            echo
+            echo "Builds aren't signed yet. On macOS, right-click Tessel, choose Open, then Open again. On Windows, choose More info, then Run anyway. Installed copies update themselves (macOS shows a download link)."
+          } > notes.md
+          gh release create "v${VERSION}" dist/* \
+            --target "${GITHUB_SHA}" \
+            --title "Tessel ${VERSION}" \
+            --notes-file notes.md \
+            --generate-notes \
+            --latest
