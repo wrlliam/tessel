@@ -22,6 +22,8 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>
@@ -35,6 +37,8 @@
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Tessel finds the computer running Tessel on your Wi-Fi and talks to it.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Only when you turn on Share location in Tessel, so weather tiles show your local weather.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

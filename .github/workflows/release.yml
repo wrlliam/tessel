@@ -115,6 +115,65 @@ jobs:
           fi
           gh release upload plugins build/catalog/* --clobber
 
+  ios:
+    name: iPhone app to TestFlight
+    needs: version
+    runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+    steps:
+      - name: Check TestFlight is set up
+        id: setup
+        run: |
+          if [ -z "$APPLE_TEAM_ID" ] || [ -z "$ASC_KEY_ID" ] || [ -z "$ASC_ISSUER_ID" ] || [ -z "$ASC_KEY_P8" ]; then
+            echo "TestFlight isn't set up yet, so the iPhone app was skipped. See docs/ios.md." >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.setup.outputs.ready == 'true'
+        uses: actions/checkout@v7
+      - if: steps.setup.outputs.ready == 'true'
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - if: steps.setup.outputs.ready == 'true'
+        uses: pnpm/action-setup@v6
+      - if: steps.setup.outputs.ready == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - if: steps.setup.outputs.ready == 'true'
+        run: pnpm install --frozen-lockfile && pnpm --filter @tessel/ios-shell sync
+      - name: Archive, sign and upload to TestFlight
+        if: steps.setup.outputs.ready == 'true'
+        working-directory: packages/ios-shell/ios/App
+        run: |
+          # The App Store Connect API key signs in the cloud: no certificates to manage.
+          mkdir -p ~/.appstoreconnect/private_keys
+          KEY=~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+          if printf '%s' "$ASC_KEY_P8" | grep -q 'BEGIN PRIVATE KEY'; then
+            printf '%s\n' "$ASC_KEY_P8" > "$KEY"
+          else
+            printf '%s' "$ASC_KEY_P8" | base64 --decode > "$KEY"
+          fi
+          AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/App.xcarchive" archive \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic \
+            MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            "${AUTH[@]}"
+          sed "s/TEAM_ID/$APPLE_TEAM_ID/" ../ExportOptions.plist > "$RUNNER_TEMP/ExportOptions.plist"
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" \
+            "${AUTH[@]}"
+          echo "Uploaded Tessel ${VERSION} (${{ github.run_number }}) to TestFlight." >> "$GITHUB_STEP_SUMMARY"
+
   release:
     name: Publish v${{ needs.version.outputs.version }}
     needs: [version, package]

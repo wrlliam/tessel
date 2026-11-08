@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
-  appId: 'app.tessel.shell',
+  appId: 'com.wrlliam.tessel',
   appName: 'Tessel',
   webDir: 'dist',
   backgroundColor: '#0E1116',

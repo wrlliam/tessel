@@ -79,6 +79,8 @@ Paired phones are listed in the window. **Remove** disconnects one immediately a
 
 ## iPhone app (optional)
 
+Every push to `main` can also put the app on **TestFlight**, so it installs and updates on your iPhone like any app: see [docs/ios.md](docs/ios.md) for the one-time setup.
+
 `packages/ios-shell` is a small native app (Capacitor) that finds Tessel on your Wi-Fi, opens the same phone page, and adds what Safari can't: haptics and keeping the screen awake. You build it yourself in Xcode; a free Apple ID is enough.
 
 1. Run `pnpm ios:open`. It builds the start screen, syncs the iOS project and opens it in Xcode.
