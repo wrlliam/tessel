@@ -1,4 +1,5 @@
 import {
+  isImageData,
   type EditTileMessage,
   applyChange,
   createRegistry,
@@ -80,6 +81,11 @@ const applyLook = (t: Tile, look: PhoneEdit['look']): Tile => {
 }
 
 export interface HubOptions {
+  /**
+   * Fetches a picture link (https:, file:) and returns a small data: URL for tiles. The desktop
+   * app shrinks pictures with Electron; without it, links are ignored.
+   */
+  loadImage?: (src: string) => Promise<string | undefined>
   dataDir: string
   phoneDir: string
   platform: Platform
@@ -111,7 +117,12 @@ function savedLook(profile: Profile, tileId: string): Partial<Appearance> | unde
   }
 }
 const hasTrigger = (t: Tile, type: string) => t.graph.nodes.some((n) => n.type === type)
-const baseLook = (t: Tile): Appearance => ({ label: t.label, colour: t.colour, icon: t.icon ?? '' })
+const baseLook = (t: Tile): Appearance => ({
+  label: t.label,
+  colour: t.colour,
+  icon: t.icon ?? '',
+  image: t.image ?? '',
+})
 
 /** Owns the server, pairing, devices, profiles and engines. Electron-free so it can be unit-tested. */
 export class Hub {
@@ -882,6 +893,19 @@ export class Hub {
   ) {
     const profile = this.library.get(profileId)
     if (!profile || !tilesOf(profile).some((t) => t.id === tileId)) return
+    // A picture link (album art) is fetched and shrunk first; the rest of the look applies now.
+    if (change !== 'reset' && change.image && !isImageData(change.image)) {
+      const { image, ...rest } = change
+      const token = (this.imageTokens.get(tileId) ?? 0) + 1
+      this.imageTokens.set(tileId, token)
+      void this.prepareImage(image).then((data) => {
+        // Only the newest picture for a tile wins, e.g. when songs change quickly.
+        if (this.imageTokens.get(tileId) !== token) return
+        this.changeAppearance(profileId, tileId, { image: data ?? '' }, remember)
+      })
+      if (Object.keys(rest).length === 0) return
+      change = rest
+    }
     const saved = savedLook(profile, tileId)
     // A remembered look is kept in the tile's saved state; reset always clears it.
     if (remember || change === 'reset') {
@@ -893,6 +917,20 @@ export class Hub {
     if (next) this.overrides.set(tileId, next)
     else this.overrides.delete(tileId)
     this.pushAppearances()
+  }
+
+  private imageTokens = new Map<string, number>()
+  private imageCache = new Map<string, string | undefined>()
+
+  /** Turns a picture link into a small data: URL, remembering the last few. */
+  private async prepareImage(src: string): Promise<string | undefined> {
+    if (this.imageCache.has(src)) return this.imageCache.get(src)
+    const load = this.opts.loadImage
+    const data = load ? await load(src).catch(() => undefined) : undefined
+    this.imageCache.set(src, data)
+    if (this.imageCache.size > 30)
+      this.imageCache.delete(this.imageCache.keys().next().value as string)
+    return data
   }
 
   /** Sends phones every tile whose look changed since the last push. */
@@ -1036,6 +1074,7 @@ const tileStateMessage = (tileId: string, look: Appearance): ServerMessage => ({
   label: look.label,
   colour: look.colour,
   icon: look.icon,
+  image: look.image,
 })
 
 function describeListenError(err: unknown, port: number): string {

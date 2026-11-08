@@ -19,6 +19,8 @@ export const PhoneTile = z.object({
   kind: z.enum(['action', 'folder', 'slider']),
   /** This tile's own key style, instead of the phone's. */
   style: z.enum(['tinted', 'solid', 'outline', 'glass']).optional(),
+  /** A small picture (data: URL) shown instead of the icon. */
+  image: z.string().optional(),
   /** Folder tiles: the folder page they open. */
   targetPageId: z.string().optional(),
 })
@@ -62,6 +64,7 @@ export function toPhoneProfile(profile: Profile): PhoneProfile {
         }
         if (t.icon !== undefined) tile.icon = t.icon
         if (t.style) tile.style = t.style
+        if (t.image) tile.image = t.image
         if (t.kind === 'folder' && t.targetPageId) tile.targetPageId = t.targetPageId
         return tile
       }),
@@ -167,6 +170,8 @@ export const TileStateMessage = z.object({
   colour: HexColour.optional(),
   /** An empty string removes the icon. */
   icon: z.string().optional(),
+  /** A picture (data: URL) instead of the icon; an empty string removes it. */
+  image: z.string().optional(),
   /** Slider tiles: where the bar sits, 0 to 100. */
   value: z.number().min(0).max(100).optional(),
   /** Lights the key's indicator, e.g. while the app an Open app tile opens is running. */

@@ -1,5 +1,5 @@
 import { mdnsNames } from '@tessel/server'
-import { shell, app, ipcMain } from 'electron'
+import { dialog, shell, app, ipcMain } from 'electron'
 import { hostname } from 'node:os'
 import { Channel, type DesktopState, type SharedTiles } from '../shared/api.ts'
 import { Hub } from './hub.ts'
@@ -11,6 +11,7 @@ import { addPluginWithDialog } from './plugins/dialogs.ts'
 import { exportWithDialog, importWithDialog } from './transfer-dialogs.ts'
 import { TesselTray } from './tray.ts'
 import { Updater } from './updater.ts'
+import { loadTileImage } from './images.ts'
 import { newer, PluginCatalog } from './catalog.ts'
 import QRCode from 'qrcode'
 import { ensureMyBlocks, ensurePackage, newBlockFile } from './custom-blocks.ts'
@@ -55,6 +56,7 @@ if (!app.requestSingleInstanceLock()) {
 async function start() {
   const hub: Hub = new Hub({
     dataDir: app.getPath('userData'),
+    loadImage: loadTileImage,
     phoneDir: phoneDir(),
     // Read when a shell block runs, after the hub exists.
     platform: createPlatform(() => hub.shellPolicy()),
@@ -266,6 +268,19 @@ async function start() {
         ? { ok: false, cancelled: true }
         : { ok: false, error: message }
     }
+  })
+  ipcMain.handle(Channel.pickTileImage, async () => {
+    const options: Electron.OpenDialogOptions = {
+      properties: ['openFile'],
+      filters: [{ name: 'Pictures', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }],
+    }
+    const win = currentWindow()
+    const picked = win
+      ? await dialog.showOpenDialog(win, options)
+      : await dialog.showOpenDialog(options)
+    const path = picked.filePaths[0]
+    if (picked.canceled || !path) return undefined
+    return loadTileImage(path)
   })
   ipcMain.handle(Channel.exportTel, (_e, req: unknown) => {
     const r = req as SharedTiles | undefined

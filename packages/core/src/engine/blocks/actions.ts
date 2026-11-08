@@ -455,6 +455,7 @@ export const setTileAppearance = defineBlock({
     { id: 'label', kind: 'value', type: 'string' },
     { id: 'icon', kind: 'value', type: 'string' },
     { id: 'colour', kind: 'value', type: 'string' },
+    { id: 'image', kind: 'value', type: 'string' },
   ],
   outputs: [flowOut],
   paramsSchema: z.object({
@@ -464,6 +465,7 @@ export const setTileAppearance = defineBlock({
       z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Use a colour like #22D3C5'),
     ]),
     icon: optionalText,
+    image: z.string().max(300_000).default(''),
     reset: bool,
     tile: optionalText,
     remember: bool.optional(),
@@ -479,11 +481,18 @@ export const setTileAppearance = defineBlock({
       placeholder: 'mic-off',
       help: 'An icon name from the tile icon picker, or one emoji.',
     },
+    {
+      key: 'image',
+      label: 'Picture',
+      widget: 'text',
+      placeholder: 'https://… or wire one in',
+      help: 'A picture link, e.g. album art from What’s playing. Tessel fetches it and sends phones a small copy. "none" removes the picture.',
+    },
     { key: 'reset', label: 'Reset to the tile’s own look', widget: 'toggle' },
     { key: 'remember', label: 'Keep it after Tessel restarts', widget: 'toggle' },
   ],
-  defaults: { tile: '', label: '', colour: '', icon: '', reset: false, remember: false },
-  run: (ctx, { label, colour, icon, reset, tile, remember }) => {
+  defaults: { tile: '', label: '', colour: '', icon: '', image: '', reset: false, remember: false },
+  run: (ctx, { label, colour, icon, image, reset, tile, remember }) => {
     const opts = { remember: remember ?? false, ...(tile !== '' && { tileId: tile }) }
     if (reset) return ctx.setAppearance('reset', opts)
     ctx.setAppearance(
@@ -491,6 +500,7 @@ export const setTileAppearance = defineBlock({
         ...(label !== '' && { label }),
         ...(colour !== '' && { colour }),
         ...(icon !== '' && { icon }),
+        ...(image !== '' && { image: image === 'none' ? '' : image }),
       },
       opts,
     )

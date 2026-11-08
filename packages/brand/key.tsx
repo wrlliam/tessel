@@ -31,6 +31,8 @@ export interface KeyLook {
   label: string
   colour: string
   icon: string
+  /** A small picture (data: URL) shown instead of the icon, e.g. album art. */
+  image?: string
 }
 
 function luminance(hex: string): number {
@@ -149,7 +151,21 @@ export function KeyFace({
         : lights && (
             <span className="key-light" style={{ top: corner, right: corner }} aria-hidden />
           )}
-      {icon && <TileIcon icon={icon} size={iconSize} className="key-icon" />}
+      {look.image ? (
+        // A picture sits where the icon would, a little larger, like a preview.
+        <img
+          src={look.image}
+          alt=""
+          className="key-image"
+          style={{
+            width: Math.round(iconSize * 1.55),
+            height: Math.round(iconSize * 1.55),
+            borderRadius: Math.max(4, Math.round(iconSize * 0.22)),
+          }}
+        />
+      ) : (
+        icon && <TileIcon icon={icon} size={iconSize} className="key-icon" />
+      )}
       {(labels || !icon) && (
         <span className="key-label" style={{ fontSize: font }}>
           {look.label}

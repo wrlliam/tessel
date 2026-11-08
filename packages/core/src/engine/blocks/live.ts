@@ -107,6 +107,7 @@ export const nowPlaying = defineBlock({
     text('elapsed'),
     num('progress', 'progress %'),
     { id: 'playing', kind: 'value', type: 'boolean', label: 'playing' },
+    text('artwork', 'album art'),
   ],
   paramsSchema: z.object({}),
   fields: [],
@@ -139,6 +140,7 @@ export const nowPlaying = defineBlock({
         elapsed: np.position !== undefined ? formatDuration(np.position) : '',
         progress: known ? Math.round(((np.position ?? 0) / (np.duration ?? 1)) * 100) : 0,
         playing: np.playing,
+        artwork: np.artwork ?? '',
       },
     }
   },

@@ -439,13 +439,20 @@ function GridTile({
  * follow tile state (live appearance), so editing a label isn't hidden by an old live look.
  */
 export function previewLook(tile: Tile, live: Appearance | undefined): Appearance {
-  const base = { label: tile.label, colour: tile.colour, icon: tile.icon ?? '' }
+  const base = {
+    label: tile.label,
+    colour: tile.colour,
+    icon: tile.icon ?? '',
+    image: tile.image ?? '',
+  }
   if (!live) return base
   const bound = new Set(tile.appearanceBindings.map((b) => b.field))
   return {
     label: bound.has('label') ? live.label : base.label,
     colour: bound.has('colour') ? live.colour : base.colour,
     icon: bound.has('icon') ? live.icon : base.icon,
+    // Pictures only change at run time (Set tile appearance), so the live one shows.
+    image: live.image || base.image,
   }
 }
 

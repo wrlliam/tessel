@@ -393,8 +393,18 @@ describe('grid preview', () => {
       position: { col: 0, row: 0 },
       appearanceBindings: [{ field: 'colour', expression: '{{state.on ? "#F25C6E" : "#212833"}}' }],
     })
-    const live = { label: 'Old name', colour: '#F25C6E', icon: 'mic' }
-    expect(previewLook(tile, live)).toEqual({ label: 'New name', colour: '#F25C6E', icon: '' })
-    expect(previewLook(tile, undefined)).toEqual({ label: 'New name', colour: '#22D3C5', icon: '' })
+    const live = { label: 'Old name', colour: '#F25C6E', icon: 'mic', image: '' }
+    expect(previewLook(tile, live)).toEqual({
+      label: 'New name',
+      colour: '#F25C6E',
+      icon: '',
+      image: '',
+    })
+    expect(previewLook(tile, undefined)).toEqual({
+      label: 'New name',
+      colour: '#22D3C5',
+      icon: '',
+      image: '',
+    })
   })
 })

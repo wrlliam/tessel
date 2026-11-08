@@ -248,6 +248,31 @@ function TileSection({ tile }: { tile: Tile }) {
           />
         </div>
       </Field>
+      <Field label="Picture" help="Shown instead of the icon, shrunk for phones">
+        <div className="flex items-center gap-2">
+          {tile.image && (
+            <img src={tile.image} alt="" className="size-10 rounded-md object-cover" />
+          )}
+          <Button
+            size="sm"
+            onClick={async () => {
+              const image = await window.tessel.pickTileImage()
+              if (image) updateTile(tile.id, { image })
+            }}
+          >
+            {tile.image ? 'Change…' : 'Choose…'}
+          </Button>
+          {tile.image && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => updateTile(tile.id, { image: undefined })}
+            >
+              Remove
+            </Button>
+          )}
+        </div>
+      </Field>
       <Field
         label="Key style"
         htmlFor="tile-style"

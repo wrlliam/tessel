@@ -148,6 +148,11 @@ body {
     opacity: 0.6;
     font-variant-numeric: tabular-nums;
   }
+  .key-image {
+    flex-shrink: 0;
+    object-fit: cover;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  }
   .key-icon {
     flex-shrink: 0;
   }

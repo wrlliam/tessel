@@ -7,6 +7,8 @@ export interface Appearance {
   colour: string
   /** Empty for no icon. */
   icon: string
+  /** A small picture shown instead of the icon (a data: URL); empty for none. */
+  image: string
 }
 
 const HEX = /^#[0-9a-fA-F]{6}$/
@@ -29,7 +31,12 @@ export function resolveAppearance(
   scope: Record<string, unknown>,
   override?: Partial<Appearance>,
 ): Appearance {
-  const out: Appearance = { label: tile.label, colour: tile.colour, icon: tile.icon ?? '' }
+  const out: Appearance = {
+    label: tile.label,
+    colour: tile.colour,
+    icon: tile.icon ?? '',
+    image: tile.image ?? '',
+  }
   for (const binding of tile.appearanceBindings) {
     let value: string
     try {
@@ -44,8 +51,17 @@ export function resolveAppearance(
   if (override?.label !== undefined) out.label = override.label
   if (override?.colour !== undefined && HEX.test(override.colour)) out.colour = override.colour
   if (override?.icon !== undefined) out.icon = override.icon
+  if (override?.image !== undefined && (override.image === '' || isImageData(override.image)))
+    out.image = override.image
   return out
 }
 
 export const sameAppearance = (a: Appearance, b: Appearance) =>
-  a.label === b.label && a.colour === b.colour && a.icon === b.icon
+  a.label === b.label && a.colour === b.colour && a.icon === b.icon && a.image === b.image
+
+/** Tile pictures travel as small data: URLs, so phones need no internet and nothing is fetched. */
+export const isImageData = (s: string) =>
+  s.length <= MAX_IMAGE_CHARS && /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(s)
+
+/** About 200 KB of picture. */
+export const MAX_IMAGE_CHARS = 280_000

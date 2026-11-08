@@ -918,7 +918,7 @@ export const templates: TileTemplate[] = [
     category: 'Live tiles',
     name: "What's playing",
     description:
-      'Shows the song playing in Spotify (or your music app) and the time left, every 2 seconds. Tap to play or pause.',
+      'Shows the song playing in Spotify (or your music app) with its album cover and the time left, every 2 seconds. Tap to play or pause.',
     tile: {
       label: 'Nothing playing',
       icon: 'music',
@@ -943,6 +943,7 @@ export const templates: TileTemplate[] = [
               label: 'Nothing playing',
               colour: '',
               icon: 'music',
+              image: 'none',
               reset: false,
               remember: false,
             },
@@ -960,6 +961,7 @@ export const templates: TileTemplate[] = [
           wire('np', 'song', 'text', 'a'),
           wire('np', 'left', 'text', 'b'),
           wire('text', 'text', 'show', 'label'),
+          wire('np', 'artwork', 'show', 'image'),
           wire('press', 'out', 'pp'),
         ],
       },

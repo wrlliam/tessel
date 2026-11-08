@@ -51,7 +51,8 @@ export interface RunContext {
   refreshParams(): Promise<unknown>
 }
 
-export type AppearanceChange = { label?: string; colour?: string; icon?: string } | 'reset'
+export type AppearanceChange =
+  { label?: string; colour?: string; icon?: string; image?: string } | 'reset'
 
 export interface BlockResult {
   /** Flow output to follow. Defaults to the block's first flow output. */

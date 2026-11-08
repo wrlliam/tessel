@@ -44,6 +44,8 @@ export interface NowPlayingInfo {
   album?: string
   app?: string
   playing: boolean
+  /** Album art: an https:, file: or data: URL. */
+  artwork?: string
   /** Seconds. */
   position?: number
   duration?: number

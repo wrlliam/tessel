@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Pictures on tiles:** choose one in the inspector, or set one at run time; What's playing shows the album cover.
+- **Sliders follow changes** made elsewhere (the volume slider tracks the system volume), and can be **tapped and held**: hold a Voicemeeter fader to reset it to 0 dB, or the volume slider to mute.
+- **Open app** tiles light up while their app is open; apps open reliably on Windows, and macOS finds apps whose names differ slightly.
 - **Get more plugins:** OBS Studio, Philips Hue, Elgato Key Light, macOS Shortcuts, audio output switching, Slack status and Spotify, downloaded on demand and checked before installing.
 - **More templates:** OBS scenes, record and go-live keys that light up while live; light switches and sliders; Slack statuses; water and stand-up reminders; night and day mode; meeting prep. New pages: Streaming, Lights and Workday.
 - **Pair by scanning** the QR code; no code to type.

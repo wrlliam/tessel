@@ -67,7 +67,13 @@ export function PageGrid({
       style={{ width: shown.cols * stepX - cells.gap, height: shown.rows * stepY - cells.gap }}
     >
       {tiles.map((t) => {
-        const look = { label: t.label, colour: t.colour, icon: t.icon ?? '', ...overrides[t.id] }
+        const look = {
+          label: t.label,
+          colour: t.colour,
+          icon: t.icon ?? '',
+          ...(t.image && { image: t.image }),
+          ...overrides[t.id],
+        }
         const w = t.span.w * stepX - cells.gap
         const h = t.span.h * stepY - cells.gap
         const kind = t.id === BACK.id ? 'back' : t.kind

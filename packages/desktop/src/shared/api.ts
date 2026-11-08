@@ -156,6 +156,8 @@ export interface TesselApi {
     tileId: string,
   ): Promise<{ id: string; urls: string[]; qr: string } | undefined>
   deleteShortcut(id: string): Promise<void>
+  /** Asks for a picture file and returns it shrunk for a tile, as a data: URL. */
+  pickTileImage(): Promise<string | undefined>
   /** Optional plugins to download, with what's installed here. */
   getCatalog(force?: boolean): Promise<CatalogResult>
   /** Downloads a plugin from the catalog, checks it, and installs it after asking. */
@@ -236,6 +238,7 @@ export const Channel = {
   phoneEdit: 'phone:edit',
   createShortcut: 'shortcut:create',
   getCatalog: 'catalog:list',
+  pickTileImage: 'tile:pick-image',
   installFromCatalog: 'catalog:install',
   deleteShortcut: 'shortcut:delete',
 } as const

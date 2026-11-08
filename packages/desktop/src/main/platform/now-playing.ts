@@ -15,19 +15,31 @@ const num = (s: string | undefined) => {
 export const DARWIN_SCRIPT = `set out to ""
 if application "Spotify" is running then
   tell application "Spotify"
-    if player state is not stopped then set out to "Spotify" & tab & (name of current track) & tab & (artist of current track) & tab & (album of current track) & tab & ((duration of current track) / 1000) & tab & player position & tab & (player state as text)
+    if player state is not stopped then set out to "Spotify" & tab & (name of current track) & tab & (artist of current track) & tab & (album of current track) & tab & ((duration of current track) / 1000) & tab & player position & tab & (player state as text) & tab & (artwork url of current track)
   end tell
 end if
 if out is "" and application "Music" is running then
   tell application "Music"
-    if player state is not stopped then set out to "Music" & tab & (name of current track) & tab & (artist of current track) & tab & (album of current track) & tab & (duration of current track) & tab & player position & tab & (player state as text)
+    if player state is not stopped then
+      set art to ""
+      try
+        -- Music has no artwork link; save the picture next to other temporary files.
+        set f to (POSIX path of (path to temporary items)) & "tessel-art-" & (persistent ID of current track)
+        set fh to open for access (POSIX file f) with write permission
+        set eof fh to 0
+        write (raw data of artwork 1 of current track) to fh
+        close access fh
+        set art to "file://" & f
+      end try
+      set out to "Music" & tab & (name of current track) & tab & (artist of current track) & tab & (album of current track) & tab & (duration of current track) & tab & player position & tab & (player state as text) & tab & art
+    end if
   end tell
 end if
 return out`
 
-/** app, title, artist, album, duration s, position s, state; separated by tabs. */
+/** app, title, artist, album, duration s, position s, state, artwork URL; separated by tabs. */
 export function parseDarwin(stdout: string): NowPlayingInfo | undefined {
-  const [app, title, artist, album, duration, position, state] = stdout.trim().split('\t')
+  const [app, title, artist, album, duration, position, state, artwork] = stdout.trim().split('\t')
   if (!title) return undefined
   return {
     app,
@@ -35,17 +47,18 @@ export function parseDarwin(stdout: string): NowPlayingInfo | undefined {
     artist: artist ?? '',
     ...(album && { album }),
     playing: state === 'playing',
+    ...(artwork && /^(https?|file):/.test(artwork) && { artwork }),
     ...(num(duration) !== undefined && { duration: num(duration) }),
     ...(num(position) !== undefined && { position: num(position) }),
   }
 }
 
 export const LINUX_FORMAT =
-  '{{playerName}}\t{{title}}\t{{artist}}\t{{album}}\t{{mpris:length}}\t{{position}}\t{{status}}'
+  '{{playerName}}\t{{title}}\t{{artist}}\t{{album}}\t{{mpris:length}}\t{{position}}\t{{status}}\t{{mpris:artUrl}}'
 
 /** Same as macOS, but length and position are in microseconds. */
 export function parseLinux(stdout: string): NowPlayingInfo | undefined {
-  const [app, title, artist, album, length, position, status] = stdout.trim().split('\t')
+  const [app, title, artist, album, length, position, status, artUrl] = stdout.trim().split('\t')
   if (!title) return undefined
   const us = (v: string | undefined) => (num(v) !== undefined ? (num(v) ?? 0) / 1e6 : undefined)
   return {
@@ -54,6 +67,7 @@ export function parseLinux(stdout: string): NowPlayingInfo | undefined {
     artist: artist ?? '',
     ...(album && { album }),
     playing: status === 'Playing',
+    ...(artUrl && /^(https?|file):/.test(artUrl) && { artwork: artUrl }),
     ...(us(length) !== undefined && { duration: us(length) }),
     ...(us(position) !== undefined && { position: us(position) }),
   }
@@ -72,8 +86,19 @@ if ($s) {
   $tl = $s.GetTimelineProperties()
   $playing = $s.GetPlaybackInfo().PlaybackStatus -eq 'Playing'
   $pos = $tl.Position.TotalSeconds
+  $art = ''
+  try {
+    if ($p.Thumbnail) {
+      $stream = Await ($p.Thumbnail.OpenReadAsync()) ([Windows.Storage.Streams.IRandomAccessStreamWithContentType])
+      $reader = [System.IO.WindowsRuntimeStreamExtensions]::AsStreamForRead($stream)
+      $buffer = New-Object System.IO.MemoryStream
+      $reader.CopyTo($buffer)
+      $type = if ($stream.ContentType) { $stream.ContentType } else { 'image/png' }
+      $art = 'data:' + $type + ';base64,' + [Convert]::ToBase64String($buffer.ToArray())
+    }
+  } catch { }
   if ($playing) { $pos += ([DateTimeOffset]::Now - $tl.LastUpdatedTime).TotalSeconds }
-  [pscustomobject]@{ app = $s.SourceAppUserModelId; title = $p.Title; artist = $p.Artist; album = $p.AlbumTitle; position = $pos; duration = $tl.EndTime.TotalSeconds; playing = $playing } | ConvertTo-Json -Compress
+  [pscustomobject]@{ app = $s.SourceAppUserModelId; title = $p.Title; artist = $p.Artist; album = $p.AlbumTitle; position = $pos; duration = $tl.EndTime.TotalSeconds; playing = $playing; artwork = $art } | ConvertTo-Json -Compress
 }`
 
 export function parseWin32(stdout: string): NowPlayingInfo | undefined {
@@ -90,6 +115,9 @@ export function parseWin32(stdout: string): NowPlayingInfo | undefined {
     artist: String(j['artist'] ?? ''),
     ...(j['album'] ? { album: String(j['album']) } : {}),
     playing: j['playing'] === true,
+    ...(typeof j['artwork'] === 'string' && j['artwork'].startsWith('data:image/')
+      ? { artwork: j['artwork'] }
+      : {}),
     ...(duration ? { duration } : {}),
     ...(position !== undefined && duration ? { position: Math.min(position, duration) } : {}),
   }

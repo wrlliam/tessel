@@ -85,6 +85,7 @@ describe('appearance', () => {
       label: 'Count 3',
       colour: '#F25C6E',
       icon: 'mic',
+      image: '',
     })
   })
 

@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PROFILE_SCHEMA_VERSION, sampleProfile, type Platform } from '@tessel/core'
-import { Hub } from '../src/main/hub.ts'
+import { Hub, type HubOptions } from '../src/main/hub.ts'
 import { SETTINGS_SCHEMA_VERSION } from '../src/main/settings.ts'
 
 const hubs: Hub[] = []
@@ -45,7 +45,11 @@ function freePort(): Promise<number> {
   })
 }
 
-async function makeHub(settings: Record<string, unknown> = {}, dir?: string) {
+async function makeHub(
+  settings: Record<string, unknown> = {},
+  dir?: string,
+  extra: Partial<HubOptions> = {},
+) {
   const dataDir = dir ?? (await mkdtemp(join(tmpdir(), 'tessel-hub-')))
   const port = (settings['port'] as number | undefined) ?? (await freePort())
   await writeFile(
@@ -62,6 +66,7 @@ async function makeHub(settings: Record<string, unknown> = {}, dir?: string) {
     phoneDir: join(dataDir, 'none'),
     addresses: () => [{ iface: 'en0', address: '192.168.1.20' }],
     mdns: false,
+    ...extra,
   })
   hubs.push(hub)
   await hub.init()
@@ -343,6 +348,7 @@ describe('Hub profiles', () => {
       label: 'Locked',
       colour: '#F25C6E',
       icon: 'lock',
+      image: '',
     })
     tile.graph.nodes[1]!.params = { label: '', colour: '', icon: '', reset: true }
     await hub.saveProfile(profile)
@@ -483,6 +489,33 @@ describe('Hub settings', () => {
 })
 
 describe('Hub phone settings and remembered looks', () => {
+  it('fetches picture links through the image loader, keeping only the newest', async () => {
+    const PIC = 'data:image/jpeg;base64,/9j/AA=='
+    const resolvers: Array<(v: string) => void> = []
+    const loadImage = vi.fn(
+      (src: string) =>
+        new Promise<string | undefined>((r) =>
+          resolvers.push(() => r(`${PIC}#${src}`.split('#')[0])),
+        ),
+    )
+    const { hub } = await makeHub({}, undefined, { loadImage })
+    const change = (
+      hub as unknown as {
+        changeAppearance: (p: string, t: string, c: object, r: boolean) => void
+      }
+    ).changeAppearance.bind(hub)
+    change('default', 'lock', { image: 'https://example.test/a.jpg', label: 'Song A' }, false)
+    expect(hub.state().liveAppearance['lock']?.label).toBe('Song A')
+    change('default', 'lock', { image: 'https://example.test/b.jpg' }, false)
+    expect(loadImage).toHaveBeenCalledTimes(2)
+    resolvers[0]?.('')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(hub.state().liveAppearance['lock']?.image ?? '').toBe('')
+    resolvers[1]?.('')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(hub.state().liveAppearance['lock']?.image).toBe(PIC)
+  })
+
   it('moves a slider from a block in its own range, but not right after a drag; hold runs On long press', async () => {
     const { hub, platform } = await makeHub()
     const profile = structuredClone(hub.getProfile('default')!)
