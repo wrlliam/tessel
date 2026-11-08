@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **My blocks return several values by name** (`return { days, words }`, with `next` to pick the output), type-checked against `values`.
 - **Every push to main is released** by CI with installers for macOS, Windows and Linux; installed copies update themselves.
 - **zx** for scripts: the Run a zx script block, and zx ready to import in My blocks.
 - **.tel files** to share tiles or a whole page, including the code of the My blocks they use; double-click, drop or import to add them.

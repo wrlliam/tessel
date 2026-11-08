@@ -57,17 +57,34 @@ export interface BlockContext {
   setTileState(key: string, value: Json): void
 }
 
-export type BlockResult =
-  // Follow the first flow output.
+/** What a value output carries, by its declared type. */
+type OutputValue<T extends ValueType> = T extends 'number'
+  ? number
+  : T extends 'boolean'
+    ? boolean
+    : T extends 'string'
+      ? string
+      : unknown
+
+/**
+ * What run() can return:
+ * - nothing: carry on through the first output;
+ * - a string, e.g. 'yes': carry on through that output;
+ * - the values themselves, e.g. { days: 12, words: '12 days to go' }, with an optional
+ *   `next` to pick the output;
+ * - { next, values }, the long form.
+ */
+export type BlockResult<V extends Record<string, ValueType> = Record<string, ValueType>> =
   // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
   | void
-  // Follow this flow output, e.g. 'yes'.
   | string
-  | { next?: string; values?: Record<string, unknown> }
+  | ({ [K in keyof V]?: OutputValue<V[K]> } & { next?: string })
+  | { next?: string; values?: { [K in keyof V]?: OutputValue<V[K]> } }
 
 export interface BlockSpec<
   P extends Record<string, ParamSpec>,
   I extends Record<string, ValueType>,
+  V extends Record<string, ValueType>,
 > {
   name: string
   description?: string
@@ -77,8 +94,8 @@ export interface BlockSpec<
   inputs?: I
   /** Flow outputs to choose between. Default: one output, 'out'. */
   outputs?: readonly string[]
-  /** Value outputs other blocks can read. */
-  values?: Record<string, ValueType>
+  /** Value outputs other blocks can read; return them from run() by name. */
+  values?: V
   /** How long a run may take, up to 600 s. Default 30 s. */
   timeoutSeconds?: number
   /** Operating systems the block works on. */
@@ -88,7 +105,7 @@ export interface BlockSpec<
     inputs: { [K in keyof I]: InputValue<I[K]> }
     ctx: BlockContext
     std: typeof std
-  }): BlockResult | Promise<BlockResult>
+  }): BlockResult<V> | Promise<BlockResult<V>>
 }
 
 /** What Tessel's plugin runner expects for one block. */
@@ -165,9 +182,13 @@ const BLOCK = Symbol.for('tessel.customBlock')
 export function block<
   P extends Record<string, ParamSpec> = Record<never, ParamSpec>,
   I extends Record<string, ValueType> = Record<never, ValueType>,
->(spec: BlockSpec<P, I>): Omit<PluginBlock, 'id'> & { [BLOCK]: true } {
+  V extends Record<string, ValueType> = Record<never, ValueType>,
+>(spec: BlockSpec<P, I, V>): Omit<PluginBlock, 'id'> & { [BLOCK]: true } {
   const params = (spec.params ?? {}) as Record<string, ParamSpec>
   const flows = spec.outputs?.length ? spec.outputs : ['out']
+  for (const reserved of ['next', 'values'])
+    if (spec.values && reserved in spec.values)
+      throw new Error(`"${spec.name}": "${reserved}" can't be a value name; pick another`)
   return {
     [BLOCK]: true,
     name: spec.name,
@@ -214,8 +235,42 @@ export function block<
           )
         return { next: result }
       }
-      return result ?? undefined
+      if (result === undefined || result === null) return undefined
+      return normalise(
+        spec.name,
+        result as Record<string, unknown>,
+        flows,
+        Object.keys(spec.values ?? {}),
+      )
     },
+  }
+}
+
+/**
+ * Turns either result form into { next, values }, and checks names so a typo says what's wrong
+ * instead of quietly giving nothing.
+ */
+export function normalise(
+  name: string,
+  result: Record<string, unknown>,
+  flows: readonly string[],
+  declared: readonly string[],
+): { next?: string; values?: Record<string, unknown> } {
+  const long =
+    Object.keys(result).every((k) => k === 'next' || k === 'values') &&
+    (result['values'] === undefined || typeof result['values'] === 'object')
+  const { next, ...rest } = result
+  const values = (long ? (result['values'] ?? {}) : rest) as Record<string, unknown>
+  if (next !== undefined && (typeof next !== 'string' || !flows.includes(next)))
+    throw new Error(`"${name}" chose "${String(next)}", but its outputs are ${flows.join(', ')}`)
+  const unknown = Object.keys(values).filter((k) => !declared.includes(k))
+  if (unknown.length)
+    throw new Error(
+      `"${name}" returned ${unknown.join(', ')}, which ${unknown.length === 1 ? "isn't a value" : "aren't values"} it declares. Add ${unknown.length === 1 ? 'it' : 'them'} to values: ${declared.length ? `(it has ${declared.join(', ')})` : '{ ... }'}.`,
+    )
+  return {
+    ...(next !== undefined && { next: next as string }),
+    ...(Object.keys(values).length && { values }),
   }
 }
 

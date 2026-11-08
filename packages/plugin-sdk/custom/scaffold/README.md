@@ -41,7 +41,7 @@ export default block({
   run({ params, inputs, std }) {
     const when = inputs.date ? std.date.parse(inputs.date) : std.date.now()
     const past = std.date.month(when) >= params.month
-    return { next: past ? 'yes' : 'no', values: { monthName: std.date.monthName(when) } }
+    return { next: past ? 'yes' : 'no', monthName: std.date.monthName(when) }
   },
 })
 ```
@@ -60,7 +60,24 @@ What `run` returns:
 
 - nothing: carry on through the first output;
 - a string, e.g. `'yes'`: carry on through that output;
-- `{ next, values }`: choose an output and hand values to the blocks wired after it.
+- the values, by name: `return { days, words }`. Add `next` to choose the output too: `return { next: 'no', days, words }`;
+- or the long form, `{ next, values: { days, words } }`.
+
+Every name you return must be in `values`, with the type it says; your editor flags a wrong type, and Tessel names any value you return but didn't declare. `next` and `values` can't be value names.
+
+```ts
+export default block({
+  name: 'Split a name',
+  inputs: { full: 'string' },
+  values: { first: 'string', last: 'string', parts: 'number' },
+  run({ inputs }) {
+    const words = (inputs.full ?? '').trim().split(/\s+/)
+    return { first: words[0] ?? '', last: words.at(-1) ?? '', parts: words.length }
+  },
+})
+```
+
+Wire `first`, `last` and `parts` into different blocks; each is its own output on the canvas.
 
 Throw an `Error` to fail the run; its message shows in the run log and on the phone.
 

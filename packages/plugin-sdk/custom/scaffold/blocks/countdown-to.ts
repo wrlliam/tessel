@@ -18,6 +18,7 @@ export default block({
           : days === 0
             ? 'Today'
             : `${-days} days ago`
-    return { values: { days, words } }
+    // Several values at once: return them by name.
+    return { days, words }
   },
 })

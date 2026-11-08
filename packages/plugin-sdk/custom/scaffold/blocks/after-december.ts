@@ -14,6 +14,7 @@ export default block({
   run({ params, inputs, std }) {
     const when = inputs.date ? std.date.parse(inputs.date) : std.date.now()
     const past = std.date.month(when) >= params.month
-    return { next: past ? 'yes' : 'no', values: { monthName: std.date.monthName(when) } }
+    // Pick the way out with next, and hand on values by name alongside it.
+    return { next: past ? 'yes' : 'no', monthName: std.date.monthName(when) }
   },
 })
