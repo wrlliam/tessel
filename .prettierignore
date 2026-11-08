@@ -3,5 +3,6 @@ dist
 out
 build
 release
+bin
 packages/ios-shell/ios
 .github

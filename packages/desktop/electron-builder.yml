@@ -4,7 +4,8 @@ appId: app.tessel.desktop
 productName: Tessel
 copyright: Copyright © Tessel
 directories:
-  output: release
+  # Installers land in bin/ at the repo root.
+  output: ../../bin
   buildResources: build
 files:
   - out/**
@@ -26,6 +27,8 @@ mac:
     - target: dmg
       arch: universal
   category: public.app-category.utilities
+  # Plugins carry koffi binaries for every platform; they're the same in both halves of the universal app.
+  x64ArchFiles: koffi.node
   icon: build/icon.png
   hardenedRuntime: true
   entitlements: build/entitlements.mac.plist

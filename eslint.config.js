@@ -12,6 +12,7 @@ export default defineConfig([
       '**/node_modules/**',
       '**/release/**',
       'build/**',
+      'bin/**',
       'packages/ios-shell/ios/**',
     ],
   },

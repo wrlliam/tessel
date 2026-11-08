@@ -13,13 +13,13 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            files: packages/desktop/release/*.dmg
+            files: bin/*.dmg
           - os: windows-latest
-            files: packages/desktop/release/*.exe
+            files: bin/*.exe
           - os: ubuntu-latest
             files: |
-              packages/desktop/release/*.AppImage
-              packages/desktop/release/*.deb
+              bin/*.AppImage
+              bin/*.deb
     runs-on: ${{ matrix.os }}
     env:
       # Signing is optional. Without these secrets the builds are unsigned (see docs/packaging.md).

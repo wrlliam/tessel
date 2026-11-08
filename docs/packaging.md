@@ -5,9 +5,10 @@
 ```sh
 pnpm package          # builds everything, then installers for the current OS
 pnpm package:dir      # unpacked app only, faster, for checking the bundle
+pnpm package:mac-win  # on a Mac: the macOS dmg and the Windows installer together
 ```
 
-Output goes to `packages/desktop/release/`:
+Output goes to `bin/` at the repo root:
 
 | OS      | Output                                   | Notes                                                                    |
 | ------- | ---------------------------------------- | ------------------------------------------------------------------------ |

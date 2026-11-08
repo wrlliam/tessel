@@ -25,7 +25,7 @@ The first `pnpm dev` downloads the Electron binary.
 ## Build installers
 
 ```sh
-pnpm package    # installers for this OS in packages/desktop/release/
+pnpm package    # installers for this OS in bin/
 ```
 
 macOS gives a universal `.dmg`, Windows an NSIS `.exe`, Linux an `.AppImage` and `.deb`. CI builds all three on a version tag. Signing is stubbed: see [docs/packaging.md](docs/packaging.md) for what each OS needs and how to open unsigned builds.

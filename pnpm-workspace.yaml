@@ -1,6 +1,10 @@
 packages:
   - packages/*
   - plugins/*
+# Also fetch Windows x64 native binaries (koffi, libnut), so a Mac can build the Windows installer.
+supportedArchitectures:
+  os: [current, win32]
+  cpu: [current, x64]
 allowBuilds:
   electron: true
   esbuild: true
