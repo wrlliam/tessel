@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import WebSocket from 'ws'
 import { ensureTls, serverCertFits } from '../src/certs.ts'
 import { DeviceRegistry } from '../src/devices.ts'
+import { PairApprovals } from '../src/approvals.ts'
 import { PairingCodes } from '../src/pairing.ts'
 import { TesselServer, type TlsCredentials } from '../src/server.ts'
 
@@ -62,6 +63,7 @@ describe('https on the same port', () => {
     server = new TesselServer({
       devices,
       pairing: new PairingCodes(),
+      approvals: new PairApprovals(),
       profile: sampleProfile,
       phoneDir: join(dir, 'missing'),
       logger: { info() {}, warn() {}, error() {} },

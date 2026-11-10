@@ -5,9 +5,11 @@ import {
   MAX_CLIENT_MESSAGE_BYTES,
   PROTOCOL_VERSION,
   PairRequest,
+  PairWaitRequest,
   parseClientMessage,
   toPhoneProfile,
   type EditTileMessage,
+  type PairPending,
   type PairResponse,
   type Profile,
   type ServerMessage,
@@ -20,6 +22,7 @@ import { createServer as createNetServer, type Server as NetServer, type Socket 
 import { hostname } from 'node:os'
 import { join } from 'node:path'
 import type { WebSocket } from 'ws'
+import type { PairApprovals } from './approvals.ts'
 import type { DeviceInfo, DeviceRegistry } from './devices.ts'
 import { isAllowedHost, isSameOrigin } from './origin.ts'
 import type { PairingCodes } from './pairing.ts'
@@ -28,6 +31,8 @@ export const DEFAULT_PORT = 4747
 const HELLO_TIMEOUT_MS = 5_000
 const HEARTBEAT_MS = 15_000
 const MAX_MESSAGES_PER_SECOND = 40
+/** How long one /api/pair/wait request is held open before the phone asks again. */
+const PAIR_WAIT_MS = 25_000
 
 export interface Logger {
   info(msg: string): void
@@ -50,6 +55,8 @@ export interface PressEvent {
 export interface TesselServerOptions {
   devices: DeviceRegistry
   pairing: PairingCodes
+  /** Phones with the right code wait here until someone approves them on the computer. */
+  approvals: PairApprovals
   profile: Profile
   /** Built phone client. When missing, '/' explains how to build it. */
   phoneDir: string
@@ -200,6 +207,7 @@ export class TesselServer {
     const app = this.app
     if (!app) return
     this.app = undefined
+    this.opts.approvals.clear()
     clearInterval(this.heartbeat)
     for (const c of this.clients)
       c.socket.close(CloseCode.serverStopping, 'Desktop stopped sharing')
@@ -246,6 +254,7 @@ export class TesselServer {
           .send(this.tls.ca)
       })
       scoped.post('/api/pair', (req, reply) => this.handlePair(req, reply))
+      scoped.post('/api/pair/wait', (req, reply) => this.handlePairWait(req, reply))
       // Shortcut apps may send a form or text body with the POST; it's ignored.
       scoped.addContentTypeParser(
         ['application/x-www-form-urlencoded', 'text/plain'],
@@ -342,9 +351,54 @@ export class TesselServer {
       this.opts.logger.warn(`Wrong pairing code from ${req.ip}`)
       return reply.code(401).send({ error: 'That code is not right. Check your computer.' })
     }
-    const paired = await this.opts.devices.pair(body.data.deviceName)
-    this.opts.logger.info(`Paired "${body.data.deviceName}" from ${req.ip}`)
-    return paired satisfies PairResponse
+    const old = body.data.previousToken
+      ? this.opts.devices.verify(body.data.previousToken)
+      : undefined
+    const request = this.opts.approvals.open(
+      body.data.deviceName,
+      req.ip,
+      old ? { id: old.id, name: old.name } : undefined,
+    )
+    if (!request) {
+      reply.header('Retry-After', '30')
+      return reply
+        .code(429)
+        .send({ error: 'Other phones are waiting to be approved. Try again in a moment.' })
+    }
+    this.opts.logger.info(`"${body.data.deviceName}" (${req.ip}) is waiting for you to approve it`)
+    return reply
+      .code(202)
+      .send({ requestId: request.id, secret: request.secret } satisfies PairPending)
+  }
+
+  /** Long-polls until the computer approves or refuses the phone. Only then is a token made. */
+  private async handlePairWait(req: FastifyRequest, reply: FastifyReply) {
+    if (!isSameOrigin(req.headers.origin, req.headers.host)) {
+      return reply.code(403).send({ error: 'Bad origin' })
+    }
+    const body = PairWaitRequest.safeParse(req.body)
+    if (!body.success) return reply.code(400).send({ error: 'Bad request' })
+    const { requestId, secret } = body.data
+    await this.opts.approvals.wait(requestId, secret, PAIR_WAIT_MS)
+    const answer = this.opts.approvals.claim(requestId, secret)
+    if (!answer) return reply.code(404).send({ error: 'That request is gone. Pair again.' })
+    switch (answer.outcome.status) {
+      case 'pending':
+        return reply.code(200).send({ status: 'pending' })
+      case 'denied':
+        return reply.code(403).send({ error: 'Refused on your computer.' })
+      case 'expired':
+        return reply.code(410).send({ error: 'Nobody approved it in time. Pair again.' })
+      case 'approved': {
+        const { name, replaces } = answer.info
+        const paired = await this.opts.devices.pair(name)
+        if (replaces) await this.opts.devices.revoke(replaces.id)
+        this.opts.logger.info(
+          replaces ? `Paired "${name}", replacing "${replaces.name}"` : `Paired "${name}"`,
+        )
+        return paired satisfies PairResponse
+      }
+    }
   }
 
   private handleSocket(socket: WebSocket, ip: string) {

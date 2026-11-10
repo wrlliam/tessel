@@ -65,7 +65,12 @@ export function ConnectPanel({ state }: { state: DesktopState }) {
           </li>
           <li>
             <p className="text-muted">
-              3. On iPhone, tap Share, then Add to Home Screen. Open it from there and pair once
+              3. Approve the phone when Tessel asks. The code alone never lets a phone in.
+            </p>
+          </li>
+          <li>
+            <p className="text-muted">
+              4. On iPhone, tap Share, then Add to Home Screen. Open it from there and pair once
               more. Home Screen apps keep their own storage.
             </p>
           </li>

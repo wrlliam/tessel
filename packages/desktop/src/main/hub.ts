@@ -24,6 +24,7 @@ import {
 } from '@tessel/core'
 import {
   DeviceRegistry,
+  PairApprovals,
   PairingCodes,
   TesselServer,
   lanAddresses,
@@ -134,6 +135,7 @@ export class Hub {
   private store: JsonStore<Settings>
   private devices: DeviceRegistry
   private pairing = new PairingCodes()
+  private approvals = new PairApprovals()
   private server: TesselServer
   private library: ProfileLibrary
   private runtimes = new Map<string, ProfileRuntime>()
@@ -232,9 +234,11 @@ export class Hub {
       void this.refreshNetwork(true)
       this.emit()
     })
+    this.approvals.onChange(() => this.emit())
     this.server = new TesselServer({
       devices: this.devices,
       pairing: this.pairing,
+      approvals: this.approvals,
       profile: Profile.parse({
         id: 'loading',
         name: 'Loading',
@@ -299,6 +303,7 @@ export class Hub {
       urls: this.urls,
       qrCodes: this.qrCodes,
       pairing: this.pairing.get(),
+      pendingPhones: this.approvals.pending(),
       devices: this.devices.list().map((d) => ({ ...d, online: online.has(d.id) })),
       paused: this.paused,
       log: this.log,
@@ -641,6 +646,17 @@ export class Hub {
 
   newPairingCode() {
     this.pairing.rotate()
+  }
+
+  /** Lets a phone that entered the right code in. Without this, the code alone does nothing. */
+  approvePhone(id: string) {
+    const phone = this.approvals.approve(id)
+    if (phone) this.logger.info(`Approved "${phone.name}" (${phone.ip})`)
+  }
+
+  denyPhone(id: string) {
+    const phone = this.approvals.pending().find((p) => p.id === id)
+    if (this.approvals.deny(id)) this.logger.warn(`Refused "${phone?.name}" (${phone?.ip})`)
   }
 
   async revokeDevice(id: string) {

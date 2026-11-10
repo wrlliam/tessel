@@ -401,6 +401,32 @@ describe('installing', () => {
     fire()
     await until(() => registry.get('devp.echo')?.name === 'Echo 2')
   })
+
+  it('stops a plugin that starts asking for more permissions until you agree again', async () => {
+    let fire = () => {}
+    const confirm = vi.fn(async () => true)
+    const { manager, root, logs } = await setup(
+      { watch: (_dir, cb) => ((fire = cb), () => {}), confirmPermissions: confirm },
+      async () => {},
+    )
+    const dev = join(root, 'dev')
+    await writePlugin(dev, { id: 'devp', name: 'Dev', permissions: ['network'] })
+    await manager.addDev(dev)
+    await writePlugin(dev, { id: 'devp', name: 'Dev', permissions: ['network', 'shell'] })
+    fire()
+    await until(() => manager.list()[0]?.enabled === false)
+    expect(manager.list()[0]).toMatchObject({
+      status: 'stopped',
+      error: expect.stringMatching(/shell/),
+    })
+    expect(logs.some((l) => /now asks for shell/.test(l))).toBe(true)
+    confirm.mockClear()
+    await manager.setEnabled('devp', true)
+    expect(confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ permissions: ['network', 'shell'] }),
+    )
+    expect(manager.list()[0]).toMatchObject({ enabled: true, status: 'running' })
+  })
 })
 
 describe('Hub with plugins', () => {

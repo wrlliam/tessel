@@ -3,6 +3,7 @@ import { pageTemplates, type OS } from '@tessel/core'
 import { Tabs } from 'radix-ui'
 import { useCallback, useEffect, useState } from 'react'
 import type { DesktopState } from '../../shared/api.ts'
+import { ApprovePhone } from './ApprovePhone.tsx'
 import { Editor } from './editor/Editor.tsx'
 import { useEditor } from './editor/store.ts'
 import { cn } from './lib/cn.ts'
@@ -54,6 +55,7 @@ export function App() {
           }}
         />
       )}
+      <ApprovePhone state={state} />
       <header
         className={cn(
           'drag flex items-center gap-4 border-b border-line px-4 py-2.5',

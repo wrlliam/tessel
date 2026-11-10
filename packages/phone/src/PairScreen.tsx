@@ -1,10 +1,11 @@
-import type { PairResponse } from '@tessel/core'
+import type { PairPending, PairResponse } from '@tessel/core'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   chooseAnotherComputer,
   guessDeviceName,
   inNativeApp,
   isStandalone,
+  loadPreviousToken,
   takePairCode,
 } from './device.ts'
 import { Wordmark } from './Logo.tsx'
@@ -24,23 +25,61 @@ export function PairScreen({ notice, onPaired }: Props) {
   const [focused, setFocused] = useState(true)
   const input = useRef<HTMLInputElement>(null)
 
+  const [waiting, setWaiting] = useState(false)
+  const cancelled = useRef(false)
+  useEffect(
+    () => () => {
+      cancelled.current = true
+    },
+    [],
+  )
+
+  const post = (path: string, body: object) =>
+    fetch(path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+  /** Waits until someone approves or refuses this phone on the computer. */
+  async function waitForApproval(pending: PairPending) {
+    setWaiting(true)
+    try {
+      while (!cancelled.current) {
+        const res = await post('/api/pair/wait', pending)
+        const body = (await res.json()) as Partial<PairResponse> & {
+          status?: string
+          error?: string
+        }
+        if (res.ok && body.token) return onPaired(body.token)
+        if (res.ok && body.status === 'pending') continue
+        setError(body.error ?? 'Pairing failed. Try again.')
+        setCode('')
+        return
+      }
+    } finally {
+      setWaiting(false)
+    }
+  }
+
   async function pair(value: string) {
     setBusy(true)
     setError(undefined)
     try {
-      const res = await fetch('/api/pair', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ code: value, deviceName: name.trim() || guessDeviceName() }),
+      const previousToken = loadPreviousToken()
+      const res = await post('/api/pair', {
+        code: value,
+        deviceName: name.trim() || guessDeviceName(),
+        ...(previousToken ? { previousToken } : {}),
       })
-      const body = (await res.json()) as Partial<PairResponse> & { error?: string }
-      if (!res.ok || !body.token) {
+      const body = (await res.json()) as Partial<PairPending> & { error?: string }
+      if (res.status !== 202 || !body.requestId || !body.secret) {
         setError(body.error ?? 'Pairing failed. Try again.')
         setCode('')
         input.current?.focus()
         return
       }
-      onPaired(body.token)
+      await waitForApproval({ requestId: body.requestId, secret: body.secret })
     } catch {
       setError("Can't reach your computer. Check Tessel is open and Allow phones is on.")
     } finally {
@@ -113,7 +152,12 @@ export function PairScreen({ notice, onPaired }: Props) {
           </span>
         </label>
         <p role="status" className="mt-3 min-h-5 text-sm text-signal">
-          {error ?? (busy ? <span className="text-muted">Pairing…</span> : null)}
+          {error ??
+            (waiting ? (
+              <span className="text-text">Approve this phone on your computer</span>
+            ) : busy ? (
+              <span className="text-muted">Pairing…</span>
+            ) : null)}
         </p>
       </form>
 

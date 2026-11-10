@@ -1,5 +1,5 @@
 import { mdnsNames } from '@tessel/server'
-import { dialog, shell, app, ipcMain } from 'electron'
+import { dialog, shell, app, ipcMain, Notification } from 'electron'
 import { hostname } from 'node:os'
 import { Channel, type DesktopState, type SharedTiles } from '../shared/api.ts'
 import { Hub } from './hub.ts'
@@ -133,6 +133,27 @@ async function start() {
     updater.install()
   })
   ipcMain.handle(Channel.newPairingCode, () => hub.newPairingCode())
+  ipcMain.handle(Channel.approvePhone, (_e, id: unknown) => {
+    if (typeof id === 'string') hub.approvePhone(id)
+  })
+  ipcMain.handle(Channel.denyPhone, (_e, id: unknown) => {
+    if (typeof id === 'string') hub.denyPhone(id)
+  })
+  // A phone waiting for approval brings the window forward, with a notification in case
+  // you're elsewhere.
+  const asked = new Set<string>()
+  hub.onChange(() => {
+    for (const phone of hub.state().pendingPhones) {
+      if (asked.has(phone.id)) continue
+      asked.add(phone.id)
+      showWindow()
+      if (Notification.isSupported())
+        new Notification({
+          title: 'A phone wants to connect',
+          body: `"${phone.name}" entered the code. Open Tessel to approve or refuse it.`,
+        }).show()
+    }
+  })
   ipcMain.handle(Channel.revokeDevice, (_e, id: unknown) => {
     if (typeof id === 'string') return hub.revokeDevice(id)
   })

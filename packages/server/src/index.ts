@@ -1,3 +1,4 @@
+export { PairApprovals, type ApprovalOutcome, type PairApproval } from './approvals.ts'
 export { createCa, ensureTls, issueServerCert, serverCertFits } from './certs.ts'
 export { DeviceRegistry, type DeviceInfo } from './devices.ts'
 export { createJsonStore, NewerSchemaError, type JsonStore, type Migrations } from './json-store.ts'

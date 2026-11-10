@@ -9,7 +9,7 @@ import type {
   Profile,
   Tile,
 } from '@tessel/core'
-import type { PairingCode } from '@tessel/server'
+import type { PairApproval, PairingCode } from '@tessel/server'
 import type { PluginInfo } from '../main/plugins/manager.ts'
 import type { UpdateState } from '../main/updater.ts'
 import type { PhoneEdit } from '../main/hub.ts'
@@ -46,6 +46,8 @@ export interface DesktopState {
   /** PNG data URL of the QR code for each entry in `urls`. */
   qrCodes: Record<string, string>
   pairing: PairingCode
+  /** Phones that entered the right code and wait for Approve. */
+  pendingPhones: PairApproval[]
   devices: PhoneDevice[]
   paused: boolean
   startOnLogin: boolean | null
@@ -107,6 +109,8 @@ export interface TesselApi {
   /** Port and app settings. A new port restarts sharing. */
   updateSettings(patch: Partial<AppSettings & { port: number }>): Promise<SaveResult>
   newPairingCode(): Promise<void>
+  approvePhone(id: string): Promise<void>
+  denyPhone(id: string): Promise<void>
   revokeDevice(id: string): Promise<void>
   getBlocks(): Promise<BlockDescriptor[]>
   getProfile(id: string): Promise<Profile | undefined>
@@ -204,6 +208,8 @@ export const Channel = {
   setStartOnLogin: 'app:start-on-login',
   updateSettings: 'app:settings',
   newPairingCode: 'pairing:new-code',
+  approvePhone: 'pairing:approve',
+  denyPhone: 'pairing:deny',
   revokeDevice: 'devices:revoke',
   getBlocks: 'blocks:list',
   getProfile: 'profile:get',

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import WebSocket from 'ws'
+import { PairApprovals } from '../src/approvals.ts'
 import { DeviceRegistry } from '../src/devices.ts'
 import { PairingCodes } from '../src/pairing.ts'
 import { TesselServer, type PressEvent } from '../src/server.ts'
@@ -14,6 +15,7 @@ const silent = { info() {}, warn() {}, error() {} }
 let server: TesselServer
 let devices: DeviceRegistry
 let pairing: PairingCodes
+let approvals: PairApprovals
 let base: string
 let presses: PressEvent[]
 
@@ -22,10 +24,12 @@ beforeEach(async () => {
   devices = new DeviceRegistry(join(dir, 'devices.json'))
   await devices.load()
   pairing = new PairingCodes()
+  approvals = new PairApprovals()
   presses = []
   server = new TesselServer({
     devices,
     pairing,
+    approvals,
     profile: sampleProfile,
     phoneDir: join(dir, 'missing'),
     logger: silent,
@@ -39,11 +43,18 @@ beforeEach(async () => {
 
 afterEach(() => server.dispose())
 
-const pair = (code: string, origin = base) =>
+const pair = (code: string, origin = base, extra: object = {}) =>
   fetch(`${base}/api/pair`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', origin },
-    body: JSON.stringify({ code, deviceName: 'Test phone' }),
+    body: JSON.stringify({ code, deviceName: 'Test phone', ...extra }),
+  })
+
+const wait = (requestId: string, secret: string) =>
+  fetch(`${base}/api/pair/wait`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({ requestId, secret }),
   })
 
 function connect(origin = base) {
@@ -66,9 +77,13 @@ function connect(origin = base) {
   return { ws, opened, closed, next, send: (m: object) => ws.send(JSON.stringify(m)) }
 }
 
-async function pairedToken() {
-  const res = await pair(pairing.get().code)
-  return ((await res.json()) as { token: string }).token
+/** Pairs a phone and approves it, as the person at the computer would. */
+async function pairedToken(extra: object = {}) {
+  const res = await pair(pairing.get().code, base, extra)
+  const { requestId, secret } = (await res.json()) as { requestId: string; secret: string }
+  const answer = wait(requestId, secret)
+  approvals.approve(requestId)
+  return ((await (await answer).json()) as { token: string }).token
 }
 
 describe('http', () => {
@@ -108,13 +123,40 @@ describe('pairing', () => {
     expect((await pair('12')).status).toBe(400)
   })
 
-  it('issues a token and stores only its hash', async () => {
+  it('waits for approval on the computer before it issues a token', async () => {
     const res = await pair(pairing.get().code)
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { token: string; deviceId: string }
+    expect(res.status).toBe(202)
+    const { requestId, secret } = (await res.json()) as { requestId: string; secret: string }
+    expect(devices.list()).toHaveLength(0)
+    expect(approvals.pending()).toMatchObject([{ name: 'Test phone' }])
+    const answer = wait(requestId, secret)
+    approvals.approve(requestId)
+    const body = (await (await answer).json()) as { token: string; deviceId: string }
     expect(body.token).toMatch(/^[\w-]{43}$/)
     expect(devices.list()).toHaveLength(1)
     expect(JSON.stringify(devices.list())).not.toContain(body.token)
+    // The answer is handed out once.
+    expect((await wait(requestId, secret)).status).toBe(404)
+  })
+
+  it('gives nothing when the computer refuses, or to the wrong secret', async () => {
+    const res = await pair(pairing.get().code)
+    const { requestId, secret } = (await res.json()) as { requestId: string; secret: string }
+    expect((await wait(requestId, 'A'.repeat(43))).status).toBe(404)
+    const answer = wait(requestId, secret)
+    approvals.deny(requestId)
+    expect((await answer).status).toBe(403)
+    expect(devices.list()).toHaveLength(0)
+  })
+
+  it('replaces the old pairing when the same phone pairs again', async () => {
+    const old = await pairedToken()
+    const oldId = devices.list()[0]!.id
+    const fresh = await pairedToken({ previousToken: old })
+    expect(devices.list()).toHaveLength(1)
+    expect(devices.list()[0]!.id).not.toBe(oldId)
+    expect(devices.verify(old)).toBeUndefined()
+    expect(devices.verify(fresh)).toBeDefined()
   })
 
   it('rate-limits repeated failures with 429', async () => {
@@ -232,6 +274,7 @@ describe('phone client', () => {
     const s = new TesselServer({
       devices,
       pairing,
+      approvals,
       profile: sampleProfile,
       phoneDir: dir,
       logger: silent,

@@ -2,6 +2,8 @@ import awakeVideo from './assets/awake.mp4'
 
 const TOKEN_KEY = 'tessel.token'
 
+const PREVIOUS_KEY = 'tessel.previousToken'
+
 export function loadToken(): string | null {
   try {
     return localStorage.getItem(TOKEN_KEY)
@@ -12,13 +14,30 @@ export function loadToken(): string | null {
 
 export function saveToken(token: string) {
   localStorage.setItem(TOKEN_KEY, token)
+  try {
+    localStorage.removeItem(PREVIOUS_KEY)
+  } catch {
+    // Storage blocked.
+  }
 }
 
+/** Forgets the token, but keeps it aside so pairing again replaces this phone's old entry. */
 export function clearToken() {
   try {
+    const old = localStorage.getItem(TOKEN_KEY)
+    if (old) localStorage.setItem(PREVIOUS_KEY, old)
     localStorage.removeItem(TOKEN_KEY)
   } catch {
     // Storage blocked; nothing to clear.
+  }
+}
+
+/** The token this phone used before it was unpaired, if any. */
+export function loadPreviousToken(): string | undefined {
+  try {
+    return localStorage.getItem(PREVIOUS_KEY) ?? undefined
+  } catch {
+    return undefined
   }
 }
 

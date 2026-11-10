@@ -39,12 +39,21 @@ export interface PluginInfo {
 const PluginState = z.object({
   enabled: z.boolean(),
   granted: z.boolean(),
+  /** The permissions you agreed to. A plugin that later asks for more is stopped until you agree again. */
+  permissions: z.array(z.string()).optional(),
   settings: z.record(z.string(), z.unknown()).default({}),
   /** Folder for dev plugins, which are used in place rather than copied. */
   devPath: z.string().optional(),
 })
 const PluginsFile = z.object({ plugins: z.record(z.string(), PluginState) })
 type PluginState = z.infer<typeof PluginState>
+
+/** Permissions the manifest asks for that were never agreed to. */
+function unagreed(manifest: PluginManifest, s: PluginState | undefined): string[] {
+  if (!s?.granted) return [...manifest.permissions]
+  const agreed = s.permissions ?? manifest.permissions
+  return manifest.permissions.filter((p) => !agreed.includes(p))
+}
 
 const START_TIMEOUT_MS = 10_000
 const RESTART_DELAYS_MS = [1000, 2000, 4000, 8000, 16000]
@@ -156,17 +165,24 @@ export class PluginManager {
           this.opts.logger.warn(`Plugin "${manifest.id}" is installed twice; using the first one`)
           continue
         }
-        this.entries.set(manifest.id, {
+        const entry: Entry = {
           manifest,
           dir,
           source,
           status: 'stopped',
           blockIds: [],
           crashes: [],
-        })
+        }
+        this.entries.set(manifest.id, entry)
         // First-party plugins are trusted and on by default.
         if (source === 'built-in' && !this.state[manifest.id])
-          this.state[manifest.id] = { enabled: true, granted: true, settings: {} }
+          this.state[manifest.id] = {
+            enabled: true,
+            granted: true,
+            permissions: [...manifest.permissions],
+            settings: {},
+          }
+        this.checkGrant(entry)
       } catch (err) {
         this.opts.logger.warn(`Skipped plugin in ${dir}: ${(err as Error).message}`)
       }
@@ -211,9 +227,11 @@ export class PluginManager {
     const entry = this.entries.get(id)
     const s = this.state[id]
     if (!entry || !s) return
-    if (on && !s.granted) {
+    if (on && unagreed(entry.manifest, s).length) {
       if (!(await this.opts.confirmPermissions(entry.manifest))) return
       s.granted = true
+      s.permissions = [...entry.manifest.permissions]
+      delete entry.error
     }
     s.enabled = on
     await this.save()
@@ -269,6 +287,7 @@ export class PluginManager {
     this.state[manifest.id] = {
       enabled: true,
       granted: true,
+      permissions: [...manifest.permissions],
       settings: this.state[manifest.id]?.settings ?? {},
     }
     await this.save()
@@ -337,7 +356,13 @@ export class PluginManager {
       crashes: [],
     }
     this.entries.set(manifest.id, entry)
-    this.state[manifest.id] = { enabled: true, granted: true, settings: {}, devPath: dir }
+    this.state[manifest.id] = {
+      enabled: true,
+      granted: true,
+      permissions: [...manifest.permissions],
+      settings: {},
+      devPath: dir,
+    }
     await this.save()
     await this.start(entry)
     this.watchDevPlugins()
@@ -393,8 +418,32 @@ export class PluginManager {
     await this.store.save({ plugins: this.state })
   }
 
+  /**
+   * Turns a plugin off when its manifest asks for permissions you never agreed to, e.g. after its
+   * files were changed. Older grants (before permissions were recorded) are taken as agreed.
+   */
+  private checkGrant(entry: Entry): boolean {
+    const s = this.state[entry.manifest.id]
+    if (!s) return false
+    if (s.granted && !s.permissions) s.permissions = [...entry.manifest.permissions]
+    const extra = unagreed(entry.manifest, s)
+    if (!s.granted || !extra.length) return s.granted
+    s.granted = false
+    s.enabled = false
+    entry.error = `Now asks for ${extra.join(', ')}. Turn it on to review.`
+    this.opts.logger.warn(
+      `Turned off "${entry.manifest.name}": it now asks for ${extra.join(', ')}, which you haven't allowed`,
+    )
+    return false
+  }
+
   private async start(entry: Entry) {
     const id = entry.manifest.id
+    if (!this.checkGrant(entry)) {
+      void this.save()
+      this.opts.onChange()
+      return
+    }
     clearTimeout(entry.restartTimer)
     entry.stopping = false
     entry.status = 'starting'
@@ -663,7 +712,13 @@ export class PluginManager {
         clearTimeout(timer)
         timer = setTimeout(() => {
           this.opts.logger.info(`Reloading dev plugin "${entry.manifest.name}"`)
-          void this.restart(entry.manifest.id)
+          // Pick up manifest changes, so new permissions are asked for before they're used.
+          void readManifest(entry.dir)
+            .then((m) => {
+              if (m.id === entry.manifest.id) entry.manifest = m
+            })
+            .catch(() => {})
+            .then(() => this.restart(entry.manifest.id))
         }, 300)
       })
     }

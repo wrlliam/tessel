@@ -230,8 +230,21 @@ export const parseServerMessage = (raw: string) => parseWith(ServerMessage, raw)
 export const PairRequest = z.object({
   code: z.string().regex(/^\d{6}$/, 'Code is 6 digits'),
   deviceName: z.string().trim().min(1).max(64),
+  /** The token this phone had before, so the new pairing replaces the old one once approved. */
+  previousToken: z.string().max(128).optional(),
 })
 export type PairRequest = z.infer<typeof PairRequest>
 
 export const PairResponse = z.object({ deviceId: z.string(), token: z.string() })
 export type PairResponse = z.infer<typeof PairResponse>
+
+/** The code was right; someone at the computer now has to approve the phone. */
+export const PairPending = z.object({ requestId: z.string(), secret: z.string() })
+export type PairPending = z.infer<typeof PairPending>
+
+/** Asks whether a pending pairing was approved yet. Waits a while for the answer. */
+export const PairWaitRequest = z.object({
+  requestId: z.string().max(64),
+  secret: z.string().max(64),
+})
+export type PairWaitRequest = z.infer<typeof PairWaitRequest>
