@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Medal plugin** (Windows): clip, screenshot and record from your phone with Medal's hotkeys, and pop up when a clip is saved.
+- **Gaming and Windows templates:** Xbox Game Bar, NVIDIA and AMD replay and recording keys that turn red while recording and pop up to confirm, Steam games and library, a gaming break reminder, and Windows snapping, virtual desktops, snip, clipboard history and more. New pages: Gaming, Medal and Windows.
+- **Plugins can press keys** (`ctx.pressKeys`) when they ask for the input permission.
 - **DaVinci Resolve:** shortcut keys for playback, editing, markers and pages (no plugin, free version too), a DaVinci Resolve plugin for renders, named markers, page switching and a live timecode tile, and a ready-made Resolve page.
 - **App commands wait until the app is really in front** before pressing its shortcut, which fixes Spotify's Like (and others) when the app was hidden or in the background.
 - **Pictures on tiles:** choose one in the inspector, or set one at run time; What's playing shows the album cover.

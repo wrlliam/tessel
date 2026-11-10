@@ -5,6 +5,8 @@ export interface Harness {
   ctx: PluginContext
   logs: Array<{ level: string; message: string }>
   storage: Map<string, Json>
+  /** Key combinations the plugin pressed. */
+  keys: string[]
   tileState: Map<string, Json>
   load(): Promise<void>
   unload(): Promise<void>
@@ -26,6 +28,7 @@ export function createHarness(
 ): Harness {
   const logs: Harness['logs'] = []
   const storage = new Map<string, Json>()
+  const keys: string[] = []
   const tileState = new Map<string, Json>()
   const ctx: PluginContext = {
     pluginId: opts.pluginId ?? 'test',
@@ -41,12 +44,14 @@ export function createHarness(
       set: async (key, value) => void storage.set(key, value),
       delete: async (key) => void storage.delete(key),
     },
+    pressKeys: async (combo) => void keys.push(combo),
   }
 
   return {
     ctx,
     logs,
     storage,
+    keys,
     tileState,
     load: async () => plugin.onLoad?.(ctx),
     unload: async () => plugin.onUnload?.(),

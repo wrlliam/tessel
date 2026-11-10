@@ -84,6 +84,8 @@ export interface ManagerOptions {
   onEvent(subscriptionId: string, values: Record<string, unknown>): void
   /** A plugin trigger set tile state outside a run (active profile). */
   onTileState(tileId: string, key: string, value: unknown): void
+  /** Presses keys for plugins with the "input" permission. */
+  pressKeys?(combo: string): Promise<void>
   now?: () => number
   /** Wait before each restart after a crash; one crash more than this list gives up. */
   restartDelaysMs?: number[]
@@ -498,6 +500,17 @@ export class PluginManager {
   }
 
   private async onRequest(pluginId: string, method: string, params: unknown): Promise<unknown> {
+    if (method === 'input.press') {
+      // Only plugins whose manifest asks for "input" (and that you allowed) may press keys.
+      const entry = this.entries.get(pluginId)
+      if (!entry?.manifest.permissions.includes('input'))
+        throw new Error('This plugin may not press keys: its manifest doesn’t ask for "input"')
+      const combo = (params as { combo?: unknown } | undefined)?.combo
+      if (typeof combo !== 'string' || combo.length > 60) throw new Error('Give a key combination')
+      if (!this.opts.pressKeys) throw new Error('Pressing keys isn’t available here')
+      await this.opts.pressKeys(combo)
+      return null
+    }
     const store = this.storeFor(pluginId)
     const { key, value } = (params ?? {}) as { key?: string; value?: unknown }
     if (typeof key !== 'string' || key.length > 200)

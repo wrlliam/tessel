@@ -8,6 +8,8 @@ export type TemplateCategory =
   | 'Voicemeeter'
   | 'Soundpad'
   | 'Streaming'
+  | 'Gaming'
+  | 'Windows'
   | 'Video editing'
   | 'Lights'
   | 'Home'
@@ -378,6 +380,134 @@ function resolveKey(
     tile: { label, icon, colour, graph: app(`resolve.${command}`) },
   }
 }
+
+type Pop = { title: string; body: string; icon: string; colour?: string }
+const popup = (id: string, p: Pop, x: number, y = 0) =>
+  node(
+    id,
+    'action.toast',
+    {
+      title: p.title,
+      body: p.body,
+      icon: p.icon,
+      colour: p.colour ?? '',
+      seconds: 3,
+      position: 'top-center',
+    },
+    x,
+    y,
+  )
+
+/**
+ * Presses a shortcut without bringing any app forward (the game keeps focus), then pops up a
+ * confirmation when the result isn't visible on its own.
+ */
+function keyTile(
+  id: string,
+  category: TemplateCategory,
+  name: string,
+  description: string,
+  look: { label: string; icon: string; colour?: string },
+  combo: string,
+  pop?: Pop,
+): TileTemplate {
+  return {
+    id,
+    category,
+    name,
+    description,
+    tile: {
+      label: look.label,
+      icon: look.icon,
+      colour: look.colour ?? '#212833',
+      graph: pop
+        ? {
+            nodes: [press, node('keys', 'action.keyCombo', { combo }, 288), popup('pop', pop, 576)],
+            edges: [wire('press', 'out', 'keys'), wire('keys', 'out', 'pop')],
+          }
+        : simple('action.keyCombo', { combo }),
+    },
+  }
+}
+
+/** A start/stop recording key that remembers which it did, turns red while recording and says so. */
+function recordKey(
+  id: string,
+  name: string,
+  description: string,
+  combo: string,
+  what: string,
+): TileTemplate {
+  return {
+    id,
+    category: 'Gaming',
+    name,
+    description,
+    tile: {
+      label: 'Record',
+      icon: 'video',
+      colour: '#212833',
+      appearanceBindings: [
+        bind('colour', '{{state.recording ? "#F25C6E" : "#212833"}}'),
+        bind('label', '{{state.recording ? "Recording" : "Record"}}'),
+      ],
+      graph: {
+        nodes: [
+          press,
+          node('keys', 'action.keyCombo', { combo }, 288),
+          node('toggle', 'logic.toggle', { key: 'recording' }, 576),
+          popup(
+            'started',
+            {
+              title: 'Recording',
+              body: `${what} started recording.`,
+              icon: '🔴',
+              colour: '#F25C6E',
+            },
+            864,
+          ),
+          popup(
+            'stopped',
+            {
+              title: 'Recording saved',
+              body: `${what} stopped and saved the recording.`,
+              icon: '💾',
+              colour: '#22D3C5',
+            },
+            864,
+            160,
+          ),
+        ],
+        edges: [
+          wire('press', 'out', 'keys'),
+          wire('keys', 'out', 'toggle'),
+          wire('toggle', 'on', 'started'),
+          wire('toggle', 'off', 'stopped'),
+        ],
+      },
+    },
+  }
+}
+
+const steamGame = (id: string, appId: string, game: string, icon: string): TileTemplate => ({
+  id,
+  category: 'Gaming',
+  name: `Steam: play ${game}`,
+  description: `Starts ${game} through Steam. Change the number in the link to any game's Steam app ID (in its store page address).`,
+  tile: {
+    label: game,
+    icon,
+    colour: '#1B2838',
+    graph: {
+      nodes: [
+        press,
+        node('open', 'action.openUrl', { url: `steam://rungameid/${appId}` }, 288),
+        popup('pop', { title: 'Starting', body: `${game} is starting in Steam.`, icon: '🎮' }, 576),
+      ],
+      edges: [wire('press', 'out', 'open'), wire('open', 'out', 'pop')],
+    },
+  },
+})
 
 export const templates: TileTemplate[] = [
   // Meetings
@@ -1949,6 +2079,446 @@ export const templates: TileTemplate[] = [
       },
     },
   },
+
+  // Gaming (Windows)
+  keyTile(
+    'gamebar-open',
+    'Gaming',
+    'Xbox Game Bar',
+    'Opens the Xbox Game Bar over your game.',
+    { label: 'Game Bar', icon: 'gamepad-2', colour: '#107C10' },
+    'win+g',
+  ),
+  keyTile(
+    'gamebar-clip',
+    'Gaming',
+    'Game Bar: clip the last 30 seconds',
+    'Saves the last moments of your game with Xbox Game Bar (turn on background recording in Settings › Gaming › Captures), and pops up when it has.',
+    { label: 'Clip that', icon: 'save', colour: '#107C10' },
+    'win+alt+g',
+    {
+      title: 'Clip saved',
+      body: 'Game Bar saved the last moments.',
+      icon: '🎬',
+      colour: '#107C10',
+    },
+  ),
+  recordKey(
+    'gamebar-record',
+    'Game Bar: record',
+    'Starts or stops a Game Bar recording, turns red while recording, and pops up each time.',
+    'win+alt+r',
+    'Game Bar',
+  ),
+  keyTile(
+    'gamebar-screenshot',
+    'Gaming',
+    'Game Bar: screenshot',
+    'Takes a Game Bar screenshot of your game and pops up to say so.',
+    { label: 'Screenshot', icon: 'camera', colour: '#107C10' },
+    'win+alt+printscreen',
+    { title: 'Screenshot saved', body: 'In Videos › Captures.', icon: '📸' },
+  ),
+  keyTile(
+    'gamebar-mic',
+    'Gaming',
+    'Game Bar: mic on or off',
+    'Turns the Game Bar recording mic on or off.',
+    { label: 'Capture mic', icon: 'mic' },
+    'win+alt+m',
+    { title: 'Capture mic', body: 'Game Bar switched its microphone.', icon: '🎙️' },
+  ),
+  keyTile(
+    'nvidia-replay',
+    'Gaming',
+    'NVIDIA: save instant replay',
+    'Saves the NVIDIA instant replay (turn Instant Replay on in the NVIDIA app first), and pops up when it has.',
+    { label: 'Save replay', icon: 'save', colour: '#76B900' },
+    'alt+f10',
+    {
+      title: 'Replay saved',
+      body: 'NVIDIA saved the instant replay.',
+      icon: '🎬',
+      colour: '#76B900',
+    },
+  ),
+  recordKey(
+    'nvidia-record',
+    'NVIDIA: record',
+    'Starts or stops NVIDIA recording, turns red while recording, and pops up each time.',
+    'alt+f9',
+    'NVIDIA',
+  ),
+  keyTile(
+    'nvidia-overlay',
+    'Gaming',
+    'NVIDIA overlay',
+    'Opens the NVIDIA app overlay.',
+    { label: 'NVIDIA', icon: 'layout-grid', colour: '#76B900' },
+    'alt+z',
+  ),
+  keyTile(
+    'nvidia-screenshot',
+    'Gaming',
+    'NVIDIA: screenshot',
+    'Takes a screenshot with the NVIDIA app.',
+    { label: 'Screenshot', icon: 'camera', colour: '#76B900' },
+    'alt+f1',
+    { title: 'Screenshot saved', body: 'NVIDIA saved a screenshot.', icon: '📸' },
+  ),
+  keyTile(
+    'amd-replay',
+    'Gaming',
+    'AMD: save instant replay',
+    'Saves the AMD Software instant replay, and pops up when it has.',
+    { label: 'Save replay', icon: 'save', colour: '#ED1C24' },
+    'ctrl+shift+s',
+    { title: 'Replay saved', body: 'AMD saved the instant replay.', icon: '🎬' },
+  ),
+  recordKey(
+    'amd-record',
+    'AMD: record',
+    'Starts or stops AMD Software recording, turns red while recording, and pops up each time.',
+    'ctrl+shift+e',
+    'AMD Software',
+  ),
+  keyTile(
+    'steam-screenshot',
+    'Gaming',
+    'Steam: screenshot',
+    'Takes a Steam screenshot (F12) in the game you are playing.',
+    { label: 'Steam shot', icon: 'camera', colour: '#1B2838' },
+    'f12',
+    { title: 'Screenshot saved', body: 'Steam saved a screenshot.', icon: '📸' },
+  ),
+  steamGame('steam-cs2', '730', 'Counter-Strike 2', 'gamepad-2'),
+  steamGame('steam-dota2', '570', 'Dota 2', 'gamepad-2'),
+  {
+    id: 'steam-library',
+    category: 'Gaming',
+    name: 'Steam library',
+    description: 'Opens your Steam games library.',
+    tile: {
+      label: 'Steam',
+      icon: 'gamepad-2',
+      colour: '#1B2838',
+      graph: simple('action.openUrl', { url: 'steam://open/games' }),
+    },
+  },
+  {
+    id: 'steam-friends',
+    category: 'Gaming',
+    name: 'Steam friends',
+    description: 'Opens your Steam friends list.',
+    tile: {
+      label: 'Friends',
+      icon: 'users',
+      colour: '#1B2838',
+      graph: simple('action.openUrl', { url: 'steam://open/friends' }),
+    },
+  },
+  {
+    id: 'steam-bigpicture',
+    category: 'Gaming',
+    name: 'Steam Big Picture',
+    description: 'Opens Steam in Big Picture mode, for playing on the TV.',
+    tile: {
+      label: 'Big Picture',
+      icon: 'monitor',
+      colour: '#1B2838',
+      graph: simple('action.openUrl', { url: 'steam://open/bigpicture' }),
+    },
+  },
+  {
+    id: 'medal-clip',
+    category: 'Gaming',
+    plugin: 'medal',
+    name: 'Medal: clip that',
+    description:
+      'Clips the last moments of your game with Medal without leaving it, and pops up with the clip’s name once Medal has saved it.',
+    tile: {
+      label: 'Clip it',
+      icon: 'video',
+      colour: '#F5B63D',
+      appearanceBindings: [bind('label', '{{state.lastClip ? "Clipped" : "Clip it"}}')],
+      graph: {
+        nodes: [
+          press,
+          node('clip', 'medal.clip', {}, 288),
+          node('saved', 'medal.saved', { what: 'clips' }, 0, 160),
+          node(
+            'pop',
+            'action.toast',
+            {
+              title: 'Clip saved',
+              body: '',
+              icon: '🎬',
+              colour: '#F5B63D',
+              seconds: 4,
+              position: 'top-center',
+            },
+            288,
+            160,
+          ),
+        ],
+        edges: [
+          wire('press', 'out', 'clip'),
+          wire('saved', 'out', 'pop'),
+          wire('saved', 'name', 'pop', 'body'),
+        ],
+      },
+    },
+  },
+  {
+    id: 'medal-screenshot',
+    category: 'Gaming',
+    plugin: 'medal',
+    name: 'Medal: screenshot',
+    description:
+      "Takes a screenshot with Medal (set Medal's screenshot hotkey in the plugin settings).",
+    tile: {
+      label: 'Screenshot',
+      icon: 'camera',
+      colour: '#F5B63D',
+      graph: {
+        nodes: [
+          press,
+          node('shot', 'medal.screenshot', {}, 288),
+          popup('pop', { title: 'Screenshot', body: 'Medal took a screenshot.', icon: '📸' }, 576),
+        ],
+        edges: [wire('press', 'out', 'shot'), wire('shot', 'out', 'pop')],
+      },
+    },
+  },
+  {
+    id: 'medal-record',
+    category: 'Gaming',
+    plugin: 'medal',
+    name: 'Medal: record',
+    description:
+      'Starts or stops a full Medal recording, turns red while recording, and pops up each time.',
+    tile: {
+      label: 'Record',
+      icon: 'video',
+      colour: '#212833',
+      appearanceBindings: [bind('colour', '{{state.recording ? "#F25C6E" : "#212833"}}')],
+      graph: {
+        nodes: [
+          press,
+          node('rec', 'medal.record', {}, 288),
+          popup(
+            'on',
+            { title: 'Recording', body: 'Medal started recording.', icon: '🔴', colour: '#F25C6E' },
+            576,
+          ),
+          popup(
+            'off',
+            { title: 'Recording saved', body: 'Medal stopped recording.', icon: '💾' },
+            576,
+            160,
+          ),
+        ],
+        edges: [
+          wire('press', 'out', 'rec'),
+          wire('rec', 'started', 'on'),
+          wire('rec', 'stopped', 'off'),
+        ],
+      },
+    },
+  },
+  {
+    id: 'gaming-break',
+    category: 'Gaming',
+    name: 'Gaming break reminder',
+    description:
+      'Press when you start playing: after an hour a pop-up reminds you to stretch and drink some water. The key shows the time left; hold it to cancel.',
+    tile: {
+      label: 'Break in 1h',
+      icon: 'timer',
+      colour: '#212833',
+      concurrency: 'restart',
+      appearanceBindings: [
+        bind('label', '{{state.left || "Break in 1h"}}'),
+        bind('colour', '{{state.left ? "#4FA3F7" : "#212833"}}'),
+      ],
+      graph: {
+        nodes: [
+          press,
+          node('count', 'logic.countdown', { seconds: 3600, key: 'left' }, 288),
+          popup(
+            'pop',
+            {
+              title: 'Time for a break',
+              body: 'An hour in: stand up, stretch and grab some water.',
+              icon: '🧃',
+              colour: '#4FA3F7',
+            },
+            576,
+          ),
+          node('hold', 'trigger.longPress', {}, 0, 160),
+          popup(
+            'cancelled',
+            { title: 'Break reminder off', body: 'No reminder this time.', icon: '⏹️' },
+            288,
+            160,
+          ),
+        ],
+        edges: [
+          wire('press', 'out', 'count'),
+          wire('count', 'out', 'pop'),
+          wire('hold', 'out', 'cancelled'),
+        ],
+      },
+    },
+  },
+
+  // Windows
+  keyTile(
+    'win-task-manager',
+    'Windows',
+    'Task Manager',
+    'Opens Task Manager, e.g. to close a frozen game.',
+    { label: 'Task Manager', icon: 'gauge' },
+    'ctrl+shift+escape',
+  ),
+  keyTile(
+    'win-snip',
+    'Windows',
+    'Snipping Tool',
+    'Starts a screen snip; drag to choose what to capture.',
+    { label: 'Snip', icon: 'scissors' },
+    'win+shift+s',
+  ),
+  keyTile(
+    'win-clipboard',
+    'Windows',
+    'Clipboard history',
+    'Opens clipboard history.',
+    { label: 'Clipboard', icon: 'clipboard' },
+    'win+v',
+  ),
+  keyTile(
+    'win-explorer',
+    'Windows',
+    'File Explorer',
+    'Opens File Explorer.',
+    { label: 'Files', icon: 'folder-open' },
+    'win+e',
+  ),
+  keyTile(
+    'win-settings',
+    'Windows',
+    'Windows Settings',
+    'Opens Settings.',
+    { label: 'Settings', icon: 'settings' },
+    'win+i',
+  ),
+  keyTile(
+    'win-run',
+    'Windows',
+    'Run',
+    'Opens the Run box.',
+    { label: 'Run', icon: 'terminal' },
+    'win+r',
+  ),
+  keyTile(
+    'win-quick',
+    'Windows',
+    'Quick settings',
+    'Opens quick settings: Wi-Fi, Bluetooth, sound and more.',
+    { label: 'Quick settings', icon: 'sliders-horizontal' },
+    'win+a',
+  ),
+  keyTile(
+    'win-notifications',
+    'Windows',
+    'Notifications',
+    'Opens the notification centre and calendar.',
+    { label: 'Notifications', icon: 'bell' },
+    'win+n',
+  ),
+  keyTile(
+    'win-project',
+    'Windows',
+    'Project to a screen',
+    'Chooses how to use a second screen or TV.',
+    { label: 'Project', icon: 'monitor' },
+    'win+p',
+  ),
+  keyTile(
+    'win-task-view',
+    'Windows',
+    'Task view',
+    'Shows every window and desktop.',
+    { label: 'Task view', icon: 'layout-grid' },
+    'win+tab',
+  ),
+  keyTile(
+    'win-snap-left',
+    'Windows',
+    'Snap window left',
+    'Snaps the front window to the left half.',
+    { label: 'Snap left', icon: 'arrow-left' },
+    'win+left',
+  ),
+  keyTile(
+    'win-snap-right',
+    'Windows',
+    'Snap window right',
+    'Snaps the front window to the right half.',
+    { label: 'Snap right', icon: 'arrow-right' },
+    'win+right',
+  ),
+  keyTile(
+    'win-maximise',
+    'Windows',
+    'Maximise window',
+    'Makes the front window fill the screen.',
+    { label: 'Maximise', icon: 'maximize' },
+    'win+up',
+  ),
+  keyTile(
+    'win-minimise-all',
+    'Windows',
+    'Minimise all windows',
+    'Minimises every window.',
+    { label: 'Minimise all', icon: 'minimize' },
+    'win+m',
+  ),
+  keyTile(
+    'win-desktop-new',
+    'Windows',
+    'New desktop',
+    'Makes a new virtual desktop and switches to it.',
+    { label: 'New desktop', icon: 'plus' },
+    'win+ctrl+d',
+    { title: 'New desktop', body: 'You are on a fresh desktop.', icon: '🖥️' },
+  ),
+  keyTile(
+    'win-desktop-next',
+    'Windows',
+    'Next desktop',
+    'Switches to the next virtual desktop.',
+    { label: 'Next desktop', icon: 'arrow-right' },
+    'win+ctrl+right',
+  ),
+  keyTile(
+    'win-desktop-previous',
+    'Windows',
+    'Previous desktop',
+    'Switches to the previous virtual desktop.',
+    { label: 'Previous desktop', icon: 'arrow-left' },
+    'win+ctrl+left',
+  ),
+  keyTile(
+    'win-desktop-close',
+    'Windows',
+    'Close this desktop',
+    'Closes the current virtual desktop; its windows move to the next one.',
+    { label: 'Close desktop', icon: 'x' },
+    'win+ctrl+f4',
+    { title: 'Desktop closed', body: 'Its windows moved to the next desktop.', icon: '🗂️' },
+  ),
 ]
 
 export const TEMPLATE_CATEGORIES: TemplateCategory[] = [
@@ -1959,6 +2529,8 @@ export const TEMPLATE_CATEGORIES: TemplateCategory[] = [
   'Voicemeeter',
   'Soundpad',
   'Streaming',
+  'Gaming',
+  'Windows',
   'Video editing',
   'Lights',
   'Home',
@@ -2180,6 +2752,69 @@ export const pageTemplates: PageTemplate[] = [
       { template: 'resolve-pageColor', col: 1, row: 3 },
       { template: 'resolve-pageDeliver', col: 2, row: 3 },
       { template: 'resolve-render', col: 3, row: 3 },
+    ],
+  },
+  {
+    id: 'page-gaming',
+    name: 'Gaming',
+    description:
+      'Clip and record with Game Bar or Medal, NVIDIA replay, voice chat mute, volume, Task Manager and a break reminder, all without leaving your game.',
+    cols: 4,
+    rows: 4,
+    tiles: [
+      { template: 'gamebar-clip', col: 0, row: 0 },
+      { template: 'gamebar-record', col: 1, row: 0 },
+      { template: 'gamebar-screenshot', col: 2, row: 0 },
+      { template: 'nvidia-replay', col: 3, row: 0 },
+      { template: 'mute-discord', col: 0, row: 1 },
+      { template: 'discord-deafen', col: 1, row: 1 },
+      { template: 'gamebar-open', col: 2, row: 1 },
+      { template: 'win-task-manager', col: 3, row: 1 },
+      { template: 'live-now-playing', col: 0, row: 2, w: 2 },
+      { template: 'gaming-break', col: 2, row: 2 },
+      { template: 'steam-library', col: 3, row: 2 },
+      { template: 'slider-volume', col: 0, row: 3, w: 4 },
+    ],
+  },
+  {
+    id: 'page-medal',
+    name: 'Medal',
+    description:
+      'Clip, screenshot and record with Medal, with pop-ups when clips are saved. Needs the Medal plugin.',
+    cols: 3,
+    rows: 2,
+    tiles: [
+      { template: 'medal-clip', col: 0, row: 0, w: 2 },
+      { template: 'medal-screenshot', col: 2, row: 0 },
+      { template: 'medal-record', col: 0, row: 1 },
+      { template: 'mute-discord', col: 1, row: 1 },
+      { template: 'gaming-break', col: 2, row: 1 },
+    ],
+  },
+  {
+    id: 'page-windows',
+    name: 'Windows',
+    description:
+      'Snap windows, switch virtual desktops, snip, clipboard history, Task Manager and quick settings.',
+    cols: 4,
+    rows: 4,
+    tiles: [
+      { template: 'win-snap-left', col: 0, row: 0 },
+      { template: 'win-maximise', col: 1, row: 0 },
+      { template: 'win-snap-right', col: 2, row: 0 },
+      { template: 'win-minimise-all', col: 3, row: 0 },
+      { template: 'win-desktop-previous', col: 0, row: 1 },
+      { template: 'win-task-view', col: 1, row: 1 },
+      { template: 'win-desktop-next', col: 2, row: 1 },
+      { template: 'win-desktop-new', col: 3, row: 1 },
+      { template: 'win-snip', col: 0, row: 2 },
+      { template: 'win-clipboard', col: 1, row: 2 },
+      { template: 'win-explorer', col: 2, row: 2 },
+      { template: 'win-task-manager', col: 3, row: 2 },
+      { template: 'win-quick', col: 0, row: 3 },
+      { template: 'win-notifications', col: 1, row: 3 },
+      { template: 'win-settings', col: 2, row: 3 },
+      { template: 'win-desktop-close', col: 3, row: 3 },
     ],
   },
   {

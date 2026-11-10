@@ -563,6 +563,18 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
 
+  plugins/medal:
+    devDependencies:
+      '@tessel/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+      '@types/node':
+        specifier: ^22.20.5
+        version: 22.20.5
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
   plugins/obs:
     devDependencies:
       '@tessel/plugin-sdk':

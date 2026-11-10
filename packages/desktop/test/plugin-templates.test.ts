@@ -14,6 +14,7 @@ import { createAudioOutputPlugin } from '../../../plugins/audio-output/src/plugi
 import { createSpotifyPlugin } from '../../../plugins/spotify/src/plugin.ts'
 import { createShortcutsPlugin } from '../../../plugins/mac-shortcuts/src/plugin.ts'
 import { createResolvePlugin } from '../../../plugins/davinci-resolve/src/plugin.ts'
+import { createMedalPlugin } from '../../../plugins/medal/src/plugin.ts'
 
 // Templates that use first-party plugin blocks, checked against the plugins' own definitions.
 describe('plugin templates', () => {
@@ -35,6 +36,7 @@ describe('plugin templates', () => {
     spotify: createSpotifyPlugin(never, () => 'darwin'),
     'mac-shortcuts': createShortcutsPlugin(never, { temp: never }),
     'davinci-resolve': createResolvePlugin(never, () => 'darwin'),
+    medal: createMedalPlugin(never, () => []),
   }
   for (const [id, plugin] of Object.entries(plugins)) {
     for (const b of plugin.blocks ?? [])

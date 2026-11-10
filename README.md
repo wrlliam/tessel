@@ -215,8 +215,9 @@ For a full plugin to share with others, run `pnpm create-plugin my-plugin` (see 
 | Slack status     | all            | Set or clear your status, pause notifications (needs a user token)                                                                                                                       |
 | Spotify          | all            | Play a playlist, album or song from its link; volume, shuffle and repeat on macOS                                                                                                        |
 | DaVinci Resolve  | all            | Open pages, add named and coloured markers, queue and start renders, save, show the project and timecode (Resolve Studio's scripting API with Python 3; set External scripting to Local) |
+| Medal            | Windows        | Clip the last moments, screenshot and record with Medal's own hotkeys (set them in the plugin), and a trigger when a clip is saved, for a pop-up                                         |
 
-New pages use them: **Streaming**, **Lights**, **Workday** and **DaVinci Resolve**. Resolve's everyday keys (play, J/K/L, split, ripple delete, in/out, markers, pages, undo, save) are App commands, so they work in the free version without the plugin.
+New pages use them: **Streaming**, **Lights**, **Workday**, **DaVinci Resolve**, **Gaming**, **Medal** and **Windows**. Resolve's everyday keys (play, J/K/L, split, ripple delete, in/out, markers, pages, undo, save) are App commands, so they work in the free version without the plugin.
 
 ### Voicemeeter (Windows)
 

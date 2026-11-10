@@ -56,6 +56,11 @@ export interface PluginContext {
   settings: Record<string, unknown>
   log: PluginLogger
   storage: PluginStorage
+  /**
+   * Presses a key combination on the computer, e.g. 'f8' or 'ctrl+shift+s' ('mod' is Cmd on macOS,
+   * Ctrl elsewhere). Needs the "input" permission in the manifest.
+   */
+  pressKeys(combo: string): Promise<void>
 }
 
 export interface BlockRunContext extends PluginContext {

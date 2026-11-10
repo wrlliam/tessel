@@ -85,6 +85,10 @@ export default definePlugin({
 - **Storage:** `ctx.storage.get/set/delete` keeps small JSON values (up to 1 MB per plugin) in Tessel's data folder.
 - **Logging:** `ctx.log.info/warn/error` goes to Tessel's activity log, prefixed with the plugin name.
 
+### Pressing keys
+
+`ctx.pressKeys('alt+f10')` presses a key combination through Tessel (`mod` is Cmd on macOS, Ctrl elsewhere). The manifest must ask for the `input` permission, and the person allows it when installing.
+
 ### Slow blocks
 
 Runs stop after 30 seconds. A block that waits on purpose, such as one asking an AI model, can set `timeoutSeconds` (up to 600).

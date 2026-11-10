@@ -132,6 +132,51 @@ export default {
 }
 `
 
+describe('plugins pressing keys', () => {
+  const presser = `
+export default {
+  blocks: [{ id: 'press', name: 'Press', description: '', inputs: [{ id: 'in', kind: 'flow' }], outputs: [{ id: 'out', kind: 'flow' }],
+    paramsSchema: { safeParse: (v) => ({ success: true, data: v }) },
+    run: async (ctx) => { await ctx.pressKeys('f8') } }],
+}
+`
+  const engineRun = async (registry: ReturnType<typeof createRegistry>) => {
+    const { engine } = engineFor(registry)
+    return engine.trigger(
+      {
+        id: 't',
+        concurrency: 'queue',
+        graph: {
+          nodes: [
+            { id: 'p', type: 'trigger.press', params: {}, position: { x: 0, y: 0 } },
+            { id: 'k', type: 'echo.press', params: {}, position: { x: 0, y: 0 } },
+          ],
+          edges: [{ id: 'e', from: { nodeId: 'p', port: 'out' }, to: { nodeId: 'k', port: 'in' } }],
+        },
+      },
+      { type: 'press' },
+    )
+  }
+
+  it('lets plugins with the input permission press keys through Tessel', async () => {
+    const pressKeys = vi.fn(async () => {})
+    const { registry } = await setup({ pressKeys }, (b) =>
+      writePlugin(join(b, 'echo'), { permissions: ['input'] }, presser),
+    )
+    expect((await engineRun(registry))?.status).toBe('ok')
+    expect(pressKeys).toHaveBeenCalledWith('f8')
+  })
+
+  it('refuses plugins without it', async () => {
+    const pressKeys = vi.fn(async () => {})
+    const { registry } = await setup({ pressKeys }, (b) =>
+      writePlugin(join(b, 'echo'), {}, presser),
+    )
+    expect((await engineRun(registry))?.error).toMatch(/may not press keys/)
+    expect(pressKeys).not.toHaveBeenCalled()
+  })
+})
+
 describe('plugin sandbox', () => {
   const probeWith = async (permissions: string[]) => {
     const outsideDir = await mkdtemp(join(tmpdir(), 'tessel-outside-'))

@@ -1,4 +1,6 @@
 import {
+  parseCombo,
+  resolveCombo,
   isImageData,
   type EditTileMessage,
   applyChange,
@@ -200,6 +202,12 @@ export class Hub {
         onEvent: (subscriptionId, values) => this.pluginEvent(subscriptionId, values),
         onTileState: (tileId, key, value) =>
           this.runtime(this.library.activeId).setTileState(tileId, key, value),
+        pressKeys: async (combo) => {
+          if (this.paused) throw new Error('Tiles are paused')
+          await this.opts.platform.pressCombo(
+            resolveCombo(parseCombo(combo), this.opts.platform.os),
+          )
+        },
       })
     }
     this.devices.onChange(() => this.emit())

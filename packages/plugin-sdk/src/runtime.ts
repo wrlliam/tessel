@@ -78,6 +78,7 @@ export function runPlugin(
         set: async (key, value) => void (await call('storage.set', { key, value })),
         delete: async (key) => void (await call('storage.delete', { key })),
       },
+      pressKeys: async (combo) => void (await call('input.press', { combo })),
     }
   }
 
