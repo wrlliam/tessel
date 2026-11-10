@@ -35,6 +35,14 @@
         "title": "Medal library folder",
         "default": "",
         "description": "Where Medal saves clips (Medal \u203a Settings \u203a Library). Empty looks in Videos\\\\Medal."
+      },
+      "waitSeconds": {
+        "type": "number",
+        "title": "Wait for the clip (seconds)",
+        "default": 20,
+        "minimum": 3,
+        "maximum": 60,
+        "description": "How long to wait for Medal to save a clip before saying it did not."
       }
     }
   }

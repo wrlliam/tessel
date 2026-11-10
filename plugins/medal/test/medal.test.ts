@@ -3,19 +3,65 @@ import { describe, expect, it, vi } from 'vitest'
 import { createMedalPlugin, type SavedFile } from '../src/plugin.ts'
 
 describe('Medal plugin', () => {
+  it('says saved only once the clip lands in the library', async () => {
+    const files: SavedFile[] = [{ path: 'old.mp4', name: 'old.mp4', mtime: 1 }]
+    const h = createHarness(
+      createMedalPlugin(
+        async () => [...files],
+        () => ['C:/m'],
+      ),
+      { settings: { clipKey: 'f8', waitSeconds: 5 } },
+    )
+    await h.load()
+    setTimeout(() => files.push({ path: 'new.mp4', name: 'Clip 2.mp4', mtime: 2 }), 700)
+    expect(await h.run('clip', {})).toEqual({
+      next: 'saved',
+      values: { name: 'Clip 2.mp4', path: 'new.mp4', problem: '' },
+    })
+  })
+
+  it("explains when Medal saves nothing, or the library can't be found", async () => {
+    const h = createHarness(
+      createMedalPlugin(
+        async () => [],
+        () => ['C:/m'],
+      ),
+      {
+        settings: { clipKey: 'f8', waitSeconds: 3 },
+      },
+    )
+    await h.load()
+    const r = await h.run('clip', {})
+    expect(r.next).toBe('nothing')
+    expect(String(r.values?.['problem'])).toMatch(/hotkey/)
+    const lost = createHarness(
+      createMedalPlugin(
+        async () => {
+          throw new Error('ENOENT')
+        },
+        () => ['C:/nope'],
+      ),
+    )
+    await lost.load()
+    const r2 = await lost.run('clip', {})
+    expect(String(r2.values?.['problem'])).toMatch(/Can't find your Medal library/)
+    expect(lost.keys).toEqual([])
+  })
+
   it("presses Medal's hotkeys from settings", async () => {
     const h = createHarness(
       createMedalPlugin(
         async () => [],
-        () => [],
+        () => ['C:/m'],
       ),
       {
-        settings: { clipKey: 'alt+f10', screenshotKey: '' },
+        settings: { clipKey: 'alt+f10', screenshotKey: '', waitSeconds: 3 },
       },
     )
     await h.load()
-    await h.run('clip', {})
+    const r = await h.run('clip', {})
     expect(h.keys).toEqual(['alt+f10'])
+    expect(r.next).toBe('nothing')
     await expect(h.run('screenshot', {})).rejects.toThrow(/Set Medal's screenshot hotkey/)
   })
 

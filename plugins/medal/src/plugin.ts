@@ -20,23 +20,35 @@ export function createMedalPlugin(
   defaultFolders: () => string[],
   now = () => Date.now(),
 ) {
-  let settings = { clipKey: 'f8', screenshotKey: '', recordKey: '', folder: '' }
+  let settings = { clipKey: 'f8', screenshotKey: '', recordKey: '', folder: '', waitSeconds: 20 }
   const apply = (s: Record<string, unknown>) => {
     settings = {
       clipKey: String(s['clipKey'] || 'f8'),
       screenshotKey: String(s['screenshotKey'] ?? ''),
       recordKey: String(s['recordKey'] ?? ''),
       folder: String(s['folder'] ?? '').trim(),
+      waitSeconds: Math.min(60, Math.max(3, Number(s['waitSeconds'] ?? 20) || 20)),
     }
   }
   const folders = () => (settings.folder ? [settings.folder] : defaultFolders())
-  async function media(): Promise<SavedFile[]> {
+  /** Clips and screenshots in the library, newest first; `found` is false when no folder exists. */
+  async function library(): Promise<{ files: SavedFile[]; found: boolean }> {
     const all: SavedFile[] = []
-    for (const f of folders()) all.push(...(await list(f).catch(() => [])))
-    return all
+    let found = false
+    for (const f of folders()) {
+      try {
+        all.push(...(await list(f)))
+        found = true
+      } catch {
+        // Not this folder.
+      }
+    }
+    const files = all
       .filter((m) => VIDEO.test(m.name) || IMAGE.test(m.name))
       .sort((a, b) => b.mtime - a.mtime)
+    return { files, found }
   }
+  const media = async () => (await library()).files
   const press = async (ctx: { pressKeys(c: string): Promise<void> }, key: string, what: string) => {
     if (!key)
       throw new PluginError(`Set Medal's ${what} hotkey in Plugins › Medal › Settings first.`)
@@ -47,6 +59,55 @@ export function createMedalPlugin(
     }
   }
 
+  /**
+   * Presses a hotkey, then waits for Medal to write a new file of that kind, so tiles only say
+   * "saved" when something was. Medal can ignore simulated keys or use a different hotkey.
+   */
+  async function pressAndWait(
+    ctx: { pressKeys(c: string): Promise<void>; signal: AbortSignal },
+    key: string,
+    what: 'clip' | 'screenshot',
+    seconds: number,
+  ) {
+    const before = await library()
+    if (!before.found)
+      return {
+        next: 'nothing',
+        values: {
+          name: '',
+          path: '',
+          problem:
+            "Can't find your Medal library. Set its folder in Plugins › Medal › Settings (Medal › Settings › Library shows it).",
+        },
+      }
+    const known = new Set(before.files.map((f) => f.path))
+    await press(ctx, key, what)
+    const kind = what === 'clip' ? VIDEO : IMAGE
+    const end = now() + seconds * 1000
+    while (now() < end && !ctx.signal.aborted) {
+      await new Promise((r) => setTimeout(r, 500))
+      const fresh = (await media()).find((f) => kind.test(f.name) && !known.has(f.path))
+      if (fresh)
+        return { next: 'saved', values: { name: fresh.name, path: fresh.path, problem: '' } }
+    }
+    return {
+      next: 'nothing',
+      values: {
+        name: '',
+        path: '',
+        problem: `Medal didn't save a ${what}. Check the hotkey in Plugins › Medal › Settings matches Medal › Settings › Hotkeys, and that Medal is recording your game.`,
+      },
+    }
+  }
+
+  const savedOutputs = [
+    { id: 'saved', kind: 'flow' as const },
+    { id: 'nothing', kind: 'flow' as const, label: 'nothing saved' },
+    { id: 'name', kind: 'value' as const, type: 'string' as const },
+    { id: 'path', kind: 'value' as const, type: 'string' as const },
+    { id: 'problem', kind: 'value' as const, type: 'string' as const, label: 'why not' },
+  ]
+
   return definePlugin({
     onLoad: (ctx) => apply(ctx.settings),
     onSettings: apply,
@@ -55,26 +116,29 @@ export function createMedalPlugin(
         id: 'clip',
         name: 'Medal: clip that',
         description:
-          "Presses Medal's clip hotkey, saving the last moments of your game. Medal must be running; the game keeps focus.",
+          "Presses Medal's clip hotkey (the game keeps focus), then waits for the clip to appear in your Medal library: out 'saved' with its name, or 'nothing saved' with why.",
         platforms: ['win32'],
         inputs: [flowIn],
-        outputs: [flowOut],
+        outputs: savedOutputs,
         paramsSchema: z.object({}),
         fields: [],
         defaults: {},
-        run: async (ctx) => press(ctx, settings.clipKey, 'clip'),
+        timeoutSeconds: 70,
+        run: async (ctx) => pressAndWait(ctx, settings.clipKey, 'clip', settings.waitSeconds),
       }),
       defineBlock({
         id: 'screenshot',
         name: 'Medal: screenshot',
-        description: "Presses Medal's screenshot hotkey.",
+        description:
+          "Presses Medal's screenshot hotkey, then checks the screenshot reached your Medal library: out 'saved' or 'nothing saved' with why.",
         platforms: ['win32'],
         inputs: [flowIn],
-        outputs: [flowOut],
+        outputs: savedOutputs,
         paramsSchema: z.object({}),
         fields: [],
         defaults: {},
-        run: async (ctx) => press(ctx, settings.screenshotKey, 'screenshot'),
+        timeoutSeconds: 30,
+        run: async (ctx) => pressAndWait(ctx, settings.screenshotKey, 'screenshot', 8),
       }),
       defineBlock({
         id: 'record',

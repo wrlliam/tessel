@@ -469,8 +469,8 @@ function recordKey(
           popup(
             'stopped',
             {
-              title: 'Recording saved',
-              body: `${what} stopped and saved the recording.`,
+              title: 'Recording stopped',
+              body: `${what} saves the recording to its usual folder.`,
               icon: '💾',
               colour: '#22D3C5',
             },
@@ -2097,8 +2097,8 @@ export const templates: TileTemplate[] = [
     { label: 'Clip that', icon: 'save', colour: '#107C10' },
     'win+alt+g',
     {
-      title: 'Clip saved',
-      body: 'Game Bar saved the last moments.',
+      title: 'Clip requested',
+      body: 'Game Bar saves it to Videos › Captures if background recording is on.',
       icon: '🎬',
       colour: '#107C10',
     },
@@ -2117,7 +2117,7 @@ export const templates: TileTemplate[] = [
     'Takes a Game Bar screenshot of your game and pops up to say so.',
     { label: 'Screenshot', icon: 'camera', colour: '#107C10' },
     'win+alt+printscreen',
-    { title: 'Screenshot saved', body: 'In Videos › Captures.', icon: '📸' },
+    { title: 'Screenshot requested', body: 'Game Bar saves it to Videos › Captures.', icon: '📸' },
   ),
   keyTile(
     'gamebar-mic',
@@ -2136,8 +2136,8 @@ export const templates: TileTemplate[] = [
     { label: 'Save replay', icon: 'save', colour: '#76B900' },
     'alt+f10',
     {
-      title: 'Replay saved',
-      body: 'NVIDIA saved the instant replay.',
+      title: 'Replay requested',
+      body: 'NVIDIA saves it to Videos if Instant Replay is on.',
       icon: '🎬',
       colour: '#76B900',
     },
@@ -2164,7 +2164,7 @@ export const templates: TileTemplate[] = [
     'Takes a screenshot with the NVIDIA app.',
     { label: 'Screenshot', icon: 'camera', colour: '#76B900' },
     'alt+f1',
-    { title: 'Screenshot saved', body: 'NVIDIA saved a screenshot.', icon: '📸' },
+    { title: 'Screenshot requested', body: 'NVIDIA saves it to Videos.', icon: '📸' },
   ),
   keyTile(
     'amd-replay',
@@ -2173,7 +2173,11 @@ export const templates: TileTemplate[] = [
     'Saves the AMD Software instant replay, and pops up when it has.',
     { label: 'Save replay', icon: 'save', colour: '#ED1C24' },
     'ctrl+shift+s',
-    { title: 'Replay saved', body: 'AMD saved the instant replay.', icon: '🎬' },
+    {
+      title: 'Replay requested',
+      body: 'AMD Software saves it to Videos › Radeon ReLive if Instant Replay is on.',
+      icon: '🎬',
+    },
   ),
   recordKey(
     'amd-record',
@@ -2189,7 +2193,7 @@ export const templates: TileTemplate[] = [
     'Takes a Steam screenshot (F12) in the game you are playing.',
     { label: 'Steam shot', icon: 'camera', colour: '#1B2838' },
     'f12',
-    { title: 'Screenshot saved', body: 'Steam saved a screenshot.', icon: '📸' },
+    { title: 'Screenshot requested', body: 'Find it in Steam › View › Screenshots.', icon: '📸' },
   ),
   steamGame('steam-cs2', '730', 'Counter-Strike 2', 'gamepad-2'),
   steamGame('steam-dota2', '570', 'Dota 2', 'gamepad-2'),
@@ -2235,19 +2239,17 @@ export const templates: TileTemplate[] = [
     plugin: 'medal',
     name: 'Medal: clip that',
     description:
-      'Clips the last moments of your game with Medal without leaving it, and pops up with the clip’s name once Medal has saved it.',
+      'Clips the last moments of your game with Medal without leaving it. Pops up with the clip’s name once it is in your Medal library, or says why if Medal saved nothing.',
     tile: {
       label: 'Clip it',
       icon: 'video',
       colour: '#F5B63D',
-      appearanceBindings: [bind('label', '{{state.lastClip ? "Clipped" : "Clip it"}}')],
       graph: {
         nodes: [
           press,
           node('clip', 'medal.clip', {}, 288),
-          node('saved', 'medal.saved', { what: 'clips' }, 0, 160),
           node(
-            'pop',
+            'saved',
             'action.toast',
             {
               title: 'Clip saved',
@@ -2257,14 +2259,29 @@ export const templates: TileTemplate[] = [
               seconds: 4,
               position: 'top-center',
             },
-            288,
+            576,
+          ),
+          node(
+            'nothing',
+            'action.toast',
+            {
+              title: 'No clip saved',
+              body: '',
+              icon: '⚠️',
+              colour: '#F25C6E',
+              seconds: 8,
+              position: 'top-center',
+            },
+            576,
             160,
           ),
         ],
         edges: [
           wire('press', 'out', 'clip'),
-          wire('saved', 'out', 'pop'),
-          wire('saved', 'name', 'pop', 'body'),
+          wire('clip', 'saved', 'saved'),
+          wire('clip', 'name', 'saved', 'body'),
+          wire('clip', 'nothing', 'nothing'),
+          wire('clip', 'problem', 'nothing', 'body'),
         ],
       },
     },
@@ -2275,7 +2292,7 @@ export const templates: TileTemplate[] = [
     plugin: 'medal',
     name: 'Medal: screenshot',
     description:
-      "Takes a screenshot with Medal (set Medal's screenshot hotkey in the plugin settings).",
+      "Takes a screenshot with Medal (set Medal's screenshot hotkey in the plugin settings) and pops up once it is in your library, or says why not.",
     tile: {
       label: 'Screenshot',
       icon: 'camera',
@@ -2284,9 +2301,41 @@ export const templates: TileTemplate[] = [
         nodes: [
           press,
           node('shot', 'medal.screenshot', {}, 288),
-          popup('pop', { title: 'Screenshot', body: 'Medal took a screenshot.', icon: '📸' }, 576),
+          node(
+            'saved',
+            'action.toast',
+            {
+              title: 'Screenshot saved',
+              body: '',
+              icon: '📸',
+              colour: '#F5B63D',
+              seconds: 4,
+              position: 'top-center',
+            },
+            576,
+          ),
+          node(
+            'nothing',
+            'action.toast',
+            {
+              title: 'No screenshot saved',
+              body: '',
+              icon: '⚠️',
+              colour: '#F25C6E',
+              seconds: 8,
+              position: 'top-center',
+            },
+            576,
+            160,
+          ),
         ],
-        edges: [wire('press', 'out', 'shot'), wire('shot', 'out', 'pop')],
+        edges: [
+          wire('press', 'out', 'shot'),
+          wire('shot', 'saved', 'saved'),
+          wire('shot', 'name', 'saved', 'body'),
+          wire('shot', 'nothing', 'nothing'),
+          wire('shot', 'problem', 'nothing', 'body'),
+        ],
       },
     },
   },
@@ -2313,7 +2362,7 @@ export const templates: TileTemplate[] = [
           ),
           popup(
             'off',
-            { title: 'Recording saved', body: 'Medal stopped recording.', icon: '💾' },
+            { title: 'Recording stopped', body: 'Medal saves it to your library.', icon: '💾' },
             576,
             160,
           ),
