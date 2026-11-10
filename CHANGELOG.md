@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **Phones need approval:** the pairing code only asks to connect; nothing gets in until you press Approve on the computer. Pairing the same phone again replaces its old entry.
+- **Plugins re-ask for permissions** they didn't have when you allowed them, e.g. after a dev plugin's manifest changes.
+- **Graphic tiles:** show a number as a ring gauge, bar, line chart or column chart, with colour zones (Inspector › Display, fed by the new **Show a value** block). Charts keep a history (Settings › Charts, 5 minutes to 7 days, oldest dropped first); tap one on the phone to scroll back through it.
+- **System stats:** a block for CPU, memory, disk and network, gauge and chart templates, and a System stats page.
+- **Mic level** is a ring of how loud you are, green to amber to red, instead of a negative dB number.
+- **On double tap** trigger, for a second action on the same tile.
+- **Schedules run only while a phone shows their page**, unless set to Always.
+- **Resizing a tile pushes its neighbours aside**; if they'd leave the grid, the size is refused.
+- **Phone preview in the editor:** see the page exactly as the phone draws it, and turn it sideways.
+- **Flow editor:** a zoom bar, a map in block colours you can hide, and a run log with timings, failures and a This tile filter.
+- **Activity log:** search, filter by warnings or errors, and a bigger view; keeps 1,000 entries.
+- **Medal** only says a clip or screenshot is saved once it's in your library, and says why when it isn't.
+- **Old Voicemeeter gain sliders** get hold-to-reset-to-0 dB.
+
 - **std.blocks and std.my in My blocks:** call any of Tessel's blocks (pop-up, toggle, set tile appearance, plugin blocks…) and your other custom blocks as typed functions; the list is regenerated whenever the available blocks change.
 - **Medal plugin** (Windows): clip, screenshot and record from your phone with Medal's hotkeys, and pop up when a clip is saved.
 - **Gaming and Windows templates:** Xbox Game Bar, NVIDIA and AMD replay and recording keys that turn red while recording and pop up to confirm, Steam games and library, a gaming break reminder, and Windows snapping, virtual desktops, snip, clipboard history and more. New pages: Gaming, Medal and Windows.

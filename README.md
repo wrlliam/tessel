@@ -52,7 +52,7 @@ macOS gives a universal `.dmg`, Windows an NSIS `.exe`, Linux an `.AppImage` and
 
 Swipe sideways or tap the dots to change page. Folder tiles open their page; Back returns. A tap fires when you lift your finger (or after a short hold), so starting a swipe on a tile never presses it. The **⋯** menu has **Dim screen** (a dark overlay for OLED phones; tiles still work), **Choose another computer** (iPhone app) and **Forget this computer**.
 
-**Pairing.** Scan the QR code on the Phones tab and the phone pairs by itself: the code rides in the link's `#` part, which never reaches a server, and the phone drops it from the address once used. Typing the address and the 6-digit code still works.
+**Pairing.** Scan the QR code on the Phones tab and the phone pairs by itself: the code rides in the link's `#` part, which never reaches a server, and the phone drops it from the address once used. Typing the address and the 6-digit code still works. Either way, **Tessel asks on the computer** before a new phone connects: the code alone, or a leaked link, is never enough.
 
 **Editing keys on the phone.** **⋯ › Edit keys**, then tap a key to change its name, colour or icon, or **Swap with…** another key on the page. Phones can only change how keys look and where they sit, never what they do; turn it off with **Edit keys on the phone** on the Phones tab.
 
