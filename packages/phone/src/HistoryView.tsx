@@ -50,6 +50,7 @@ export function HistoryView({
   const [end, setEnd] = useState<number>()
   const [readout, setReadout] = useState<Point>()
   const loading = useRef(false)
+  const ranged = useRef(false)
   const [openedAt] = useState(() => Date.now())
   const drag = useRef<{ x: number; end: number; width: number } | null>(null)
 
@@ -65,6 +66,11 @@ export function HistoryView({
       if (e.before === undefined) {
         setPoints(e.points)
         setMore(e.more)
+        // Open on the shortest range that holds what's recorded, so a fresh chart isn't a sliver.
+        const recorded = (e.points.at(-1)?.[0] ?? 0) - (e.points[0]?.[0] ?? 0)
+        if (!e.more && !ranged.current)
+          setRange(RANGES.find((r) => r.ms >= recorded)?.ms ?? RANGES[3].ms)
+        ranged.current = true
       } else {
         setPoints((p) => [...e.points.filter((x) => x[0] < (p[0]?.[0] ?? Infinity)), ...p])
         setMore(e.more)
@@ -211,7 +217,9 @@ export function HistoryView({
               vectorEffect="non-scaling-stroke"
             />
           ))}
-          {display.zones.map((z) => (
+          {display.zones
+            .filter((z) => z.from > lo && z.from < hi)
+            .map((z) => (
             <line
               key={z.from}
               x1="0"

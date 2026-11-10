@@ -107,21 +107,22 @@ export function KeyMeter({
                 style={{ transition: 'stroke-dasharray 300ms ease, stroke 300ms ease' }}
               />
             </g>
+            {/* Drawn inside the ring so it shrinks with it; longer text gets smaller. */}
+            <text
+              x="50"
+              y="52"
+              textAnchor="middle"
+              dominantBaseline="central"
+              fill="currentColor"
+              style={{
+                fontSize: Math.min(26, 60 / (0.6 * Math.max(3, reading.text.length))),
+                fontWeight: 600,
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {reading.text}
+            </text>
           </svg>
-          <span
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: Math.round(big * 0.8),
-              fontWeight: 600,
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            {reading.text}
-          </span>
         </span>
         {showLabel && label && (
           <span className="key-label" style={{ fontSize: small, WebkitLineClamp: 1, opacity: 0.8 }}>
@@ -211,22 +212,35 @@ export function KeyMeter({
             vectorEffect="non-scaling-stroke"
           />
         ) : display.kind === 'columns' ? (
-          shown.map((v, i) => {
-            const w = W / Math.max(n, 20)
-            const x = W - (n - i) * w
-            return (
-              <rect
-                key={i}
-                x={x + w * 0.15}
-                width={w * 0.7}
-                y={y(v)}
-                height={H - y(v)}
-                rx={0.8}
-                fill={colourAt(display, v, base)}
-                opacity={i === n - 1 ? 1 : 0.75}
-              />
-            )
-          })
+          <>
+            <line
+              x1="0"
+              x2={W}
+              y1={H}
+              y2={H}
+              stroke={track}
+              strokeWidth="1"
+              vectorEffect="non-scaling-stroke"
+            />
+            {shown.map((v, i) => {
+              const w = W / Math.max(n, 20)
+              const x = W - (n - i) * w
+              // A quiet stub at zero, so an idle reading still shows as a bar.
+              const top = Math.min(y(v), H - 1.5)
+              return (
+                <rect
+                  key={i}
+                  x={x + w * 0.15}
+                  width={w * 0.7}
+                  y={top}
+                  height={H - top}
+                  rx={0.8}
+                  fill={colourAt(display, v, base)}
+                  opacity={i === n - 1 ? 1 : 0.75}
+                />
+              )
+            })}
+          </>
         ) : (
           (() => {
             const step = n > 1 ? W / (n - 1) : 0
