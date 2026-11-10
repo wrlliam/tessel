@@ -19,9 +19,21 @@ import type { BlockFiles } from './custom-blocks.ts'
 
 export const STARTER = starter
 
+/**
+ * In My blocks, std comes from tessel/index.ts, with std.blocks and std.my. The helpers file
+ * stops offering its plain std there, so an editor's auto-import can't pick the one without them.
+ */
+export function myBlocksStd(source: string): string {
+  const out = source
+    .replace(/^export const std = /m, 'const std = ')
+    .replace(/^export default std\n?/m, '')
+  if (out === source) throw new Error('std.ts changed shape; update myBlocksStd')
+  return out
+}
+
 export const MY_BLOCKS_FILES: BlockFiles = {
   'tessel/index.ts': tesselIndex,
-  'tessel/std.ts': tesselStd,
+  'tessel/std.ts': myBlocksStd(tesselStd),
   'tessel/generated.ts': tesselGenerated,
   'index.ts': entry,
   'manifest.json': manifest,

@@ -94,7 +94,7 @@ Throw an `Error` to fail the run; its message shows in the run log and on the ph
 
 ## Tessel's blocks as functions: std.blocks and std.my
 
-Every block you could put on a tile is also a function in `run`:
+Every block you could put on a tile is also a function in `run`. Take `std` from `run({ std })`, or import it with `import { block, std } from '../tessel/index.ts'`; both are the same and type `std.blocks.` to list every block:
 
 ```ts
 async run({ std }) {

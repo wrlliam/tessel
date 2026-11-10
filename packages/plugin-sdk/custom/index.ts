@@ -1,11 +1,13 @@
 // Write your own Tessel blocks in TypeScript. Each file in blocks/ default-exports block({...}).
 // Tessel copies this folder in and refreshes it on updates, so keep your own code in blocks/.
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { readdir } from 'node:fs/promises'
 import type { BlockCalls, MyCalls } from './generated.ts'
-import { std } from './std.ts'
+import { date, homeAssistant, http, math, parseJson, sleep, text } from './std.ts'
 
-export { std }
 export * from './std.ts'
+
+const helpers = { date, text, math, http, sleep, parseJson, homeAssistant }
 
 export type ParamType = 'text' | 'textarea' | 'number' | 'toggle' | 'select'
 export type ValueType = 'string' | 'number' | 'boolean' | 'any'
@@ -65,7 +67,7 @@ export interface BlockContext {
 }
 
 /** std, plus Tessel's blocks and this folder's blocks as functions, for one run. */
-export type RunStd = typeof std & {
+export type RunStd = typeof helpers & {
   /** Tessel's blocks and installed plugins', e.g. await std.blocks.popup({ title: 'Hi' }). */
   blocks: BlockCalls
   /** The other blocks in this folder, e.g. await std.my.pickOne({ choices: 'a\\nb' }). */
@@ -237,12 +239,14 @@ export function block<
     defaults: Object.fromEntries(Object.entries(params).map(([k, p]) => [k, defaultFor(p)])),
     ...(spec.timeoutSeconds && { timeoutSeconds: spec.timeoutSeconds }),
     async run(ctx, p, input) {
-      const result = await spec.run({
-        params: p as never,
-        inputs: input as never,
-        ctx,
-        std: bindStd(ctx),
-      })
+      const result = await running.run(ctx, () =>
+        spec.run({
+          params: p as never,
+          inputs: input as never,
+          ctx,
+          std: bindStd(ctx),
+        }),
+      )
       if (typeof result === 'string') {
         if (!flows.includes(result))
           throw new Error(
@@ -302,9 +306,9 @@ const camel = (id: string) => id.replace(/[-_ ]+([a-zA-Z0-9])/g, (_, c: string) 
  * std.blocks: any name works and is looked up by Tessel when called, so new plugins and blocks
  * need no reload. std.blocks.popup(...) runs a built-in block; std.blocks.obs.scene(...) a plugin's.
  */
-function blockCalls(ctx: BlockContext, path: string[] = []): unknown {
+function blockCalls(ctx: () => BlockContext, path: string[] = []): unknown {
   const call = async (params: Record<string, unknown> = {}, inputs: Record<string, unknown> = {}) =>
-    flatten(await ctx.runBlock(`@${path.join('.')}`, params, inputs))
+    flatten(await ctx().runBlock(`@${path.join('.')}`, params, inputs))
   return new Proxy(call, {
     get: (target, prop) =>
       typeof prop === 'string' && prop !== 'then'
@@ -316,7 +320,7 @@ function blockCalls(ctx: BlockContext, path: string[] = []): unknown {
 /** This folder's blocks, by id, filled in by loadBlocks; calls to them stay in this process. */
 const local = new Map<string, Omit<PluginBlock, 'id'>>()
 
-function myCalls(ctx: BlockContext): unknown {
+function myCalls(ctx: () => BlockContext): unknown {
   return new Proxy(
     {},
     {
@@ -332,7 +336,7 @@ function myCalls(ctx: BlockContext): unknown {
           const parsed = b.paramsSchema.safeParse({ ...b.defaults, ...params })
           if (!parsed.success)
             throw new Error(`${b.name}: ${parsed.error.issues[0]?.message ?? 'bad settings'}`)
-          return flatten((await b.run(ctx, parsed.data, inputs)) as never)
+          return flatten((await b.run(ctx(), parsed.data, inputs)) as never)
         }
       },
     },
@@ -340,7 +344,31 @@ function myCalls(ctx: BlockContext): unknown {
 }
 
 function bindStd(ctx: BlockContext): RunStd {
-  return { ...std, blocks: blockCalls(ctx) as BlockCalls, my: myCalls(ctx) as MyCalls }
+  return {
+    ...helpers,
+    blocks: blockCalls(() => ctx) as BlockCalls,
+    my: myCalls(() => ctx) as MyCalls,
+  }
+}
+
+/** The run in progress, so an imported std can find its tile. */
+const running = new AsyncLocalStorage<BlockContext>()
+
+function current(): BlockContext {
+  const ctx = running.getStore()
+  if (!ctx) throw new Error('std.blocks and std.my only work inside a block’s run()')
+  return ctx
+}
+
+/**
+ * Tessel's helpers (std.date, std.text, std.math, std.http…) plus its blocks as functions
+ * (std.blocks) and this folder's (std.my). The same as the std that run() is given, so it works
+ * whether you import it or take it from run({ std }).
+ */
+export const std: RunStd = {
+  ...helpers,
+  blocks: blockCalls(current) as BlockCalls,
+  my: myCalls(current) as MyCalls,
 }
 
 const isBlock = (v: unknown): v is Omit<PluginBlock, 'id'> =>

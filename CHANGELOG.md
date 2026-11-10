@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **My blocks: std.blocks autocompletes everywhere.** The `std` you can import from `tessel/index.ts` now has `std.blocks` and `std.my` too (before, only the one given to `run()` did, so an auto-imported `std` showed no blocks). New blocks start with `std` in `run()` and an example call. Existing folders pick this up on update.
+
 - **Phones need approval:** the pairing code only asks to connect; nothing gets in until you press Approve on the computer. Pairing the same phone again replaces its old entry.
 - **Plugins re-ask for permissions** they didn't have when you allowed them, e.g. after a dev plugin's manifest changes.
 - **Graphic tiles:** show a number as a ring gauge, bar, line chart or column chart, with colour zones (Inspector › Display, fed by the new **Show a value** block). Charts keep a history (Settings › Charts, 5 minutes to 7 days, oldest dropped first); tap one on the phone to scroll back through it.

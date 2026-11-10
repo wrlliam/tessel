@@ -250,3 +250,17 @@ describe('std.blocks names', () => {
     expect(resolveShortName(blocks, 'press')).toBeUndefined()
   })
 })
+
+describe('the My blocks copy of std.ts', () => {
+  it('keeps the helpers but offers std only from tessel/index.ts', async () => {
+    const { myBlocksStd } = await import('../src/main/custom-blocks-files.ts')
+    const source = await readFile(
+      join(import.meta.dirname, '../../plugin-sdk/custom/std.ts'),
+      'utf8',
+    )
+    const out = myBlocksStd(source)
+    expect(out).not.toMatch(/^export const std\b/m)
+    expect(out).not.toMatch(/^export default/m)
+    expect(out).toMatch(/^export const date\b/m)
+  })
+})
