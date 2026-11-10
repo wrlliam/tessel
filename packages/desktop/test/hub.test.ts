@@ -5,7 +5,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { PROFILE_SCHEMA_VERSION, sampleProfile, type Platform } from '@tessel/core'
+import {
+  PROFILE_SCHEMA_VERSION,
+  sampleProfile,
+  type Platform,
+  type SystemStats,
+} from '@tessel/core'
 import { Hub, type HubOptions } from '../src/main/hub.ts'
 import { SETTINGS_SCHEMA_VERSION } from '../src/main/settings.ts'
 
@@ -524,6 +529,59 @@ describe('Hub phone settings and remembered looks', () => {
     // History survives a restart.
     const again = await makeHub({}, dataDir)
     expect(again.hub.state().liveSeries['lock']).toEqual([91])
+  })
+
+  it('shows a dash, and records nothing, for a GPU the computer cannot read', async () => {
+    const stats: SystemStats = {
+      cpu: 5,
+      memory: 50,
+      memoryUsedGb: 8,
+      memoryTotalGb: 16,
+      disk: 40,
+      diskFreeGb: 100,
+      downKbps: 0,
+      upKbps: 0,
+      uptimeHours: 1,
+    }
+    const platform = { ...mockPlatform(), systemStats: vi.fn(async () => ({ ...stats })) }
+    const { hub } = await makeHub({}, undefined, { platform })
+    const profile = structuredClone(hub.getProfile('default')!)
+    const tile = profile.pages[0]!.tiles.find((t) => t.id === 'lock')!
+    const at = { x: 0, y: 0 }
+    tile.display = {
+      kind: 'ring',
+      value: '{{state.reading}}',
+      min: 0,
+      max: 100,
+      unit: '%',
+      decimals: 0,
+      zones: [],
+    }
+    tile.graph = {
+      nodes: [
+        { id: 'p', type: 'trigger.press', params: {}, position: at },
+        { id: 'g', type: 'data.systemStats', params: {}, position: at },
+        { id: 's', type: 'action.showValue', params: { value: 0, key: 'reading' }, position: at },
+      ],
+      edges: [
+        { id: 'e1', from: { nodeId: 'p', port: 'out' }, to: { nodeId: 'g', port: 'in' } },
+        { id: 'e2', from: { nodeId: 'g', port: 'out' }, to: { nodeId: 's', port: 'in' } },
+        { id: 'e3', from: { nodeId: 'g', port: 'gpu' }, to: { nodeId: 's', port: 'value' } },
+      ],
+    }
+    await hub.saveProfile(profile)
+    await hub.press({ deviceId: 'd', tileId: 'lock', phase: 'down' })
+    await vi.waitFor(() =>
+      expect(hub.state().liveAppearance['lock']?.meter).toMatchObject({ value: null }),
+    )
+    expect(hub.state().liveSeries['lock'] ?? []).toEqual([])
+    // A card that does report shows its number.
+    stats.gpu = 42.4
+    await hub.testRun('default', 'lock')
+    await vi.waitFor(() =>
+      expect(hub.state().liveAppearance['lock']?.meter).toMatchObject({ value: 42.4, text: '42%' }),
+    )
+    await hub.dispose()
   })
 
   it('tells a single tap from a double tap when a tile has On double tap', async () => {

@@ -131,7 +131,7 @@ try {
   if (shots) await page.screenshot({ path: join(shots, 'e2e-page-search.png') })
   await page.keyboard.press('Enter')
   await page.getByRole('region', { name: 'Tiles on System usage' }).waitFor()
-  for (const name of [/Tile CPU/, /Tile Memory/]) {
+  for (const name of [/Tile CPU/, /Tile GPU/, /Tile Memory/]) {
     for (const tile of await page.getByRole('button', { name }).all()) {
       await tile.click()
       await page.getByRole('button', { name: 'Test run' }).click()

@@ -2,18 +2,141 @@
 // one before, so CPU and network are "since last time", like a task manager.
 import type { SystemStats } from '@tessel/core'
 import { execFile } from 'node:child_process'
-import { readFile, statfs } from 'node:fs/promises'
+import { readdir, readFile, statfs } from 'node:fs/promises'
 import { cpus, freemem, homedir, totalmem, uptime } from 'node:os'
 import { parse } from 'node:path'
 
 type Bytes = { rx: number; tx: number }
 
-const run = (cmd: string, args: string[]) =>
+const run = (cmd: string, args: string[], timeout = 3000) =>
   new Promise<string>((resolve) =>
-    execFile(cmd, args, { timeout: 3000, windowsHide: true }, (err, out) =>
-      resolve(err ? '' : out),
-    ),
+    execFile(cmd, args, { timeout, windowsHide: true }, (err, out) => resolve(err ? '' : out)),
   )
+
+/** What we could learn about the graphics card. Anything unknown is left out. */
+export interface GpuReading {
+  /** Busy, 0 to 100. */
+  gpu?: number
+  /** Graphics memory in use, 0 to 100. */
+  gpuMemory?: number
+  gpuMemoryUsedGb?: number
+  /** Degrees Celsius. */
+  gpuTemp?: number
+}
+
+/** `nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu`: the busiest card. */
+export function parseNvidiaSmi(text: string): GpuReading | undefined {
+  let best: GpuReading | undefined
+  for (const line of text.trim().split('\n')) {
+    // Blank fields and "[N/A]" become NaN, not 0.
+    const [util, used, total, temp] = line
+      .split(',')
+      .map((x) => (x.trim() === '' ? NaN : Number(x.trim())))
+    if (util === undefined || !Number.isFinite(util)) continue
+    const r: GpuReading = { gpu: util }
+    if (used !== undefined && total !== undefined && Number.isFinite(used) && total > 0) {
+      r.gpuMemory = (used / total) * 100
+      r.gpuMemoryUsedGb = used / 1024
+    }
+    if (temp !== undefined && Number.isFinite(temp)) r.gpuTemp = temp
+    if (!best || util > (best.gpu ?? -1)) best = r
+  }
+  return best
+}
+
+/** macOS `ioreg -c IOAccelerator`: Apple and Intel GPUs report "Device Utilization %". */
+export function parseIoregGpu(text: string): GpuReading | undefined {
+  const utils = [...text.matchAll(/"Device Utilization %"=(\d+)/g)].map((m) => Number(m[1]))
+  if (utils.length === 0) return undefined
+  const mem = [...text.matchAll(/"In use system memory"=(\d+)/g)].map((m) => Number(m[1]))
+  const r: GpuReading = { gpu: Math.max(...utils) }
+  if (mem.length > 0) r.gpuMemoryUsedGb = mem.reduce((a, b) => a + b, 0) / 1024 ** 3
+  return r
+}
+
+/** Linux AMD and Intel cards: busy %, VRAM and temperature from sysfs. */
+async function sysfsGpu(): Promise<GpuReading | undefined> {
+  const cards = (await readdir('/sys/class/drm').catch(() => [] as string[])).filter((c) =>
+    /^card\d+$/.test(c),
+  )
+  const num = async (path: string) => {
+    const text = (await readFile(path, 'utf8').catch(() => '')).trim()
+    const n = Number(text)
+    return text && Number.isFinite(n) ? n : undefined
+  }
+  for (const card of cards) {
+    const dev = `/sys/class/drm/${card}/device`
+    const busy = await num(`${dev}/gpu_busy_percent`)
+    if (busy === undefined) continue
+    const r: GpuReading = { gpu: busy }
+    const used = await num(`${dev}/mem_info_vram_used`)
+    const total = await num(`${dev}/mem_info_vram_total`)
+    if (used !== undefined && total) {
+      r.gpuMemory = (used / total) * 100
+      r.gpuMemoryUsedGb = used / 1024 ** 3
+    }
+    const hwmon = (await readdir(`${dev}/hwmon`).catch(() => [] as string[]))[0]
+    const milli = hwmon ? await num(`${dev}/hwmon/${hwmon}/temp1_input`) : undefined
+    if (milli !== undefined) r.gpuTemp = milli / 1000
+    return r
+  }
+  return undefined
+}
+
+const NVIDIA_QUERY = [
+  '--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu',
+  '--format=csv,noheader,nounits',
+]
+// Windows without NVIDIA: the 3D engines' share, as Task Manager shows it.
+const WIN_COUNTER =
+  "(Get-Counter '\\GPU Engine(*engtype_3D)\\Utilization Percentage' -ErrorAction SilentlyContinue).CounterSamples | Measure-Object -Property CookedValue -Sum | ForEach-Object { $_.Sum }"
+
+/** One reading from whatever this computer offers; undefined when there's no way to tell. */
+export async function readGpu(os: NodeJS.Platform): Promise<GpuReading | undefined> {
+  if (os === 'darwin')
+    return parseIoregGpu(await run('ioreg', ['-r', '-d', '1', '-w', '0', '-c', 'IOAccelerator']))
+  const nvidia = parseNvidiaSmi(await run('nvidia-smi', NVIDIA_QUERY))
+  if (nvidia) return nvidia
+  if (os === 'linux') return sysfsGpu()
+  if (os === 'win32') {
+    const out = (
+      await run('powershell', ['-NoProfile', '-NonInteractive', '-Command', WIN_COUNTER], 8000)
+    ).trim()
+    const sum = Number(out)
+    return out && Number.isFinite(sum) ? { gpu: Math.min(100, Math.max(0, sum)) } : undefined
+  }
+  return undefined
+}
+
+/**
+ * Keeps the latest GPU reading fresh in the background, so a slow tool (PowerShell can take a
+ * second or two) never holds up a stats tick. Gives up asking after a few empty answers.
+ */
+export function gpuSampler(read: () => Promise<GpuReading | undefined>, everyMs = 1000) {
+  let last: GpuReading | undefined
+  let at = 0
+  let inFlight: Promise<void> | undefined
+  let misses = 0
+  const refresh = () =>
+    (inFlight ??= read()
+      .then((r) => {
+        last = r
+        misses = r ? 0 : misses + 1
+      })
+      .catch(() => {
+        misses++
+      })
+      .finally(() => {
+        at = Date.now()
+        inFlight = undefined
+      }))
+  return async (): Promise<GpuReading | undefined> => {
+    if (misses >= 3) return undefined
+    if (at === 0) await refresh()
+    else if (Date.now() - at >= everyMs) void refresh()
+    return last
+  }
+}
 
 /** Total bytes received and sent on every network interface except loopback. */
 export async function networkBytes(os: NodeJS.Platform): Promise<Bytes | undefined> {
@@ -102,7 +225,10 @@ const cpuTimes = () =>
     { idle: 0, total: 0 },
   )
 
-export function createStats(os: NodeJS.Platform = process.platform) {
+export function createStats(
+  os: NodeJS.Platform = process.platform,
+  gpu: () => Promise<GpuReading | undefined> = gpuSampler(() => readGpu(os)),
+) {
   let lastCpu = cpuTimes()
   let lastNet: { at: number; bytes: Bytes } | undefined
   const gb = (n: number) => n / 1024 ** 3
@@ -139,8 +265,10 @@ export function createStats(os: NodeJS.Platform = process.platform) {
       }
     }
     if (bytes) lastNet = { at, bytes }
+    const g = await gpu()
 
     return {
+      ...g,
       cpu: Math.min(100, Math.max(0, busy)),
       memory: total > 0 ? ((total - free) / total) * 100 : 0,
       memoryUsedGb: gb(total - free),

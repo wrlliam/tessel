@@ -476,7 +476,7 @@ export const systemStats = defineBlock({
   category: 'data',
   name: 'System stats',
   description:
-    'How busy the computer is: CPU, memory and disk in %, network in KB/s. Wire one into Show a value to draw it as a ring or chart.',
+    'How busy the computer is: CPU, graphics card, memory and disk in %, network in KB/s. GPU readings are empty where the computer has no way to report them. Wire one into Show a value to draw it as a ring or chart.',
   inputs: [flowIn],
   outputs: [
     flowOut,
@@ -489,6 +489,10 @@ export const systemStats = defineBlock({
     num('memoryTotalGb', 'memory GB'),
     num('diskFreeGb', 'disk free GB'),
     num('uptimeHours', 'hours on'),
+    num('gpu', 'GPU %'),
+    num('gpuMemory', 'GPU memory %'),
+    num('gpuMemoryUsedGb', 'GPU memory GB'),
+    num('gpuTemp', 'GPU °C'),
   ],
   paramsSchema: z.object({}),
   fields: [],
@@ -509,6 +513,11 @@ export const systemStats = defineBlock({
         memoryTotalGb: r1(s.memoryTotalGb),
         diskFreeGb: r1(s.diskFreeGb),
         uptimeHours: r1(s.uptimeHours),
+        // Left empty, not 0, when unknown: a ring then shows a dash instead of an idle card.
+        gpu: s.gpu === undefined ? null : r1(s.gpu),
+        gpuMemory: s.gpuMemory === undefined ? null : r1(s.gpuMemory),
+        gpuMemoryUsedGb: s.gpuMemoryUsedGb === undefined ? null : r1(s.gpuMemoryUsedGb),
+        gpuTemp: s.gpuTemp === undefined ? null : r1(s.gpuTemp),
       },
     }
   },
@@ -519,11 +528,12 @@ export const showValue = defineBlock({
   category: 'action',
   name: 'Show a value',
   description:
-    'Keeps a number on the tile as {{state.reading}}, for its display (ring, bar or chart, under Tile › Display) to draw. Charts remember each value.',
+    'Keeps a number on the tile as {{state.reading}}, for its display (ring, bar or chart, under Tile › Display) to draw. Charts remember each value. An empty value shows a dash.',
   inputs: [flowIn, { id: 'value', kind: 'value', type: 'number' }],
   outputs: [flowOut],
   paramsSchema: z.object({
-    value: z.coerce.number().default(0),
+    // Null is "no reading" (a stat this computer can't report), kept apart from 0.
+    value: z.coerce.number().nullable().default(0),
     key: z
       .string()
       .regex(/^[A-Za-z_][A-Za-z0-9_]{0,31}$/, 'Letters, digits and _ only')
@@ -535,7 +545,8 @@ export const showValue = defineBlock({
   ],
   defaults: { value: 0, key: 'reading' },
   run: (ctx, p) => {
-    if (!Number.isFinite(p.value)) throw new UserFacingError("That value isn't a number.")
+    if (p.value !== null && !Number.isFinite(p.value))
+      throw new UserFacingError("That value isn't a number.")
     ctx.tileState.set(p.key, p.value)
   },
 })

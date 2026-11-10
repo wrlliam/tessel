@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   createStats,
+  gpuSampler,
+  parseIoregGpu,
+  parseNvidiaSmi,
   parseNetstatE,
   parseNetstatIb,
   parseVmStat,
@@ -44,6 +47,61 @@ en0        1500  192.168.1     192.168.1.5        100     -      20000      50  
       rx: 12345,
       tx: 678,
     })
+  })
+})
+
+describe('graphics card', () => {
+  it('reads Apple and Intel GPUs from ioreg', () => {
+    const text = `| "PerformanceStatistics" = {"In use system memory"=361103360,"Renderer Utilization %"=10,"Device Utilization %"=12}`
+    const r = parseIoregGpu(text)
+    expect(r?.gpu).toBe(12)
+    expect(r?.gpuMemoryUsedGb).toBeCloseTo(0.336, 2)
+    expect(r?.gpuMemory).toBeUndefined()
+    expect(parseIoregGpu('nothing here')).toBeUndefined()
+  })
+
+  it('reads the busiest NVIDIA card', () => {
+    const r = parseNvidiaSmi('12, 1024, 8192, 51\n87, 4096, 8192, 74\n')
+    expect(r).toEqual({ gpu: 87, gpuMemory: 50, gpuMemoryUsedGb: 4, gpuTemp: 74 })
+    // Some cards report [N/A] for temperature.
+    expect(parseNvidiaSmi('5, 512, 2048, [N/A]')).toEqual({
+      gpu: 5,
+      gpuMemory: 25,
+      gpuMemoryUsedGb: 0.5,
+    })
+    expect(parseNvidiaSmi('')).toBeUndefined()
+  })
+
+  it('reads in the background and gives up on computers with nothing to read', async () => {
+    let calls = 0
+    const slow = gpuSampler(async () => {
+      calls++
+      return { gpu: calls * 10 }
+    }, 0)
+    expect(await slow()).toEqual({ gpu: 10 })
+    // Later calls answer at once with the last reading while a new one is taken.
+    expect(await slow()).toEqual({ gpu: 10 })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(await slow()).toEqual({ gpu: 20 })
+
+    let asked = 0
+    const none = gpuSampler(async () => {
+      asked++
+      return undefined
+    }, 0)
+    for (let i = 0; i < 6; i++) {
+      await none()
+      await new Promise((r) => setTimeout(r, 0))
+    }
+    expect(asked).toBe(3)
+  })
+
+  it('leaves GPU readings out when there are none', async () => {
+    const s = await createStats(process.platform, async () => undefined)()
+    expect(s.gpu).toBeUndefined()
+    const t = await createStats(process.platform, async () => ({ gpu: 40, gpuTemp: 60 }))()
+    expect(t.gpu).toBe(40)
+    expect(t.gpuTemp).toBe(60)
   })
 })
 

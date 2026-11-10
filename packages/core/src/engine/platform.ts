@@ -81,6 +81,13 @@ export interface SystemStats {
   downKbps: number
   upKbps: number
   uptimeHours: number
+  /** Graphics card busy, 0 to 100; missing when the computer gives no way to read it. */
+  gpu?: number
+  /** Graphics memory in use, 0 to 100 (cards with their own memory). */
+  gpuMemory?: number
+  gpuMemoryUsedGb?: number
+  /** Graphics card temperature in °C, where reported. */
+  gpuTemp?: number
 }
 
 export interface Platform {

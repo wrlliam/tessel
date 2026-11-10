@@ -5,7 +5,9 @@
 - **Phones need approval:** the pairing code only asks to connect; nothing gets in until you press Approve on the computer. Pairing the same phone again replaces its old entry.
 - **Plugins re-ask for permissions** they didn't have when you allowed them, e.g. after a dev plugin's manifest changes.
 - **Graphic tiles:** show a number as a ring gauge, bar, line chart or column chart, with colour zones (Inspector › Display, fed by the new **Show a value** block). Charts keep a history (Settings › Charts, 5 minutes to 7 days, oldest dropped first); tap one on the phone to scroll back through it.
-- **System stats:** a block for CPU, memory, disk and network, gauge and chart templates, and a System stats page.
+- **System stats:** a block for CPU, graphics card, memory, disk and network, gauge and chart templates, and System stats and System usage pages. GPU use comes from ioreg on macOS, nvidia-smi for NVIDIA cards, sysfs for AMD and Intel on Linux, and the GPU Engine counters on Windows; GPU memory and temperature where the card reports them. Readings a computer can't give show as a dash.
+- **Ready-made pages can be searched** in the New page menu; the list scrolls instead of running off the screen.
+- **Editor:** the tile grid comes first and fits its column; page settings fold away below it.
 - **Mic level** is a ring of how loud you are, green to amber to red, instead of a negative dB number.
 - **On double tap** trigger, for a second action on the same tile.
 - **Schedules run only while a phone shows their page**, unless set to Always.

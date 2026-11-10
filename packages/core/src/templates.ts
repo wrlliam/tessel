@@ -207,6 +207,8 @@ const STAT_NAMES: Record<string, string> = {
   disk: 'how full the main disk is',
   down: 'download speed',
   up: 'upload speed',
+  gpu: 'how busy the graphics card is',
+  gpuTemp: 'graphics card temperature',
 }
 
 /**
@@ -216,7 +218,7 @@ const STAT_NAMES: Record<string, string> = {
 function statTile(
   id: string,
   label: string,
-  stat: 'cpu' | 'memory' | 'disk' | 'down' | 'up',
+  stat: 'cpu' | 'memory' | 'disk' | 'down' | 'up' | 'gpu' | 'gpuTemp',
   kind: 'ring' | 'bar' | 'line' | 'columns',
   icon: string,
 ): TileTemplate[] {
@@ -227,7 +229,7 @@ function statTile(
       id,
       category: 'System',
       name: `${label} ${chart ? 'chart' : kind === 'ring' ? 'gauge' : 'bar'}`,
-      description: `Shows ${STAT_NAMES[stat]} live${chart ? ' as a chart; tap it on the phone to scroll back' : ''}. Amber and red when it gets high.`,
+      description: `Shows ${STAT_NAMES[stat]} live${chart ? ' as a chart; tap it on the phone to scroll back' : ''}. Amber and red when it gets high.${stat.startsWith('gpu') ? " Shows a dash on computers that don't report it." : ''}`,
       tile: {
         label,
         icon,
@@ -238,7 +240,7 @@ function statTile(
           value: network ? '{{round(state.reading * 8 / 1024, 1)}}' : '{{state.reading}}',
           min: 0,
           max: 100,
-          unit: network ? ' Mb/s' : '%',
+          unit: network ? ' Mb/s' : stat === 'gpuTemp' ? '°C' : '%',
           decimals: network ? 1 : 0,
           zones: network
             ? []
@@ -1364,6 +1366,9 @@ export const templates: TileTemplate[] = [
   ...statTile('stat-network-chart', 'Download', 'down', 'columns', 'download'),
   ...statTile('stat-upload-chart', 'Upload', 'up', 'columns', 'upload'),
   ...statTile('stat-disk-ring', 'Disk', 'disk', 'ring', 'hard-drive'),
+  ...statTile('stat-gpu', 'GPU', 'gpu', 'ring', 'gpu'),
+  ...statTile('stat-gpu-chart', 'GPU', 'gpu', 'line', 'activity'),
+  ...statTile('stat-gpu-temp', 'GPU temp', 'gpuTemp', 'bar', 'thermometer'),
 
   // Soundpad
   {
@@ -2926,17 +2931,19 @@ export const pageTemplates: PageTemplate[] = [
     id: 'page-system-usage',
     name: 'System usage',
     description:
-      'Every reading at once, gauge beside its chart: CPU, memory, disk, and download and upload speed. Built for a phone held sideways.',
+      'Every reading at once, gauge beside its chart: CPU, graphics card, memory, disk, and download and upload speed. Built for a phone held sideways.',
     cols: 4,
-    rows: 4,
+    rows: 5,
     tiles: [
       { template: 'stat-cpu', col: 0, row: 0 },
       { template: 'stat-cpu-chart', col: 1, row: 0, w: 3 },
-      { template: 'stat-memory', col: 0, row: 1 },
-      { template: 'stat-memory-chart', col: 1, row: 1, w: 3 },
-      { template: 'stat-disk-ring', col: 0, row: 2, h: 2 },
-      { template: 'stat-network-chart', col: 1, row: 2, w: 3 },
-      { template: 'stat-upload-chart', col: 1, row: 3, w: 3 },
+      { template: 'stat-gpu', col: 0, row: 1 },
+      { template: 'stat-gpu-chart', col: 1, row: 1, w: 3 },
+      { template: 'stat-memory', col: 0, row: 2 },
+      { template: 'stat-memory-chart', col: 1, row: 2, w: 3 },
+      { template: 'stat-disk-ring', col: 0, row: 3, h: 2 },
+      { template: 'stat-network-chart', col: 1, row: 3, w: 3 },
+      { template: 'stat-upload-chart', col: 1, row: 4, w: 3 },
     ],
   },
   {
