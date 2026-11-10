@@ -18,7 +18,7 @@ const simpleTrigger = (
   id: string,
   name: string,
   description: string,
-  trigger: 'longPress' | 'release' | 'pageOpen',
+  trigger: 'longPress' | 'doubleTap' | 'release' | 'pageOpen',
 ) =>
   defineBlock({
     id,
@@ -39,6 +39,12 @@ export const onLongPress = simpleTrigger(
   'On long press',
   'Starts when the tile is held for half a second. On press then only fires for short taps.',
   'longPress',
+)
+export const onDoubleTap = simpleTrigger(
+  'trigger.doubleTap',
+  'On double tap',
+  'Starts when the tile is tapped twice quickly. On press then waits a moment, to tell a single tap apart.',
+  'doubleTap',
 )
 export const onRelease = simpleTrigger(
   'trigger.release',
@@ -152,4 +158,12 @@ export const onSlide = defineBlock({
   },
 })
 
-export const triggerBlocks = [onPress, onLongPress, onRelease, onSlide, onPageOpen, onSchedule]
+export const triggerBlocks = [
+  onPress,
+  onLongPress,
+  onDoubleTap,
+  onRelease,
+  onSlide,
+  onPageOpen,
+  onSchedule,
+]

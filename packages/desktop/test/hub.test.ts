@@ -489,6 +489,39 @@ describe('Hub settings', () => {
 })
 
 describe('Hub phone settings and remembered looks', () => {
+  it('tells a single tap from a double tap when a tile has On double tap', async () => {
+    const { hub, platform } = await makeHub()
+    const profile = structuredClone(hub.getProfile('default')!)
+    const tile = profile.pages[0]!.tiles.find((t) => t.id === 'lock')!
+    const at = { x: 0, y: 0 }
+    tile.graph = {
+      nodes: [
+        { id: 'p', type: 'trigger.press', params: {}, position: at },
+        { id: 'd', type: 'trigger.doubleTap', params: {}, position: at },
+        { id: 'l', type: 'action.lockScreen', params: {}, position: at },
+        { id: 's', type: 'action.sleep', params: {}, position: at },
+      ],
+      edges: [
+        { id: 'e1', from: { nodeId: 'p', port: 'out' }, to: { nodeId: 'l', port: 'in' } },
+        { id: 'e2', from: { nodeId: 'd', port: 'out' }, to: { nodeId: 's', port: 'in' } },
+      ],
+    }
+    await hub.saveProfile(profile)
+    const tap = async () => {
+      await hub.press({ deviceId: 'd', tileId: 'lock', phase: 'down' })
+      await hub.press({ deviceId: 'd', tileId: 'lock', phase: 'up' })
+    }
+    await tap()
+    expect(platform.lockScreen).not.toHaveBeenCalled()
+    await new Promise((r) => setTimeout(r, 360))
+    expect(platform.lockScreen).toHaveBeenCalledTimes(1)
+    await tap()
+    await tap()
+    await new Promise((r) => setTimeout(r, 360))
+    expect(platform.sleep).toHaveBeenCalledTimes(1)
+    expect(platform.lockScreen).toHaveBeenCalledTimes(1)
+  })
+
   it('runs schedules only while a phone shows their page, unless set to Always', async () => {
     const { hub, platform } = await makeHub()
     const profile = structuredClone(hub.getProfile('default')!)

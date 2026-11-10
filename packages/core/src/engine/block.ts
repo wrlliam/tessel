@@ -13,7 +13,7 @@ export interface PortDef {
 }
 
 export type TriggerType =
-  'press' | 'longPress' | 'release' | 'pageOpen' | 'schedule' | 'plugin' | 'slide'
+  'press' | 'longPress' | 'doubleTap' | 'release' | 'pageOpen' | 'schedule' | 'plugin' | 'slide'
 
 export interface TriggerEvent {
   type: TriggerType

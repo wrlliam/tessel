@@ -49,6 +49,8 @@ import { blocksUsed, packProfile, unpackProfile } from './transfer.ts'
 const LOG_LIMIT = 1000
 const NETWORK_POLL_MS = 10_000
 const LONG_PRESS_MS = 500
+/** The longest gap between the two taps of a double tap. */
+const DOUBLE_TAP_MS = 300
 const LEVELS = { info: 0, warn: 1, error: 2 } as const
 
 export type HubState = Omit<
@@ -170,6 +172,8 @@ export class Hub {
   private networkTimer?: NodeJS.Timeout
   /** Tiles held down on a phone, for long press. */
   private holds = new Map<string, { timer: NodeJS.Timeout; long: boolean }>()
+  /** First taps waiting to see if a second follows. */
+  private taps = new Map<string, NodeJS.Timeout>()
   private scheduler = new Scheduler(({ tileId, nodeId }) => {
     const tile = this.findTile(this.library.activeId, tileId)
     if (!tile || this.paused) return
@@ -664,13 +668,15 @@ export class Hub {
     const key = `${deviceId}:${tileId}`
     // With a long press trigger, a short tap fires On press on release instead of on touch.
     const longPress = hasTrigger(tile, 'trigger.longPress')
+    const doubleTap = hasTrigger(tile, 'trigger.doubleTap')
     // Sliders time the hold on the phone, since dragging has to be ruled out first.
     if (phase === 'hold') {
       if (longPress) await engine.trigger(tile, { type: 'longPress' })
       return
     }
     if (phase === 'down') {
-      if (!longPress) {
+      // With no long press or double tap to tell apart, a press runs straight away.
+      if (!longPress && !doubleTap) {
         await engine.trigger(tile, { type: 'press' })
         return
       }
@@ -678,6 +684,7 @@ export class Hub {
       const hold = {
         long: false,
         timer: setTimeout(() => {
+          if (!longPress) return
           hold.long = true
           void engine.trigger(tile, { type: 'longPress' })
         }, LONG_PRESS_MS),
@@ -688,7 +695,24 @@ export class Hub {
     const hold = this.holds.get(key)
     this.holds.delete(key)
     if (hold) clearTimeout(hold.timer)
-    if (longPress && hold && !hold.long) await engine.trigger(tile, { type: 'press' })
+    const tap = (longPress || doubleTap) && hold && !hold.long
+    if (tap && doubleTap) {
+      // A second tap soon after the first is a double tap; otherwise the first was a press.
+      const waiting = this.taps.get(key)
+      if (waiting) {
+        clearTimeout(waiting)
+        this.taps.delete(key)
+        await engine.trigger(tile, { type: 'doubleTap' })
+      } else {
+        this.taps.set(
+          key,
+          setTimeout(() => {
+            this.taps.delete(key)
+            void engine.trigger(tile, { type: 'press' })
+          }, DOUBLE_TAP_MS),
+        )
+      }
+    } else if (tap) await engine.trigger(tile, { type: 'press' })
     await engine.trigger(tile, { type: 'release' })
   }
 
@@ -800,6 +824,7 @@ export class Hub {
     clearInterval(this.appTimer)
     this.scheduler.stop()
     for (const h of this.holds.values()) clearTimeout(h.timer)
+    for (const t of this.taps.values()) clearTimeout(t)
     await this.plugins?.dispose()
     await this.server.dispose()
     await Promise.all([...this.runtimes.values()].map((r) => r.dispose()))
