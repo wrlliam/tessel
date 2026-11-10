@@ -118,6 +118,7 @@ export function PhoneSettingsCard({
         </Row>
         <Row label="Indicator lights" help="The small dot in each key's corner">
           <Switch
+            tone="neutral"
             label="Indicator lights"
             hideLabel
             checked={settings.lights}
@@ -139,6 +140,7 @@ export function PhoneSettingsCard({
               />
             )}
             <Switch
+              tone="neutral"
               label="Show labels"
               hideLabel
               checked={settings.labels}
@@ -173,6 +175,7 @@ export function PhoneSettingsCard({
         </Row>
         <Row label="Page name and status bar">
           <Switch
+            tone="neutral"
             label="Show header"
             hideLabel
             checked={settings.header}
@@ -181,6 +184,7 @@ export function PhoneSettingsCard({
         </Row>
         <Row label="Vibrate on press" help="Android, and the Tessel iPhone app">
           <Switch
+            tone="neutral"
             label="Vibrate on press"
             hideLabel
             checked={settings.haptics}
@@ -192,6 +196,7 @@ export function PhoneSettingsCard({
           help="Rename, recolour and rearrange; never what keys do"
         >
           <Switch
+            tone="neutral"
             label="Edit keys on the phone"
             hideLabel
             checked={settings.allowEdit}
@@ -209,6 +214,7 @@ export function PhoneSettingsCard({
           }
         >
           <Switch
+            tone="neutral"
             label="Share location"
             hideLabel
             checked={settings.shareLocation}
@@ -220,6 +226,7 @@ export function PhoneSettingsCard({
           help="Over plain http, Safari needs one tap before it stays on"
         >
           <Switch
+            tone="neutral"
             label="Keep the screen on"
             hideLabel
             checked={settings.keepAwake}

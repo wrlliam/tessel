@@ -99,7 +99,7 @@ export function Tour({
         <p className="font-mono text-xs text-muted">
           {i + 1} of {STEPS.length}
         </p>
-        <h2 id="tour-title" className="mt-1 font-display text-xl font-semibold">
+        <h2 id="tour-title" className="mt-1 font-display text-xl font-medium">
           {step.title}
         </h2>
         {step.keys && (

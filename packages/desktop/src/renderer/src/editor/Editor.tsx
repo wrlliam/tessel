@@ -7,7 +7,7 @@ import { Button } from '../ui/button.tsx'
 import { Canvas } from './Canvas.tsx'
 import { Inspector } from './Inspector.tsx'
 import type { Cell } from './layout.ts'
-import { PagesPanel } from './PagesPanel.tsx'
+import { PageSettings, PagesPanel } from './PagesPanel.tsx'
 import { PhonePreview } from './PhonePreview.tsx'
 import { ProfilePanel } from './ProfilePanel.tsx'
 import { RunLog } from './RunLog.tsx'
@@ -144,10 +144,10 @@ export function Editor({
       <div className="flex min-h-0 flex-1">
         <aside
           aria-label="Profile, pages and tiles"
-          className="w-80 shrink-0 space-y-5 overflow-y-auto border-r border-line p-4"
+          className="w-[352px] shrink-0 space-y-6 overflow-y-auto border-r border-line p-4"
         >
           <div className="flex items-baseline justify-between">
-            <h2 className="font-display text-base font-semibold">Profile</h2>
+            <h2 className="font-display text-base font-medium">Profile</h2>
             <SaveStatus state={save} />
           </div>
           <ProfilePanel profiles={profiles} activeId={activeProfileId} />
@@ -164,7 +164,7 @@ export function Editor({
                 <div className="flex shrink-0 items-center gap-1">
                   <Button
                     size="icon"
-                    variant={view === 'phone' ? 'primary' : 'ghost'}
+                    variant="toggle"
                     aria-pressed={view === 'phone'}
                     aria-label="See it as the phone shows it"
                     title="See it as the phone shows it"
@@ -174,7 +174,7 @@ export function Editor({
                   </Button>
                   <Button
                     size="icon"
-                    variant={sideways ? 'primary' : 'ghost'}
+                    variant="toggle"
                     aria-pressed={sideways}
                     aria-label="Turn the phone sideways"
                     title="Turn the phone sideways"
@@ -187,7 +187,7 @@ export function Editor({
                   </Button>
                   <Button
                     size="sm"
-                    variant={trying ? 'primary' : 'ghost'}
+                    variant="toggle"
                     aria-pressed={trying}
                     title="Click tiles to press them, like on the phone"
                     onClick={() => setTrying(!trying)}
@@ -251,6 +251,7 @@ export function Editor({
               )}
             </section>
           )}
+          <PageSettings />
         </aside>
         {tile && tile.kind === 'folder' ? (
           <FolderPanel folderId={tile.targetPageId} />

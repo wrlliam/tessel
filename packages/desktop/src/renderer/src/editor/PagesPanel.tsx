@@ -57,103 +57,123 @@ export function PagesPanel() {
         <NewPageMenu onPick={addPage} />
       </div>
       <ul className="space-y-0.5">{pages.map((p) => row(p, 0))}</ul>
-      <PageSettings />
     </section>
   )
 }
 
-function PageSettings() {
+/** Name, size, order and sharing for the selected page. Folded away until needed. */
+export function PageSettings() {
   const page = useSelectedPage()
   const profile = useEditor((s) => s.profile)
   const { updatePage, movePage, deletePage } = useEditor.getState()
   const [confirm, setConfirm] = useState<string>()
+  const [open, setOpen] = useState(false)
   if (!page || !profile) return null
   const order = profile.pages.filter((p) => p.kind === 'page')
   const index = order.findIndex((p) => p.id === page.id)
   const parent = page.kind === 'folder' ? parentOf(profile, page.id) : undefined
 
+  const what = page.kind === 'folder' ? 'Folder' : 'Page'
   return (
-    <div className="space-y-3 rounded-xl border border-line p-3">
-      <Field label={page.kind === 'folder' ? 'Folder name' : 'Page name'} htmlFor="page-name">
-        <Input
-          id="page-name"
-          value={page.name}
-          maxLength={40}
-          onChange={(e) => updatePage(page.id, { name: e.target.value }, 'name')}
+    <section aria-label={`${what} settings`} className="rounded-xl border border-line">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className="flex h-10 w-full items-center gap-2 rounded-xl px-3 text-left text-sm transition-colors hover:bg-line/60"
+      >
+        <span className="flex-1">{what} settings</span>
+        <span className="font-mono text-xs text-muted tabular-nums">
+          {page.cols} × {page.rows}
+        </span>
+        <ChevronDown
+          className={cn('size-4 text-muted transition-transform', open && 'rotate-180')}
         />
-      </Field>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="Columns" htmlFor="page-cols">
-          <Select
-            id="page-cols"
-            value={page.cols}
-            onChange={(e) => updatePage(page.id, { cols: Number(e.target.value) })}
-          >
-            {SIZES.map((n) => (
-              <option key={n}>{n}</option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Rows" htmlFor="page-rows">
-          <Select
-            id="page-rows"
-            value={page.rows}
-            onChange={(e) => updatePage(page.id, { rows: Number(e.target.value) })}
-          >
-            {SIZES.map((n) => (
-              <option key={n}>{n}</option>
-            ))}
-          </Select>
-        </Field>
-      </div>
-      {parent && (
-        <p className="text-xs text-muted">
-          Opens from a folder tile on “{parent.name}”. The top-left slot is the Back tile.
-        </p>
+      </button>
+      {open && (
+        <div className="space-y-3 border-t border-line p-3">
+          <Field label={page.kind === 'folder' ? 'Folder name' : 'Page name'} htmlFor="page-name">
+            <Input
+              id="page-name"
+              value={page.name}
+              maxLength={40}
+              onChange={(e) => updatePage(page.id, { name: e.target.value }, 'name')}
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Columns" htmlFor="page-cols">
+              <Select
+                id="page-cols"
+                value={page.cols}
+                onChange={(e) => updatePage(page.id, { cols: Number(e.target.value) })}
+              >
+                {SIZES.map((n) => (
+                  <option key={n}>{n}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Rows" htmlFor="page-rows">
+              <Select
+                id="page-rows"
+                value={page.rows}
+                onChange={(e) => updatePage(page.id, { rows: Number(e.target.value) })}
+              >
+                {SIZES.map((n) => (
+                  <option key={n}>{n}</option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          {parent && (
+            <p className="text-xs text-muted">
+              Opens from a folder tile on “{parent.name}”. The top-left slot is the Back tile.
+            </p>
+          )}
+          <div className="flex flex-wrap gap-1">
+            {page.kind === 'page' && (
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={index <= 0}
+                  onClick={() => movePage(page.id, -1)}
+                  aria-label="Move page earlier"
+                >
+                  <ChevronUp /> Earlier
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={index >= order.length - 1}
+                  onClick={() => movePage(page.id, 1)}
+                  aria-label="Move page later"
+                >
+                  <ChevronDown /> Later
+                </Button>
+              </>
+            )}
+            {page.kind === 'page' && page.tiles.length > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => void shareTiles(page.name, page.tiles, page)}
+              >
+                <Share /> Share
+              </Button>
+            )}
+            {confirm === page.id ? (
+              <Button size="sm" variant="danger" onClick={() => deletePage(page.id)}>
+                Delete with its tiles
+              </Button>
+            ) : (
+              <Button size="sm" variant="ghost" onClick={() => setConfirm(page.id)}>
+                Delete
+              </Button>
+            )}
+          </div>
+        </div>
       )}
-      <div className="flex flex-wrap gap-1">
-        {page.kind === 'page' && (
-          <>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={index <= 0}
-              onClick={() => movePage(page.id, -1)}
-              aria-label="Move page earlier"
-            >
-              <ChevronUp /> Earlier
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={index >= order.length - 1}
-              onClick={() => movePage(page.id, 1)}
-              aria-label="Move page later"
-            >
-              <ChevronDown /> Later
-            </Button>
-          </>
-        )}
-        {page.kind === 'page' && page.tiles.length > 0 && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => void shareTiles(page.name, page.tiles, page)}
-          >
-            <Share /> Share
-          </Button>
-        )}
-        {confirm === page.id ? (
-          <Button size="sm" variant="danger" onClick={() => deletePage(page.id)}>
-            Delete with its tiles
-          </Button>
-        ) : (
-          <Button size="sm" variant="ghost" onClick={() => setConfirm(page.id)}>
-            Delete
-          </Button>
-        )}
-      </div>
-    </div>
+    </section>
   )
 }
 

@@ -61,7 +61,7 @@ function BlockSection({ node, block, os }: { node: GraphNode; block: BlockDescri
             className="size-2.5 rounded-sm"
             style={{ background: CATEGORY[block.category].colour }}
           />
-          <h2 className="font-display text-base font-semibold">{block.name}</h2>
+          <h2 className="font-display text-base font-medium">{block.name}</h2>
         </div>
         <p className="text-sm text-muted">{block.description}</p>
       </header>
@@ -209,7 +209,7 @@ function TileSection({ tile }: { tile: Tile }) {
       aria-label="Tile"
       className="space-y-4 border-t border-line pt-4 first:border-t-0 first:pt-0"
     >
-      <h2 className="font-display text-base font-semibold">{folder ? 'Folder tile' : 'Tile'}</h2>
+      <h2 className="font-display text-base font-medium">{folder ? 'Folder tile' : 'Tile'}</h2>
       {folder && (
         <Button size="sm" variant="primary" onClick={() => selectPage(folder.id)}>
           <FolderOpen /> Open “{folder.name}”

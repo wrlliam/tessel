@@ -70,7 +70,7 @@ export function BlockNode({ data, selected }: NodeProps<BlockNodeType>) {
   return (
     <div
       className={cn(
-        'w-56 rounded-xl border bg-surface text-xs shadow-lg transition-opacity',
+        'w-56 rounded-xl border bg-surface text-xs shadow-sm transition-opacity',
         message ? 'border-signal' : 'border-line',
         selected && 'ring-2 ring-text/70',
         run?.status === 'running' && 'ring-2 ring-glaze',

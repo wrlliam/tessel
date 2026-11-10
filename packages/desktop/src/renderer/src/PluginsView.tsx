@@ -1,7 +1,17 @@
 import { TileIcon } from '@tessel/brand/icons'
 import { osName, type OS } from '@tessel/core'
 import { PERMISSION_TEXT, type SettingField } from '@tessel/plugin-sdk'
-import { Download, Code, FilePlus, FolderOpen, FolderCode, Package, RotateCw } from 'lucide-react'
+import {
+  ChevronDown,
+  Code,
+  Download,
+  FilePlus,
+  FolderCode,
+  FolderOpen,
+  Package,
+  Plus,
+  RotateCw,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { CatalogResult, DesktopState, PluginInfo } from '../../shared/api.ts'
 import { cn } from './lib/cn.ts'
@@ -9,6 +19,7 @@ import { Switch } from './Switch.tsx'
 import { Button } from './ui/button.tsx'
 import { Field } from './ui/field.tsx'
 import { Input, Select } from './ui/input.tsx'
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover.tsx'
 
 const STATUS: Record<PluginInfo['status'], string> = {
   starting: 'Starting…',
@@ -16,6 +27,55 @@ const STATUS: Record<PluginInfo['status'], string> = {
   stopped: 'Off',
   crashed: 'Crashed, restarting',
   failed: 'Stopped after repeated crashes',
+}
+
+const ADD = [
+  {
+    kind: 'folder',
+    icon: FolderOpen,
+    label: 'From a folder…',
+    help: 'A plugin someone gave you, unzipped',
+  },
+  { kind: 'zip', icon: Package, label: 'From a zip…', help: 'A plugin as one file' },
+  {
+    kind: 'dev',
+    icon: FolderCode,
+    label: 'For development…',
+    help: 'Reloads when its files change',
+  },
+] as const
+
+/** One menu for the three ways to add a plugin. */
+function AddPluginMenu({ onPick }: { onPick: (kind: 'folder' | 'zip' | 'dev') => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button>
+          <Plus /> Add plugin <ChevronDown className="text-muted" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64 p-1" aria-label="Add plugin">
+        {ADD.map(({ kind, icon: Icon, label, help }) => (
+          <button
+            key={kind}
+            type="button"
+            onClick={() => {
+              setOpen(false)
+              onPick(kind)
+            }}
+            className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-line"
+          >
+            <Icon className="mt-0.5 size-4 shrink-0 text-muted" />
+            <span>
+              {label}
+              <span className="block text-xs text-muted">{help}</span>
+            </span>
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 export function PluginsView({ state }: { state: DesktopState }) {
@@ -32,16 +92,8 @@ export function PluginsView({ state }: { state: DesktopState }) {
       <div className="mx-auto max-w-3xl space-y-6">
         <header className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="mr-auto font-display text-lg font-semibold">Plugins</h2>
-            <Button onClick={() => void add('folder')}>
-              <FolderOpen /> Install from folder…
-            </Button>
-            <Button onClick={() => void add('zip')}>
-              <Package /> Install from zip…
-            </Button>
-            <Button variant="ghost" onClick={() => void add('dev')}>
-              <FolderCode /> Load for development…
-            </Button>
+            <h2 className="mr-auto font-display text-lg font-medium">Plugins</h2>
+            <AddPluginMenu onPick={(kind) => void add(kind)} />
           </div>
           <p className="text-sm text-muted">
             Plugins add blocks and triggers. Each runs in its own process, so a crash can't take
@@ -72,6 +124,7 @@ export function PluginsView({ state }: { state: DesktopState }) {
 
 function PluginCard({ plugin: p, os }: { plugin: PluginInfo; os: OS }) {
   const [confirm, setConfirm] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [error, setError] = useState<string>()
   const elsewhere = p.platforms && !p.platforms.includes(os)
   const problem = p.status === 'crashed' || p.status === 'failed'
@@ -79,7 +132,7 @@ function PluginCard({ plugin: p, os }: { plugin: PluginInfo; os: OS }) {
   return (
     <li className="space-y-3 rounded-2xl border border-line bg-surface p-4">
       <div className="flex items-start gap-3">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-line">
+        <span className="flex size-8 shrink-0 items-center justify-center text-muted">
           <TileIcon icon={p.icon || 'zap'} size={20} />
         </span>
         <div className="min-w-0 flex-1 space-y-1">
@@ -110,6 +163,7 @@ function PluginCard({ plugin: p, os }: { plugin: PluginInfo; os: OS }) {
           </p>
         </div>
         <Switch
+          tone="neutral"
           label={p.enabled ? 'On' : 'Off'}
           checked={p.enabled}
           onChange={(on) =>
@@ -119,41 +173,42 @@ function PluginCard({ plugin: p, os }: { plugin: PluginInfo; os: OS }) {
           }
         />
       </div>
-      <div className="flex flex-wrap gap-1.5">
-        {p.permissions.length === 0 ? (
-          <span className="rounded-md bg-line px-2 py-0.5 text-xs text-muted">
-            No special permissions
-          </span>
-        ) : (
-          p.permissions.map((perm) => (
-            <span
-              key={perm}
-              className="rounded-md border border-cat-trigger/50 px-2 py-0.5 text-xs"
-            >
-              {PERMISSION_TEXT[perm]}
-            </span>
-          ))
-        )}
-      </div>
+      <p className="pl-11 text-xs text-muted">
+        {p.permissions.length === 0
+          ? 'No special permissions'
+          : `Allowed to: ${p.permissions.map((perm) => PERMISSION_TEXT[perm].toLowerCase()).join(', ')}`}
+      </p>
       {p.settingsSchema && Object.keys(p.settingsSchema.properties).length > 0 && (
-        <details className="rounded-xl border border-line p-3">
-          <summary className="cursor-pointer text-sm">Settings</summary>
-          <div className="mt-3 space-y-3">
-            {Object.entries(p.settingsSchema.properties).map(([key, field]) => (
-              <SettingInput
-                key={key}
-                id={`${p.id}-${key}`}
-                field={field}
-                value={p.settings[key]}
-                onChange={(v) =>
-                  void window.tessel.updatePluginSettings(p.id, { ...p.settings, [key]: v })
-                }
-              />
-            ))}
-          </div>
-        </details>
+        <div className="ml-11 rounded-xl border border-line">
+          <button
+            type="button"
+            aria-expanded={showSettings}
+            onClick={() => setShowSettings(!showSettings)}
+            className="flex h-9 w-full items-center gap-2 rounded-xl px-3 text-left text-sm transition-colors hover:bg-line/60"
+          >
+            <span className="flex-1">Settings</span>
+            <ChevronDown
+              className={cn('size-4 text-muted transition-transform', showSettings && 'rotate-180')}
+            />
+          </button>
+          {showSettings && (
+            <div className="space-y-3 border-t border-line p-3">
+              {Object.entries(p.settingsSchema.properties).map(([key, field]) => (
+                <SettingInput
+                  key={key}
+                  id={`${p.id}-${key}`}
+                  field={field}
+                  value={p.settings[key]}
+                  onChange={(v) =>
+                    void window.tessel.updatePluginSettings(p.id, { ...p.settings, [key]: v })
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </div>
       )}
-      <div className="flex gap-2">
+      <div className="flex gap-2 pl-11 [&>button:first-child]:-ml-2.5">
         {p.enabled && (
           <Button size="sm" variant="ghost" onClick={() => void window.tessel.restartPlugin(p.id)}>
             <RotateCw /> Restart
@@ -193,7 +248,9 @@ function SettingInput({
 }) {
   const [draft, setDraft] = useState(value === undefined ? '' : String(value))
   if (field.type === 'boolean')
-    return <Switch label={field.title} checked={value === true} onChange={onChange} />
+    return (
+      <Switch tone="neutral" label={field.title} checked={value === true} onChange={onChange} />
+    )
   return (
     <Field label={field.title} help={field.description} htmlFor={id}>
       {field.enum ? (
@@ -331,7 +388,7 @@ function CatalogSection({
       <div className="flex items-center gap-2">
         <Download className="size-5 text-muted" />
         <h3 className="mr-auto font-medium">Get more plugins</h3>
-        <Button variant={open ? 'ghost' : 'primary'} onClick={() => setOpen(!open)}>
+        <Button variant={open ? 'ghost' : 'outline'} onClick={() => setOpen(!open)}>
           {open ? 'Hide' : 'Browse'}
         </Button>
       </div>

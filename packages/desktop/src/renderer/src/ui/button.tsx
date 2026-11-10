@@ -10,6 +10,9 @@ const button = cva(
         primary: 'bg-glaze font-medium text-ink-900 hover:bg-glaze/90',
         outline: 'border border-line text-text hover:bg-line/50',
         ghost: 'text-muted hover:bg-line/50 hover:text-text',
+        /** On/off buttons: pressed is a quiet raised step, not the accent. */
+        toggle:
+          'text-muted hover:bg-line/50 hover:text-text aria-checked:bg-line aria-checked:text-text aria-pressed:bg-line aria-pressed:text-text',
         danger: 'bg-signal font-medium text-ink-900 hover:bg-signal/90',
       },
       size: { sm: 'h-7 px-2.5', md: 'h-8 px-3', icon: 'size-8' },

@@ -63,7 +63,7 @@ export function App() {
         )}
       >
         <img src={logoUrl} alt="" className="size-6" />
-        <h1 className="font-display text-lg font-semibold tracking-tight">Tessel</h1>
+        <h1 className="font-display text-lg font-medium tracking-tight">Tessel</h1>
         <Tabs.List aria-label="Sections" className="ml-4 flex gap-1">
           <Tabs.Trigger value="editor" className={tabClass}>
             Editor
@@ -78,13 +78,15 @@ export function App() {
             Settings
           </Tabs.Trigger>
         </Tabs.List>
-        <div className="ml-auto flex items-center gap-6">
-          <StatusDot state={state} />
+        <div className="ml-auto flex items-center gap-4">
           <Switch
             label="Pause tiles"
+            tone="neutral"
             checked={state.paused}
             onChange={(on) => void window.tessel.setPaused(on)}
           />
+          <span className="h-5 w-px bg-line" aria-hidden />
+          <StatusDot state={state} />
           <Switch
             label="Allow phones"
             checked={state.allowPhones}

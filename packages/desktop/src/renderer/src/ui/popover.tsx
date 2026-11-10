@@ -13,7 +13,7 @@ export function PopoverContent({ className, ...props }: ComponentProps<typeof P.
         align="start"
         sideOffset={4}
         className={cn(
-          'z-50 rounded-xl border border-line bg-surface shadow-xl outline-none',
+          'z-50 rounded-xl border border-line bg-surface shadow-lg outline-none',
           className,
         )}
         {...props}

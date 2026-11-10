@@ -46,7 +46,7 @@ export function ConnectPanel({ state }: { state: DesktopState }) {
             <p className="text-muted">2. If you typed the address, enter this code</p>
             <div className="mt-1 flex items-center gap-4">
               <span
-                className="font-mono text-4xl font-semibold tracking-wider text-glaze"
+                className="font-mono text-4xl font-medium tracking-wider text-glaze"
                 aria-live="polite"
               >
                 {formatCode(code)}

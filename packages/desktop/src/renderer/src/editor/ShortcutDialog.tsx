@@ -27,7 +27,7 @@ export function ShortcutDialog({
         onKeyDown={(e) => e.key === 'Escape' && onClose()}
         className="w-full max-w-lg rounded-2xl border border-line bg-surface p-6 shadow-xl outline-none"
       >
-        <h2 id="shortcut-title" className="font-display text-lg font-semibold">
+        <h2 id="shortcut-title" className="font-display text-lg font-medium">
           Shortcut link for “{label}”
         </h2>
         <p className="mt-1 text-sm text-muted">

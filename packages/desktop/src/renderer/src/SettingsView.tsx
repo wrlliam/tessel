@@ -34,7 +34,7 @@ export function SettingsView({ state }: { state: DesktopState }) {
     <main className="min-h-0 flex-1 overflow-y-auto p-6">
       <div className="mx-auto max-w-2xl space-y-8">
         <section aria-labelledby="sharing">
-          <h2 id="sharing" className="font-display text-lg font-semibold">
+          <h2 id="sharing" className="font-display text-lg font-medium">
             Sharing
           </h2>
           <Row
@@ -63,6 +63,7 @@ export function SettingsView({ state }: { state: DesktopState }) {
           {state.startOnLogin !== null && (
             <Row label="Start on login" help="Opens Tessel in the tray when you log in.">
               <Switch
+                tone="neutral"
                 label={state.startOnLogin ? 'On' : 'Off'}
                 checked={state.startOnLogin}
                 onChange={(on) => void window.tessel.setStartOnLogin(on)}
@@ -81,7 +82,7 @@ export function SettingsView({ state }: { state: DesktopState }) {
         )}
 
         <section aria-labelledby="look">
-          <h2 id="look" className="font-display text-lg font-semibold">
+          <h2 id="look" className="font-display text-lg font-medium">
             Appearance
           </h2>
           <Row label="Theme" help="Phones follow their own system setting.">
@@ -98,25 +99,26 @@ export function SettingsView({ state }: { state: DesktopState }) {
         </section>
 
         <section aria-labelledby="safety">
-          <h2 id="safety" className="font-display text-lg font-semibold">
+          <h2 id="safety" className="font-display text-lg font-medium">
             Safety
           </h2>
           <Row
             label="Shell commands"
             help="Run shell command blocks can do anything your user account can. Leave this off unless you wrote the tiles yourself. “Ask every time” shows each command before it runs."
           >
-            <div role="radiogroup" aria-label="Shell commands" className="flex gap-1">
+            <div
+              role="radiogroup"
+              aria-label="Shell commands"
+              className="flex gap-1 rounded-lg border border-line p-0.5"
+            >
               {SHELL.map((o) => (
                 <Button
                   key={o.value}
                   role="radio"
                   aria-checked={state.settings.shell === o.value}
+                  // Only the risky choice gets colour when picked.
                   variant={
-                    state.settings.shell === o.value
-                      ? o.value === 'on'
-                        ? 'danger'
-                        : 'primary'
-                      : 'ghost'
+                    state.settings.shell === o.value && o.value === 'on' ? 'danger' : 'toggle'
                   }
                   size="sm"
                   onClick={() => void update({ shell: o.value })}
@@ -129,7 +131,7 @@ export function SettingsView({ state }: { state: DesktopState }) {
         </section>
 
         <section aria-labelledby="log">
-          <h2 id="log" className="font-display text-lg font-semibold">
+          <h2 id="log" className="font-display text-lg font-medium">
             Activity log
           </h2>
           <Row label="Show" help="What the Phones tab's activity log keeps.">
@@ -145,7 +147,7 @@ export function SettingsView({ state }: { state: DesktopState }) {
           </Row>
         </section>
         <section aria-labelledby="charts">
-          <h2 id="charts" className="font-display text-lg font-semibold">
+          <h2 id="charts" className="font-display text-lg font-medium">
             Charts
           </h2>
           <Row
@@ -167,7 +169,7 @@ export function SettingsView({ state }: { state: DesktopState }) {
           </Row>
         </section>
         <section aria-labelledby="shortcuts">
-          <h2 id="shortcuts" className="font-display text-lg font-semibold">
+          <h2 id="shortcuts" className="font-display text-lg font-medium">
             Shortcut links
           </h2>
           <p className="mt-1 text-sm text-muted">
@@ -202,7 +204,7 @@ export function SettingsView({ state }: { state: DesktopState }) {
         </section>
 
         <section aria-labelledby="updates">
-          <h2 id="updates" className="font-display text-lg font-semibold">
+          <h2 id="updates" className="font-display text-lg font-medium">
             Updates
           </h2>
           <Row label={`Tessel ${state.version}`} help={updateText(state.update)}>
@@ -229,6 +231,7 @@ export function SettingsView({ state }: { state: DesktopState }) {
             help="Looks for a new release on GitHub every few hours."
           >
             <Switch
+              tone="neutral"
               label="Check for updates automatically"
               hideLabel
               checked={state.settings.autoUpdate}

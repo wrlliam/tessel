@@ -22,7 +22,11 @@ import { openTel, shareTiles } from './share.ts'
 import { ShortcutDialog } from './ShortcutDialog.tsx'
 import { saveNow } from './sync.ts'
 import {
+  createContext,
+  useContext,
   useEffect,
+  useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -34,17 +38,30 @@ import { fits, freeCells, pushAside, type Cell } from './layout.ts'
 import { useEditor } from './store.ts'
 import { KeyFace, keyVars, type KeyStyle } from '@tessel/brand/key'
 
-const CELL = 64
 const GAP = 8
-const STEP = CELL + GAP
+/** Frame padding and border around the keys. */
+const FRAME = 16 * 2 + 2
 
-const place = (col: number, row: number, w = 1, h = 1) => ({
-  left: col * STEP,
-  top: row * STEP,
-  width: w * STEP - GAP,
-  height: h * STEP - GAP,
-  borderRadius: Math.min(w, h) * CELL * 0.2,
-})
+/** Key size and placement; keys grow or shrink so the page fits the column. */
+function geometry(cell: number) {
+  const step = cell + GAP
+  return {
+    CELL: cell,
+    STEP: step,
+    place: (col: number, row: number, w = 1, h = 1) => ({
+      left: col * step,
+      top: row * step,
+      width: w * step - GAP,
+      height: h * step - GAP,
+      borderRadius: Math.min(w, h) * cell * 0.2,
+    }),
+  }
+}
+const Geometry = createContext(geometry(64))
+
+function fitCell(room: number, cols: number) {
+  return Math.max(40, Math.min(76, Math.floor((room - FRAME - GAP * (cols - 1)) / cols)))
+}
 
 interface Props {
   page: Page
@@ -67,6 +84,22 @@ export function TileGrid({
   trying = false,
 }: Props) {
   const problems = usePageProblems(page)
+  const outer = useRef<HTMLDivElement>(null)
+  const [room, setRoom] = useState(288)
+  useLayoutEffect(() => {
+    const el = outer.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setRoom(el.clientWidth))
+    ro.observe(el)
+    setRoom(el.clientWidth)
+    return () => ro.disconnect()
+  }, [])
+  const geo = useMemo(() => geometry(fitCell(room, page.cols)), [room, page.cols])
+  const { STEP, place } = geo
+  const geoRef = useRef(geo)
+  useEffect(() => {
+    geoRef.current = geo
+  }, [geo])
   const selected = useEditor((s) => s.selectedTileId)
   const running = useEditor((s) => s.runningTiles)
   const { moveTile, resizeTile, addTile, addFolder, addSlider, duplicateTile, deleteTile } =
@@ -99,7 +132,8 @@ export function TileGrid({
       const box = grid.current?.getBoundingClientRect()
       const cell = menuRef.current
       if (!box || !cell) return new DOMRect()
-      return new DOMRect(box.left + cell.col * STEP, box.top + cell.row * STEP, CELL, CELL)
+      const g = geoRef.current
+      return new DOMRect(box.left + cell.col * g.STEP, box.top + cell.row * g.STEP, g.CELL, g.CELL)
     },
   })
   const menuRef = useRef<Cell | undefined>(undefined)
@@ -121,199 +155,205 @@ export function TileGrid({
   }
 
   return (
-    <div className="mx-auto w-fit rounded-[32px] border border-line bg-bg p-4">
-      <DndContext
-        sensors={sensors}
-        // The column scrolling under a drag would add to the drop distance.
-        autoScroll={false}
-        onDragMove={onDragMove}
-        onDragCancel={() => setGhost(undefined)}
-        onDragEnd={(e) => {
-          setGhost(undefined)
-          const tile = page.tiles.find((t) => t.id === e.active.id)
-          if (!tile) return
-          const to = target(tile, e.delta.x, e.delta.y)
-          if (to.col !== tile.position.col || to.row !== tile.position.row) moveTile(tile.id, to)
-        }}
-      >
-        <div
-          ref={grid}
-          className="relative"
-          style={{ width: page.cols * STEP - GAP, height: page.rows * STEP - GAP }}
-        >
-          {freeCells(page).map(({ col, row }) => (
-            <button
-              key={`${col},${row}`}
-              type="button"
-              aria-label={`Add something in row ${row + 1}, column ${col + 1}`}
-              onClick={() => openMenu({ col, row })}
-              className="absolute flex items-center justify-center border border-dashed border-line text-muted/0 hover:border-muted hover:text-muted focus-visible:text-muted"
-              style={place(col, row)}
-            >
-              <Plus className="size-4" />
-            </button>
-          ))}
-          {page.kind === 'folder' && (
+    <div ref={outer} className="w-full">
+      <Geometry value={geo}>
+        <div className="mx-auto w-fit rounded-[32px] border border-line bg-bg p-4">
+          <DndContext
+            sensors={sensors}
+            // The column scrolling under a drag would add to the drop distance.
+            autoScroll={false}
+            onDragMove={onDragMove}
+            onDragCancel={() => setGhost(undefined)}
+            onDragEnd={(e) => {
+              setGhost(undefined)
+              const tile = page.tiles.find((t) => t.id === e.active.id)
+              if (!tile) return
+              const to = target(tile, e.delta.x, e.delta.y)
+              if (to.col !== tile.position.col || to.row !== tile.position.row)
+                moveTile(tile.id, to)
+            }}
+          >
             <div
-              aria-label="Back tile, added by the phone"
-              className="absolute flex flex-col justify-between bg-line p-2 text-[11px] font-semibold text-muted"
-              style={place(0, 0)}
+              ref={grid}
+              className="relative"
+              style={{ width: page.cols * STEP - GAP, height: page.rows * STEP - GAP }}
             >
-              <span aria-hidden>←</span>
-              Back
-            </div>
-          )}
-          {ghost && (
-            <div
-              aria-hidden
-              className={cn(
-                'absolute border-2 border-dashed',
-                ghost.ok ? 'border-glaze' : 'border-signal',
-              )}
-              style={place(ghost.col, ghost.row, ghost.w, ghost.h)}
-            />
-          )}
-          {page.tiles.map((t) => (
-            <GridTile
-              key={t.id}
-              tile={t}
-              look={previewLook(t, live[t.id])}
-              problem={problems[t.id]}
-              trying={trying}
-              selected={t.id === selected}
-              running={running[t.id] === true}
-              keyStyle={keyStyle}
-              at={pushed?.get(t.id)}
-              points={series[t.id]}
-              onResizing={(span) => {
-                const moved = pushAside(page, t.id, span)
-                if (moved) setPushed(moved)
-                return moved !== undefined
-              }}
-              onResize={(span) => {
-                setPushed(undefined)
-                resizeTile(t.id, span)
-              }}
-              onMenu={(x, y) => {
-                tileMenuRef.current = { x, y }
-                setTileMenu({ tileId: t.id, x, y })
-              }}
-              onDelete={() => deleteTile(t.id)}
-            />
-          ))}
-        </div>
-      </DndContext>
-      <Popover open={menu !== undefined} onOpenChange={(open) => !open && setMenu(undefined)}>
-        <PopoverAnchor virtualRef={anchor} />
-        <PopoverContent className="w-48 p-1" aria-label="Add to this slot">
-          {menu && (
-            <>
-              <MenuItem
-                onClick={() => {
-                  addTile(menu)
-                  setMenu(undefined)
-                }}
-              >
-                <Plus /> Blank tile
-              </MenuItem>
-              {page.kind === 'page' && (
-                <MenuItem
-                  onClick={() => {
-                    addFolder(menu)
-                    setMenu(undefined)
-                  }}
+              {freeCells(page).map(({ col, row }) => (
+                <button
+                  key={`${col},${row}`}
+                  type="button"
+                  aria-label={`Add something in row ${row + 1}, column ${col + 1}`}
+                  onClick={() => openMenu({ col, row })}
+                  className="absolute flex items-center justify-center border border-dashed border-line text-muted/0 hover:border-muted hover:text-muted focus-visible:text-muted"
+                  style={place(col, row)}
                 >
-                  <Folder /> Folder
-                </MenuItem>
+                  <Plus className="size-4" />
+                </button>
+              ))}
+              {page.kind === 'folder' && (
+                <div
+                  aria-label="Back tile, added by the phone"
+                  className="absolute flex flex-col justify-between bg-line p-2 text-[11px] font-medium text-muted"
+                  style={place(0, 0)}
+                >
+                  <span aria-hidden>←</span>
+                  Back
+                </div>
               )}
-              <MenuItem
-                onClick={() => {
-                  addSlider(menu)
-                  setMenu(undefined)
-                }}
-              >
-                <SlidersHorizontal /> Slider
-              </MenuItem>
-              <MenuItem
-                onClick={() => {
-                  onTemplates(menu)
-                  setMenu(undefined)
-                }}
-              >
-                <LayoutTemplate /> From a template…
-              </MenuItem>
-              <MenuItem
-                onClick={() => {
-                  setMenu(undefined)
-                  void openTel()
-                }}
-              >
-                <FileInput /> From a .tel file…
-              </MenuItem>
-            </>
+              {ghost && (
+                <div
+                  aria-hidden
+                  className={cn(
+                    'absolute border-2 border-dashed',
+                    ghost.ok ? 'border-glaze' : 'border-signal',
+                  )}
+                  style={place(ghost.col, ghost.row, ghost.w, ghost.h)}
+                />
+              )}
+              {page.tiles.map((t) => (
+                <GridTile
+                  key={t.id}
+                  tile={t}
+                  look={previewLook(t, live[t.id])}
+                  problem={problems[t.id]}
+                  trying={trying}
+                  selected={t.id === selected}
+                  running={running[t.id] === true}
+                  keyStyle={keyStyle}
+                  at={pushed?.get(t.id)}
+                  points={series[t.id]}
+                  onResizing={(span) => {
+                    const moved = pushAside(page, t.id, span)
+                    if (moved) setPushed(moved)
+                    return moved !== undefined
+                  }}
+                  onResize={(span) => {
+                    setPushed(undefined)
+                    resizeTile(t.id, span)
+                  }}
+                  onMenu={(x, y) => {
+                    tileMenuRef.current = { x, y }
+                    setTileMenu({ tileId: t.id, x, y })
+                  }}
+                  onDelete={() => deleteTile(t.id)}
+                />
+              ))}
+            </div>
+          </DndContext>
+          <Popover open={menu !== undefined} onOpenChange={(open) => !open && setMenu(undefined)}>
+            <PopoverAnchor virtualRef={anchor} />
+            <PopoverContent className="w-48 p-1" aria-label="Add to this slot">
+              {menu && (
+                <>
+                  <MenuItem
+                    onClick={() => {
+                      addTile(menu)
+                      setMenu(undefined)
+                    }}
+                  >
+                    <Plus /> Blank tile
+                  </MenuItem>
+                  {page.kind === 'page' && (
+                    <MenuItem
+                      onClick={() => {
+                        addFolder(menu)
+                        setMenu(undefined)
+                      }}
+                    >
+                      <Folder /> Folder
+                    </MenuItem>
+                  )}
+                  <MenuItem
+                    onClick={() => {
+                      addSlider(menu)
+                      setMenu(undefined)
+                    }}
+                  >
+                    <SlidersHorizontal /> Slider
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      onTemplates(menu)
+                      setMenu(undefined)
+                    }}
+                  >
+                    <LayoutTemplate /> From a template…
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      setMenu(undefined)
+                      void openTel()
+                    }}
+                  >
+                    <FileInput /> From a .tel file…
+                  </MenuItem>
+                </>
+              )}
+            </PopoverContent>
+          </Popover>
+          {shortcut && (
+            <ShortcutDialog
+              label={shortcut.label}
+              link={shortcut.link}
+              onClose={() => setShortcut(undefined)}
+            />
           )}
-        </PopoverContent>
-      </Popover>
-      {shortcut && (
-        <ShortcutDialog
-          label={shortcut.label}
-          link={shortcut.link}
-          onClose={() => setShortcut(undefined)}
-        />
-      )}
-      <Popover
-        open={tileMenu !== undefined}
-        onOpenChange={(open) => !open && setTileMenu(undefined)}
-      >
-        <PopoverAnchor virtualRef={tileAnchor} />
-        <PopoverContent className="w-44 p-1" align="start" aria-label="Tile actions">
-          {tileMenu && (
-            <>
-              <MenuItem
-                onClick={() => {
-                  duplicateTile(tileMenu.tileId)
-                  setTileMenu(undefined)
-                }}
-              >
-                <Copy /> Duplicate
-              </MenuItem>
-              <MenuItem
-                onClick={() => {
-                  const tile = page.tiles.find((t) => t.id === tileMenu.tileId)
-                  if (tile) void shareTiles(tile.label || 'Tile', [tile])
-                  setTileMenu(undefined)
-                }}
-              >
-                <Share /> Share as .tel…
-              </MenuItem>
-              <MenuItem
-                onClick={() => {
-                  const tile = page.tiles.find((t) => t.id === tileMenu.tileId)
-                  const profileId = useEditor.getState().profile?.id
-                  setTileMenu(undefined)
-                  if (!tile || !profileId) return
-                  void saveNow()
-                    .then(() => window.tessel.createShortcut(profileId, tile.id))
-                    .then((link) => {
-                      if (link) setShortcut({ label: tile.label || 'Tile', link })
-                      else useEditor.setState({ notice: 'Turn on Allow phones to make a link.' })
-                    })
-                }}
-              >
-                <Link /> Shortcut link…
-              </MenuItem>
-              <MenuItem
-                onClick={() => {
-                  deleteTile(tileMenu.tileId)
-                  setTileMenu(undefined)
-                }}
-              >
-                <Trash2 /> Delete
-              </MenuItem>
-            </>
-          )}
-        </PopoverContent>
-      </Popover>
+          <Popover
+            open={tileMenu !== undefined}
+            onOpenChange={(open) => !open && setTileMenu(undefined)}
+          >
+            <PopoverAnchor virtualRef={tileAnchor} />
+            <PopoverContent className="w-44 p-1" align="start" aria-label="Tile actions">
+              {tileMenu && (
+                <>
+                  <MenuItem
+                    onClick={() => {
+                      duplicateTile(tileMenu.tileId)
+                      setTileMenu(undefined)
+                    }}
+                  >
+                    <Copy /> Duplicate
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      const tile = page.tiles.find((t) => t.id === tileMenu.tileId)
+                      if (tile) void shareTiles(tile.label || 'Tile', [tile])
+                      setTileMenu(undefined)
+                    }}
+                  >
+                    <Share /> Share as .tel…
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      const tile = page.tiles.find((t) => t.id === tileMenu.tileId)
+                      const profileId = useEditor.getState().profile?.id
+                      setTileMenu(undefined)
+                      if (!tile || !profileId) return
+                      void saveNow()
+                        .then(() => window.tessel.createShortcut(profileId, tile.id))
+                        .then((link) => {
+                          if (link) setShortcut({ label: tile.label || 'Tile', link })
+                          else
+                            useEditor.setState({ notice: 'Turn on Allow phones to make a link.' })
+                        })
+                    }}
+                  >
+                    <Link /> Shortcut link…
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      deleteTile(tileMenu.tileId)
+                      setTileMenu(undefined)
+                    }}
+                  >
+                    <Trash2 /> Delete
+                  </MenuItem>
+                </>
+              )}
+            </PopoverContent>
+          </Popover>
+        </div>
+      </Geometry>
     </div>
   )
 }
@@ -365,6 +405,7 @@ function GridTile({
   trying = false,
 }: TileProps) {
   const { selectTile } = useEditor.getState()
+  const { CELL, STEP, place } = useContext(Geometry)
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: tile.id })
   const [resize, setResize] = useState<{
     x: number
@@ -448,7 +489,7 @@ function GridTile({
         <span
           title={problem}
           aria-hidden
-          className="pointer-events-auto absolute -top-1.5 -left-1.5 flex size-4 items-center justify-center rounded-full border-2 border-bg bg-signal text-[10px] leading-none font-bold text-white"
+          className="pointer-events-auto absolute -top-1.5 -left-1.5 flex size-4 items-center justify-center rounded-full border-2 border-bg bg-signal text-[10px] leading-none font-semibold text-white"
         >
           !
         </span>

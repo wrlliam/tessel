@@ -16,7 +16,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error?: 
         role="alert"
         className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center"
       >
-        <h1 className="font-display text-xl font-semibold">Something broke in this window.</h1>
+        <h1 className="font-display text-xl font-medium">Something broke in this window.</h1>
         <p className="max-w-md font-mono text-sm text-muted">{error.message}</p>
         <p className="text-sm text-muted">
           Your tiles are saved. Tiles keep running from the tray.

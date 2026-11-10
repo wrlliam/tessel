@@ -33,10 +33,10 @@ export function TemplateGallery({ open, onOpenChange, onPick, keyStyle }: Props)
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/50" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 z-50 flex max-h-[84vh] w-[min(820px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl">
+        <Dialog.Content className="fixed top-1/2 left-1/2 z-50 flex max-h-[84vh] w-[min(820px,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-xl">
           <div className="flex items-start gap-4 border-b border-line p-6 pb-4">
             <div className="flex-1 space-y-1">
-              <Dialog.Title className="font-display text-lg font-semibold">
+              <Dialog.Title className="font-display text-lg font-medium">
                 Add a ready-made tile
               </Dialog.Title>
               <Dialog.Description className="text-sm text-muted">
