@@ -36,6 +36,7 @@ import {
   ensureTls,
 } from '@tessel/server'
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
+import { History } from './history.ts'
 import { isRunning } from './platform/running.ts'
 import { join } from 'node:path'
 import QRCode from 'qrcode'
@@ -147,6 +148,7 @@ export class Hub {
   private overrides = new Map<string, Partial<Appearance>>()
   /** What phones currently show for tiles that differ from their own look. */
   private live = new Map<string, Appearance>()
+  private history: History
   private phones: ConnectedPhone[] = []
   private paused = false
   private listening = false
@@ -202,6 +204,10 @@ export class Hub {
     this.platform = { ...opts.platform, location: () => this.settings.location }
     this.store = settingsStore(join(opts.dataDir, 'settings.json'))
     this.devices = new DeviceRegistry(join(opts.dataDir, 'devices.json'))
+    this.history = new History(
+      join(opts.dataDir, 'history.json'),
+      () => this.settings?.historyMinutes ?? 60,
+    )
     this.library = new ProfileLibrary(join(opts.dataDir, 'profiles'), (m) => this.logger.warn(m))
     if (opts.plugins) {
       this.plugins = new PluginManager({
@@ -275,7 +281,12 @@ export class Hub {
           active,
         })),
         ...[...this.live].map(([tileId, look]) => tileStateMessage(tileId, look)),
+        ...this.chartTiles().map((t) => this.historyMessage(t.id, undefined, 120)),
       ],
+      onHistory: (tileId, before) =>
+        this.chartTiles().some((t) => t.id === tileId)
+          ? this.historyMessage(tileId, before)
+          : undefined,
     })
   }
 
@@ -283,6 +294,7 @@ export class Hub {
     this.settings = await this.store.load()
     await this.devices.load()
     await this.library.load()
+    await this.history.load()
     await this.plugins?.load()
     this.activate()
     this.scheduleCodeRotation()
@@ -310,12 +322,16 @@ export class Hub {
       profiles: this.library.list(),
       activeProfileId: this.library.activeId,
       liveAppearance: Object.fromEntries(this.live),
+      liveSeries: Object.fromEntries(
+        this.chartTiles().map((t) => [t.id, this.history.recent(t.id, 40)]),
+      ),
       settings: {
         shell: this.settings.shell,
         theme: this.settings.theme,
         logLevel: this.settings.logLevel,
         https: this.settings.https,
         autoUpdate: this.settings.autoUpdate,
+        historyMinutes: this.settings.historyMinutes,
       },
       plugins: this.plugins?.list() ?? [],
       phoneSettings: this.settings.phone,
@@ -566,7 +582,22 @@ export class Hub {
 
   async testRun(profileId: string, tileId: string) {
     const tile = this.findTile(profileId, tileId)
-    if (tile) await this.runtime(profileId).engine.trigger(tile, { type: 'press' })
+    if (!tile) return
+    const engine = this.runtime(profileId).engine
+    // Tiles without On press (e.g. a live stat on a schedule) test-run from their own trigger.
+    if (hasTrigger(tile, 'trigger.press'))
+      return void (await engine.trigger(tile, { type: 'press' }))
+    const other = tile.graph.nodes.find((n) =>
+      ['trigger.schedule', 'trigger.pageOpen', 'trigger.longPress', 'trigger.doubleTap'].includes(
+        n.type,
+      ),
+    )
+    if (other?.type === 'trigger.schedule')
+      await engine.trigger(tile, { type: 'schedule', nodeId: other.id })
+    else if (other?.type === 'trigger.pageOpen') await engine.trigger(tile, { type: 'pageOpen' })
+    else if (other?.type === 'trigger.longPress') await engine.trigger(tile, { type: 'longPress' })
+    else if (other?.type === 'trigger.doubleTap') await engine.trigger(tile, { type: 'doubleTap' })
+    else await engine.trigger(tile, { type: 'press' })
   }
 
   /** Moves a slider from the editor's Try mode, as if dragged on a phone. */
@@ -600,9 +631,10 @@ export class Hub {
 
   /** Applies a settings change; a new port restarts sharing. */
   async updateSettings(patch: unknown): Promise<SaveResult> {
-    const { port, shell, theme, logLevel, https, autoUpdate } = patch as Partial<Settings>
+    const { port, shell, theme, logLevel, https, autoUpdate, historyMinutes } =
+      patch as Partial<Settings>
     const allowed = Object.fromEntries(
-      Object.entries({ port, shell, theme, logLevel, https, autoUpdate }).filter(
+      Object.entries({ port, shell, theme, logLevel, https, autoUpdate, historyMinutes }).filter(
         ([, v]) => v !== undefined,
       ),
     )
@@ -613,6 +645,7 @@ export class Hub {
     const httpsChanged = parsed.data.https !== this.settings.https
     this.settings = parsed.data
     await this.store.save(this.settings)
+    this.history.prune()
     if (portChanged && this.listening) {
       await this.server.stop()
       this.listening = false
@@ -843,6 +876,8 @@ export class Hub {
     for (const t of this.taps.values()) clearTimeout(t)
     await this.plugins?.dispose()
     await this.server.dispose()
+    this.history.dispose()
+    await this.history.flush().catch(() => {})
     await Promise.all([...this.runtimes.values()].map((r) => r.dispose()))
   }
 
@@ -1016,7 +1051,47 @@ export class Hub {
       this.server.broadcast(tileStateMessage(tile.id, look))
       changed = true
     }
+    if (this.recordCharts()) changed = true
     if (changed) this.emit()
+  }
+
+  /** Tiles on the active profile that draw a chart. */
+  private chartTiles(): Tile[] {
+    return tilesOf(this.library.active()).filter(
+      (t) => t.display?.kind === 'line' || t.display?.kind === 'columns',
+    )
+  }
+
+  /**
+   * Adds each chart's current value to its history: when it changes, and at most once a second
+   * while it stays the same, so a flat line still shows the time passing.
+   */
+  private recordCharts(): boolean {
+    let added = false
+    const now = Date.now()
+    for (const tile of this.chartTiles()) {
+      const value = this.live.get(tile.id)?.meter?.value
+      if (value === null || value === undefined) continue
+      const last = this.history.last(tile.id)
+      if (last && last[1] === value && now - last[0] < 1000) continue
+      if (last && last[0] >= now) continue
+      const sample = this.history.record(tile.id, value, now)
+      this.server.broadcast({ type: 'tileState', tileId: tile.id, sample })
+      added = true
+    }
+    return added
+  }
+
+  private historyMessage(tileId: string, before?: number, limit?: number): ServerMessage {
+    const { points, more } = this.history.page(tileId, before, limit)
+    return {
+      type: 'history',
+      tileId,
+      points,
+      more,
+      ...(before !== undefined ? { before } : {}),
+      keepMinutes: this.settings.historyMinutes,
+    }
   }
 
   private findTile(profileId: string, tileId: string): Tile | undefined {
@@ -1140,6 +1215,7 @@ const tileStateMessage = (tileId: string, look: Appearance): ServerMessage => ({
   colour: look.colour,
   icon: look.icon,
   image: look.image,
+  ...(look.meter ? { meter: look.meter } : {}),
 })
 
 function describeListenError(err: unknown, port: number): string {

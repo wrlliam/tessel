@@ -67,6 +67,22 @@ export interface ToastSpec {
 }
 
 /** What blocks may ask of the computer. Each OS supplies its own adapter. */
+export interface SystemStats {
+  /** All cores, 0 to 100, since the last reading. */
+  cpu: number
+  /** Memory in use, 0 to 100. */
+  memory: number
+  memoryUsedGb: number
+  memoryTotalGb: number
+  /** The main disk, 0 to 100 full. */
+  disk: number
+  diskFreeGb: number
+  /** Sent and received over the network since the last reading, in KB/s. */
+  downKbps: number
+  upKbps: number
+  uptimeHours: number
+}
+
 export interface Platform {
   os: OS
   openApp(app: string): Promise<void>
@@ -96,6 +112,8 @@ export interface Platform {
   focusApp?(app: string, signal: AbortSignal): Promise<void>
   /** The output volume (0 to 100) and whether it's muted. */
   getVolume?(): Promise<{ level: number; muted: boolean }>
+  /** How busy the computer is right now. */
+  systemStats?(): Promise<SystemStats>
   /** Names of open apps, lowercased letters and digits only. */
   runningApps?(): Promise<string[]>
   /** Runs a zx script (JavaScript with $`command`); the desktop decides whether scripts may run. */

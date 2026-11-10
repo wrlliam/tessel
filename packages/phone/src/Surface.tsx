@@ -2,6 +2,7 @@ import { ChevronLeft, Ellipsis } from 'lucide-react'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Connection, wsUrl } from './connection.ts'
 import { guessDeviceName, keepAwake, watchLocation } from './device.ts'
+import { HistoryView } from './HistoryView.tsx'
 import { HomeScreenHint } from './HomeScreenHint.tsx'
 import { StatusScreen } from './StatusScreen.tsx'
 import { back, currentPage, reconcile, show, START, swipePages, type Nav } from './navigation.ts'
@@ -25,7 +26,8 @@ export function Surface({ token, onUnpaired }: Props) {
   const [editing, setEditing] = useState(false)
   const [editTile, setEditTile] = useState<string>()
   const [swapFrom, setSwapFrom] = useState<string>()
-  const { status, profile, overrides, requestedPage, settings } = state
+  const [historyOf, setHistoryOf] = useState<string>()
+  const { status, profile, overrides, requestedPage, settings, series } = state
 
   useEffect(() => {
     connection.start()
@@ -128,10 +130,19 @@ export function Surface({ token, onUnpaired }: Props) {
       profile={profile}
       nav={nav}
       overrides={overrides}
+      series={series}
       disabled={!live}
       settings={settings}
       onNav={setNav}
-      onPress={(tileId, phase) => connection.send({ type: 'press', tileId, phase })}
+      onPress={(tileId, phase) => {
+        // Charts with nothing to do on a tap open their history instead.
+        const tile = profile.pages.flatMap((p) => p.tiles).find((t) => t.id === tileId)
+        if (tile?.opensHistory) {
+          if (phase === 'up') setHistoryOf(tileId)
+          return
+        }
+        connection.send({ type: 'press', tileId, phase })
+      }}
       onSlide={(tileId, value) => connection.send({ type: 'slide', tileId, value })}
       editing={editing}
       onEditTap={(tileId) => {
@@ -173,6 +184,19 @@ export function Surface({ token, onUnpaired }: Props) {
               onSave={(edit) => connection.send({ type: 'editTile', tileId: tile.id, ...edit })}
               onSwap={() => setSwapFrom(tile.id)}
               onClose={() => setEditTile(undefined)}
+            />
+          )
+        })()}
+      {historyOf &&
+        (() => {
+          const tile = profile.pages.flatMap((p) => p.tiles).find((t) => t.id === historyOf)
+          if (!tile) return null
+          return (
+            <HistoryView
+              tile={tile}
+              look={{ label: tile.label, colour: tile.colour, ...overrides[tile.id] }}
+              connection={connection}
+              onClose={() => setHistoryOf(undefined)}
             />
           )
         })()}

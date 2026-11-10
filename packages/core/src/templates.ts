@@ -25,7 +25,9 @@ export interface TileTemplate {
   name: string
   description: string
   tile: Pick<Tile, 'label' | 'colour'> &
-    Partial<Pick<Tile, 'icon' | 'appearanceBindings' | 'concurrency' | 'kind'>> & { graph: Graph }
+    Partial<Pick<Tile, 'icon' | 'appearanceBindings' | 'concurrency' | 'kind' | 'display'>> & {
+      graph: Graph
+    }
   /** Plugin whose blocks the template uses; the gallery says when it isn't on. */
   plugin?: string
   /** Global variables the template reads; added to the profile if missing. */
@@ -197,6 +199,69 @@ function vmMute(id: string, target: 'strip' | 'bus', index: number, label: strin
       },
     },
   }
+}
+
+const STAT_NAMES: Record<string, string> = {
+  cpu: 'CPU use',
+  memory: 'memory in use',
+  disk: 'how full the main disk is',
+  down: 'download speed',
+}
+
+/**
+ * A System stats tile: reads one stat every second while its page is open and draws it as a
+ * ring, bar or chart. Charts keep a history you can scroll back through on the phone.
+ */
+function statTile(
+  id: string,
+  label: string,
+  stat: 'cpu' | 'memory' | 'disk' | 'down',
+  kind: 'ring' | 'bar' | 'line' | 'columns',
+  icon: string,
+): TileTemplate[] {
+  const network = stat === 'down'
+  const chart = kind === 'line' || kind === 'columns'
+  return [
+    {
+      id,
+      category: 'System',
+      name: `${label} ${chart ? 'chart' : kind === 'ring' ? 'gauge' : 'bar'}`,
+      description: `Shows ${STAT_NAMES[stat]} live${chart ? ' as a chart; tap it on the phone to scroll back' : ''}. Amber and red when it gets high.`,
+      tile: {
+        label,
+        icon,
+        colour: '#212833',
+        display: {
+          kind,
+          // Network arrives in KB/s; megabits a second read better.
+          value: network ? '{{round(state.reading * 8 / 1024, 1)}}' : '{{state.reading}}',
+          min: 0,
+          max: 100,
+          unit: network ? ' Mb/s' : '%',
+          decimals: network ? 1 : 0,
+          zones: network
+            ? []
+            : [
+                { from: 0, colour: '#1DB954' },
+                { from: 70, colour: '#F5B63D' },
+                { from: 90, colour: '#F25C6E' },
+              ],
+        },
+        graph: {
+          nodes: [
+            node('tick', 'trigger.schedule', { cron: '*/1 * * * * *' }, 0),
+            node('stats', 'data.systemStats', {}, 0, 128),
+            node('show', 'action.showValue', { value: 0, key: 'reading' }, 288),
+          ],
+          edges: [
+            wire('tick', 'out', 'stats'),
+            wire('stats', 'out', 'show'),
+            wire('stats', stat, 'show', 'value'),
+          ],
+        },
+      },
+    },
+  ]
 }
 
 function vmGain(id: string, target: 'strip' | 'bus', index: number, label: string): TileTemplate {
@@ -1258,31 +1323,44 @@ export const templates: TileTemplate[] = [
     category: 'Voicemeeter',
     plugin: 'voicemeeter',
     name: 'Mic level',
-    description: "Shows strip 1's input level in dB, twice a second.",
+    description:
+      'A ring that fills with how loud strip 1 is, every second while the page is open: green, amber from -18 dB, red from -6 dB.',
     tile: {
-      label: 'Level',
+      label: 'Mic',
       icon: 'gauge',
       colour: '#212833',
+      display: {
+        kind: 'ring',
+        // -60 dB (silence) to 0 dB (as loud as it goes), as 0 to 100%.
+        value: '{{round(max(0, min(100, (state.reading + 60) / 60 * 100)))}}',
+        min: 0,
+        max: 100,
+        unit: '%',
+        decimals: 0,
+        zones: [
+          { from: 0, colour: '#1DB954' },
+          { from: 70, colour: '#F5B63D' },
+          { from: 90, colour: '#F25C6E' },
+        ],
+      },
       graph: {
         nodes: [
           node('tick', 'trigger.schedule', { cron: '*/1 * * * * *' }, 0),
           node('level', 'voicemeeter.getLevel', { kind: '1', channel: 0 }, 0, 128),
-          node('round', 'data.math', { op: 'round', a: 0, b: 0 }, 288, 128),
-          node(
-            'show',
-            'action.setTileAppearance',
-            { tile: '', label: '', colour: '', icon: '', reset: false, remember: false },
-            576,
-          ),
+          node('show', 'action.showValue', { value: 0, key: 'reading' }, 288),
         ],
-        edges: [
-          wire('tick', 'out', 'show'),
-          wire('level', 'db', 'round', 'a'),
-          wire('round', 'result', 'show', 'label'),
-        ],
+        edges: [wire('tick', 'out', 'show'), wire('level', 'db', 'show', 'value')],
       },
     },
   },
+
+  // System stats
+  ...statTile('stat-cpu', 'CPU', 'cpu', 'ring', 'cpu'),
+  ...statTile('stat-memory', 'Memory', 'memory', 'ring', 'memory-stick'),
+  ...statTile('stat-disk', 'Disk', 'disk', 'bar', 'hard-drive'),
+  ...statTile('stat-cpu-chart', 'CPU', 'cpu', 'line', 'activity'),
+  ...statTile('stat-memory-chart', 'Memory', 'memory', 'line', 'activity'),
+  ...statTile('stat-network-chart', 'Download', 'down', 'columns', 'download'),
 
   // Soundpad
   {
@@ -2823,6 +2901,22 @@ export const pageTemplates: PageTemplate[] = [
       { template: 'gaming-break', col: 2, row: 2 },
       { template: 'steam-library', col: 3, row: 2 },
       { template: 'slider-volume', col: 0, row: 3, w: 4 },
+    ],
+  },
+  {
+    id: 'page-system',
+    name: 'System stats',
+    description:
+      'CPU, memory and disk gauges with live charts of CPU, memory and download speed. Tap a chart on the phone to scroll back.',
+    cols: 3,
+    rows: 5,
+    tiles: [
+      { template: 'stat-cpu', col: 0, row: 0 },
+      { template: 'stat-memory', col: 1, row: 0 },
+      { template: 'stat-disk', col: 2, row: 0 },
+      { template: 'stat-cpu-chart', col: 0, row: 1, w: 3 },
+      { template: 'stat-memory-chart', col: 0, row: 2, w: 3 },
+      { template: 'stat-network-chart', col: 0, row: 3, w: 3, h: 2 },
     ],
   },
   {

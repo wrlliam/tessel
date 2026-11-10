@@ -14,6 +14,8 @@ export const Settings = z.object({
   https: z.boolean().default(false),
   /** Check GitHub for new versions every few hours. */
   autoUpdate: z.boolean().default(true),
+  /** How far back chart tiles remember, in minutes. Older points are dropped first. */
+  historyMinutes: z.int().min(5).max(10_080).default(60),
   /** Last location a phone shared, for weather tiles. Kept so tiles work before a phone connects. */
   location: z.object({ lat: z.number(), lon: z.number(), at: z.number() }).optional(),
   /** Links that run a tile, for the Shortcuts app and the like. Only a hash of each key is kept. */

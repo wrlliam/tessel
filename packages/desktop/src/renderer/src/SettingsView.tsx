@@ -144,6 +144,28 @@ export function SettingsView({ state }: { state: DesktopState }) {
             </Select>
           </Row>
         </section>
+        <section aria-labelledby="charts">
+          <h2 id="charts" className="font-display text-lg font-semibold">
+            Charts
+          </h2>
+          <Row
+            label="Remember"
+            help="How far back chart tiles keep their values, to scroll through on the phone. The oldest go first."
+          >
+            <Select
+              aria-label="Chart history"
+              value={state.settings.historyMinutes}
+              onChange={(e) => void update({ historyMinutes: Number(e.target.value) })}
+            >
+              <option value={5}>5 minutes</option>
+              <option value={15}>15 minutes</option>
+              <option value={60}>1 hour</option>
+              <option value={360}>6 hours</option>
+              <option value={1440}>24 hours</option>
+              <option value={10080}>7 days</option>
+            </Select>
+          </Row>
+        </section>
         <section aria-labelledby="shortcuts">
           <h2 id="shortcuts" className="font-display text-lg font-semibold">
             Shortcut links

@@ -124,6 +124,20 @@ try {
   await page.getByRole('button', { name: /^Music/ }).click()
   await page.getByText('Tiles on “Music”').waitFor()
   await page.getByRole('button', { name: /Tile Volume/ }).waitFor()
+  step('System stats page draws gauges and charts from live readings')
+  await page.getByRole('button', { name: 'Page', exact: true }).click()
+  // The list of ready-made pages is long; this one may sit below the fold.
+  await page.getByRole('button', { name: /^System stats/ }).dispatchEvent('click')
+  await page.getByText('Tiles on “System stats”').waitFor()
+  for (const name of [/Tile CPU/, /Tile Memory/]) {
+    for (const tile of await page.getByRole('button', { name }).all()) {
+      await tile.click()
+      await page.getByRole('button', { name: 'Test run' }).click()
+      await page.getByRole('button', { name: 'Test run' }).waitFor()
+    }
+  }
+  await page.locator('[aria-label^="Tile CPU"]').first().getByText(/\d+%/).waitFor()
+  if (shots) await page.screenshot({ path: join(shots, 'e2e-stats.png') })
   await page.getByRole('button', { name: /^Page 2$/ }).click()
   await page.getByText('Tiles on “Page 2”').waitFor()
 

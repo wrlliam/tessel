@@ -364,6 +364,7 @@ function TileSection({ tile }: { tile: Tile }) {
             </Select>
           </Field>
           <BindingsEditor tile={tile} />
+          <DisplayEditor tile={tile} />
         </>
       )}
       <div className="flex gap-2">
@@ -459,6 +460,201 @@ function BindingsEditor({ tile }: { tile: Tile }) {
         >
           <Plus /> Add
         </Button>
+      </div>
+    </Field>
+  )
+}
+
+const DISPLAY_KINDS = [
+  { value: '', label: 'Text and icon' },
+  { value: 'ring', label: 'Ring gauge' },
+  { value: 'bar', label: 'Bar' },
+  { value: 'line', label: 'Line chart' },
+  { value: 'columns', label: 'Column chart' },
+] as const
+
+type Display = NonNullable<Tile['display']>
+
+/** Green, then amber from 70% of the range, red from 90%. */
+const trafficLights = (d: Display): Display['zones'] => {
+  const at = (f: number) => Math.round((d.min + (d.max - d.min) * f) * 10) / 10
+  return [
+    { from: d.min, colour: '#1DB954' },
+    { from: at(0.7), colour: '#F5B63D' },
+    { from: at(0.9), colour: '#F25C6E' },
+  ]
+}
+
+/** Draws the tile's number as a ring, bar or chart instead of plain text. */
+function DisplayEditor({ tile }: { tile: Tile }) {
+  const { updateTile } = useEditor.getState()
+  const d = tile.display
+  const set = (patch: Partial<Display> | undefined, key?: string) =>
+    updateTile(
+      tile.id,
+      patch === undefined
+        ? { display: undefined }
+        : {
+            display: {
+              kind: 'ring',
+              value: '{{state.reading}}',
+              min: 0,
+              max: 100,
+              unit: '',
+              decimals: 0,
+              zones: [],
+              ...d,
+              ...patch,
+            },
+          },
+      key,
+    )
+  const num = (v: string, fallback: number) =>
+    v.trim() === '' || isNaN(Number(v)) ? fallback : Number(v)
+  return (
+    <Field
+      label="Display"
+      help={
+        d
+          ? 'Draws a number from tile state. Wire a value into Show a value, which keeps it as {{state.reading}}. Charts remember each value; tap one on the phone to scroll back.'
+          : 'Show a number as a ring, bar or chart, e.g. CPU use or a mic level.'
+      }
+    >
+      <div className="space-y-2">
+        <Select
+          aria-label="Display"
+          value={d?.kind ?? ''}
+          onChange={(e) => {
+            const v = e.target.value as Display['kind'] | ''
+            set(v ? { kind: v } : undefined)
+          }}
+        >
+          {DISPLAY_KINDS.map((k) => (
+            <option key={k.value} value={k.value}>
+              {k.label}
+            </option>
+          ))}
+        </Select>
+        {d && (
+          <>
+            <Input
+              aria-label="Number"
+              className="font-mono"
+              value={d.value}
+              placeholder="{{state.reading}}"
+              onChange={(e) => set({ value: e.target.value }, 'display:value')}
+            />
+            <div className="grid grid-cols-4 gap-2">
+              <Field label="Lowest" htmlFor="display-min">
+                <Input
+                  id="display-min"
+                  inputMode="decimal"
+                  defaultValue={d.min}
+                  key={`min-${tile.id}-${d.min}`}
+                  onBlur={(e) => set({ min: num(e.target.value, d.min) })}
+                />
+              </Field>
+              <Field label="Highest" htmlFor="display-max">
+                <Input
+                  id="display-max"
+                  inputMode="decimal"
+                  defaultValue={d.max}
+                  key={`max-${tile.id}-${d.max}`}
+                  onBlur={(e) => set({ max: num(e.target.value, d.max) })}
+                />
+              </Field>
+              <Field label="Unit" htmlFor="display-unit">
+                <Input
+                  id="display-unit"
+                  maxLength={8}
+                  value={d.unit}
+                  placeholder="%"
+                  onChange={(e) => set({ unit: e.target.value }, 'display:unit')}
+                />
+              </Field>
+              <Field label="Decimals" htmlFor="display-decimals">
+                <Select
+                  id="display-decimals"
+                  value={d.decimals}
+                  onChange={(e) => set({ decimals: Number(e.target.value) })}
+                >
+                  <option value={0}>0</option>
+                  <option value={1}>1</option>
+                  <option value={2}>2</option>
+                </Select>
+              </Field>
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted">Colour zones, from a value upwards</p>
+              {d.zones.map((z, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted">From</span>
+                  <Input
+                    aria-label="From"
+                    inputMode="decimal"
+                    className="w-20"
+                    defaultValue={z.from}
+                    key={`z-${i}-${z.from}`}
+                    onBlur={(e) =>
+                      set({
+                        zones: d.zones.map((x, j) =>
+                          j === i ? { ...x, from: num(e.target.value, x.from) } : x,
+                        ),
+                      })
+                    }
+                  />
+                  <div className="flex gap-1">
+                    {TILE_COLOURS.slice(0, 7).map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        aria-label={`Colour ${c}`}
+                        aria-pressed={z.colour.toLowerCase() === c.toLowerCase()}
+                        onClick={() =>
+                          set({
+                            zones: d.zones.map((x, j) => (j === i ? { ...x, colour: c } : x)),
+                          })
+                        }
+                        className="size-5 rounded-full aria-pressed:ring-2 aria-pressed:ring-text aria-pressed:ring-offset-1 aria-pressed:ring-offset-bg"
+                        style={{ background: c }}
+                      />
+                    ))}
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="ml-auto size-7 shrink-0"
+                    aria-label="Remove zone"
+                    onClick={() => set({ zones: d.zones.filter((_, j) => j !== i) })}
+                  >
+                    <X />
+                  </Button>
+                </div>
+              ))}
+              <div className="flex gap-1">
+                {d.zones.length < 6 && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      set({
+                        zones: [
+                          ...d.zones,
+                          { from: d.zones.at(-1)?.from ?? d.min, colour: '#F5B63D' },
+                        ],
+                      })
+                    }
+                  >
+                    <Plus /> Zone
+                  </Button>
+                )}
+                <Button size="sm" variant="ghost" onClick={() => set({ zones: trafficLights(d) })}>
+                  Green, amber, red
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </Field>
   )

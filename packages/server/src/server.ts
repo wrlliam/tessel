@@ -73,6 +73,8 @@ export interface TesselServerOptions {
   onEditTile?: (deviceId: string, edit: Omit<EditTileMessage, 'type'>) => void
   /** A phone shared where it is, after the desktop asked. */
   onLocation?: (deviceId: string, at: { lat: number; lon: number; accuracy?: number }) => void
+  /** A phone scrolled a chart back: the points to send it, or undefined for an unknown tile. */
+  onHistory?: (tileId: string, before?: number) => ServerMessage | undefined
   onPhonesChanged?: (phones: ConnectedPhone[]) => void
   /** Sent to a phone right after its profile, e.g. live tile states. */
   welcomeMessages?: () => ServerMessage[]
@@ -471,6 +473,11 @@ export class TesselServer {
         case 'ping':
           send({ type: 'pong', t: msg.t })
           return
+        case 'historyRequest': {
+          const reply = this.opts.onHistory?.(msg.tileId, msg.before)
+          if (reply) send(reply)
+          return
+        }
         case 'press':
           if (!this.hasTile(msg.tileId)) return
           this.opts.onPress?.({ deviceId: client.device.id, tileId: msg.tileId, phase: msg.phase })

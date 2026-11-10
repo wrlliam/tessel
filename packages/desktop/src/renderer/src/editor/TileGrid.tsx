@@ -49,6 +49,8 @@ const place = (col: number, row: number, w = 1, h = 1) => ({
 interface Props {
   page: Page
   live: Record<string, Appearance>
+  /** Chart tiles: recent values. */
+  series?: Record<string, number[]>
   keyStyle: KeyStyle
   onTemplates: (cell: Cell) => void
   /** Try mode: clicks press tiles like the phone does, instead of selecting them. */
@@ -56,7 +58,14 @@ interface Props {
 }
 
 /** Phone-shaped preview of a page. Drag tiles to move them; drag the corner of the selected tile to resize. */
-export function TileGrid({ page, live, keyStyle, onTemplates, trying = false }: Props) {
+export function TileGrid({
+  page,
+  live,
+  series = {},
+  keyStyle,
+  onTemplates,
+  trying = false,
+}: Props) {
   const problems = usePageProblems(page)
   const selected = useEditor((s) => s.selectedTileId)
   const running = useEditor((s) => s.runningTiles)
@@ -175,6 +184,7 @@ export function TileGrid({ page, live, keyStyle, onTemplates, trying = false }: 
               running={running[t.id] === true}
               keyStyle={keyStyle}
               at={pushed?.get(t.id)}
+              points={series[t.id]}
               onResizing={(span) => {
                 const moved = pushAside(page, t.id, span)
                 if (moved) setPushed(moved)
@@ -328,6 +338,7 @@ interface TileProps {
   keyStyle: KeyStyle
   /** Where the tile shows while another tile's resize pushes it. */
   at?: Cell | undefined
+  points?: number[] | undefined
   /** A resize in progress; false when that size can't fit, even by pushing tiles aside. */
   onResizing: (span: { w: number; h: number }) => boolean
   onResize: (span: { w: number; h: number }) => void
@@ -345,6 +356,7 @@ function GridTile({
   running,
   keyStyle,
   at,
+  points,
   onResizing,
   onResize,
   onMenu,
@@ -428,6 +440,8 @@ function GridTile({
           size={Math.min(shown.w, shown.h) * CELL}
           labelSize="small"
           folder={tile.kind === 'folder'}
+          display={tile.display}
+          points={points}
         />
       </button>
       {problem && (
@@ -476,6 +490,7 @@ export function previewLook(tile: Tile, live: Appearance | undefined): Appearanc
     icon: bound.has('icon') ? live.icon : base.icon,
     // Pictures only change at run time (Set tile appearance), so the live one shows.
     image: live.image || base.image,
+    ...(tile.display && live.meter ? { meter: live.meter } : {}),
   }
 }
 

@@ -88,6 +88,7 @@ interface Props {
   profiles: Array<{ id: string; name: string }>
   activeProfileId: string
   liveAppearance: Record<string, Appearance>
+  liveSeries: Record<string, number[]>
   theme: 'system' | 'dark' | 'light'
   blocksVersion: number
   keyStyle: KeyStyle
@@ -98,6 +99,7 @@ export function Editor({
   profiles,
   activeProfileId,
   liveAppearance,
+  liveSeries,
   theme,
   blocksVersion,
   keyStyle,
@@ -157,6 +159,7 @@ export function Editor({
               <TileGrid
                 page={page}
                 live={live}
+                series={profile.id === activeProfileId ? liveSeries : {}}
                 keyStyle={keyStyle}
                 onTemplates={(cell) => setGallery({ cell })}
                 trying={trying}

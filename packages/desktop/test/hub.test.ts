@@ -489,6 +489,43 @@ describe('Hub settings', () => {
 })
 
 describe('Hub phone settings and remembered looks', () => {
+  it('draws a display tile from Show a value and keeps chart history', async () => {
+    const { hub, dataDir } = await makeHub()
+    const profile = structuredClone(hub.getProfile('default')!)
+    const tile = profile.pages[0]!.tiles.find((t) => t.id === 'lock')!
+    const at = { x: 0, y: 0 }
+    tile.display = {
+      kind: 'line',
+      value: '{{state.reading}}',
+      min: 0,
+      max: 100,
+      unit: '%',
+      decimals: 0,
+      zones: [{ from: 80, colour: '#F25C6E' }],
+    }
+    tile.graph = {
+      nodes: [
+        { id: 'p', type: 'trigger.press', params: {}, position: at },
+        { id: 's', type: 'action.showValue', params: { value: 91, key: 'reading' }, position: at },
+      ],
+      edges: [{ id: 'e', from: { nodeId: 'p', port: 'out' }, to: { nodeId: 's', port: 'in' } }],
+    }
+    await hub.saveProfile(profile)
+    await hub.press({ deviceId: 'd', tileId: 'lock', phase: 'down' })
+    await vi.waitFor(() =>
+      expect(hub.state().liveAppearance['lock']?.meter).toEqual({
+        value: 91,
+        colour: '#F25C6E',
+        text: '91%',
+      }),
+    )
+    expect(hub.state().liveSeries['lock']).toEqual([91])
+    await hub.dispose()
+    // History survives a restart.
+    const again = await makeHub({}, dataDir)
+    expect(again.hub.state().liveSeries['lock']).toEqual([91])
+  })
+
   it('tells a single tap from a double tap when a tile has On double tap', async () => {
     const { hub, platform } = await makeHub()
     const profile = structuredClone(hub.getProfile('default')!)

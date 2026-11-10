@@ -1,6 +1,7 @@
 // The Tessel key: one material shared by the phone and the editor's preview.
 import type { CSSProperties } from 'react'
 import { TileIcon } from './icons.tsx'
+import { KeyMeter, type MeterDisplay, type MeterReading } from './meter.tsx'
 
 export type KeyStyle = 'tinted' | 'solid' | 'outline' | 'glass'
 export type KeyShape = 'rounded' | 'square' | 'round'
@@ -33,6 +34,8 @@ export interface KeyLook {
   icon: string
   /** A small picture (data: URL) shown instead of the icon, e.g. album art. */
   image?: string
+  /** Display tiles: the number now. */
+  meter?: MeterReading | undefined
 }
 
 function luminance(hex: string): number {
@@ -111,6 +114,10 @@ interface FaceProps {
   lights?: boolean
   /** Round keys keep the light and count further in, inside the curve. */
   shape?: KeyShape
+  /** Draws a ring, bar or chart instead of the icon. */
+  display?: MeterDisplay | undefined
+  /** Chart tiles: recent values, oldest first. */
+  points?: number[] | undefined
 }
 
 const LABEL = { small: [10, 0.1, 13], regular: [11, 0.115, 15], large: [12, 0.135, 17] } as const
@@ -127,7 +134,28 @@ export function KeyFace({
   iconScale = 1,
   lights = true,
   shape = 'rounded',
+  display,
+  points,
 }: FaceProps) {
+  if (display) {
+    // Near-black tile colours mean "no colour": draw in Glaze so the graphic shows.
+    const lit = (c: string) =>
+      /^#[0-9a-fA-F]{6}$/.test(c) && luminance(c) < 0.03 ? 'var(--glaze)' : c
+    const reading = look.meter ?? { value: null, colour: look.colour, text: '–' }
+    return (
+      <span className="key-face">
+        <KeyMeter
+          display={display}
+          reading={{ ...reading, colour: lit(reading.colour) }}
+          label={look.label}
+          points={points}
+          size={size}
+          base={lit(look.colour)}
+          showLabel={labels}
+        />
+      </span>
+    )
+  }
   const [min, ratio, max] = LABEL[labelSize]
   const font = Math.round(Math.max(min, Math.min(max, size * ratio)))
   const icon = look.icon || (folder ? 'folder' : '')

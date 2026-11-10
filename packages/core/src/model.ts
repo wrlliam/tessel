@@ -38,6 +38,28 @@ export const AppearanceBinding = z.object({
 })
 export type AppearanceBinding = z.infer<typeof AppearanceBinding>
 
+/** A colour that takes over from `from` upwards, e.g. amber from 70, red from 90. */
+export const DisplayZone = z.object({ from: z.number(), colour: HexColour })
+export type DisplayZone = z.infer<typeof DisplayZone>
+
+/**
+ * A graphic on the key instead of plain text: a ring or bar that fills with a number, or a
+ * chart of how it changed. Charts keep a history you can scroll back through on the phone.
+ */
+export const TileDisplay = z.object({
+  kind: z.enum(['ring', 'bar', 'line', 'columns']),
+  /** Template giving the number, e.g. '{{state.reading}}'. */
+  value: z.string().max(500).default('{{state.reading}}'),
+  min: z.number().default(0),
+  max: z.number().default(100),
+  /** Shown after the number, e.g. '%' or ' dB'. */
+  unit: z.string().max(8).default(''),
+  decimals: z.int().min(0).max(2).default(0),
+  /** Lowest first. Below the first zone the tile's own colour is used. */
+  zones: z.array(DisplayZone).max(6).default([]),
+})
+export type TileDisplay = z.infer<typeof TileDisplay>
+
 export const Tile = z
   .object({
     id: Id,
@@ -62,6 +84,8 @@ export const Tile = z
     /** What a press does while the tile is still running. */
     concurrency: z.enum(['ignore', 'restart', 'queue']).default('queue'),
     appearanceBindings: z.array(AppearanceBinding).default([]),
+    /** Draws the number as a ring, bar or chart. */
+    display: TileDisplay.optional(),
   })
   .refine((t) => t.kind !== 'folder' || t.targetPageId !== undefined, {
     message: 'Folder tiles need a targetPageId',

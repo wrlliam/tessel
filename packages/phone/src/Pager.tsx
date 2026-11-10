@@ -1,6 +1,6 @@
 import type { PhoneProfile, PhoneSettings } from '@tessel/core'
 import { useLayoutEffect, useRef, useState, type PointerEvent } from 'react'
-import type { TileOverride } from './connection.ts'
+import type { Point, TileOverride } from './connection.ts'
 import { haptic } from './device.ts'
 import { back, currentPage, openFolder, swipe, swipePages, type Nav } from './navigation.ts'
 import { PageGrid } from './PageGrid.tsx'
@@ -19,6 +19,7 @@ interface Props {
   profile: PhoneProfile
   nav: Nav
   overrides: Record<string, TileOverride>
+  series?: Record<string, Point[]>
   disabled: boolean
   settings: PhoneSettings
   onNav: (nav: Nav) => void
@@ -74,6 +75,7 @@ export function Pager({
   profile,
   nav,
   overrides,
+  series,
   disabled,
   settings,
   onNav,
@@ -284,6 +286,7 @@ export function Pager({
           width={box.width}
           height={box.height}
           overrides={overrides}
+          series={series}
           dragging={dragging}
           editing={editing}
           pressedId={pressed}

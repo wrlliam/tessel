@@ -23,7 +23,24 @@ export interface TileOverride {
   value?: number
   /** Indicator lit by the computer, e.g. the app is open. */
   active?: boolean
+  /** Display tiles: the number now and its zone colour. */
+  meter?: { value: number | null; colour: string; text: string }
 }
+
+export type Point = [time: number, value: number]
+
+export type HistoryEvent =
+  | {
+      kind: 'page'
+      tileId: string
+      points: Point[]
+      more: boolean
+      keepMinutes: number
+      before?: number
+    }
+  | { kind: 'live'; tileId: string; point: Point }
+/** Points kept per chart for the key itself; the history view asks for more. */
+const SERIES_POINTS = 240
 
 export interface ConnectionState {
   status: Status
@@ -32,6 +49,8 @@ export interface ConnectionState {
   /** Page the desktop asked to show, with a counter so asking twice still counts. */
   requestedPage?: { pageId: string; seq: number }
   settings: PhoneSettings
+  /** Chart tiles: their latest points, oldest first. */
+  series: Record<string, Point[]>
 }
 
 const SETTINGS_KEY = 'tessel.phoneSettings'
@@ -72,6 +91,18 @@ export class Connection {
     status: { kind: 'connecting', attempt: 0 },
     overrides: {},
     settings: cachedSettings(),
+    series: {},
+  }
+  private historyListeners = new Set<(e: HistoryEvent) => void>()
+
+  /** Older points as they arrive, and new ones as they're recorded, for the history view. */
+  onHistory = (listener: (e: HistoryEvent) => void) => {
+    this.historyListeners.add(listener)
+    return () => void this.historyListeners.delete(listener)
+  }
+
+  requestHistory(tileId: string, before?: number) {
+    this.send({ type: 'historyRequest', tileId, ...(before !== undefined ? { before } : {}) })
   }
 
   constructor(
@@ -148,10 +179,33 @@ export class Connection {
         this.attempt = 0
         this.startPing()
         // Live looks are resent after every profile, so start clean.
-        this.set({ status: { kind: 'live' }, profile: msg.profile, overrides: {} })
+        this.set({ status: { kind: 'live' }, profile: msg.profile, overrides: {}, series: {} })
         return
+      case 'history': {
+        if (msg.before === undefined)
+          this.set({
+            series: { ...this.state.series, [msg.tileId]: msg.points.slice(-SERIES_POINTS) },
+          })
+        this.historyListeners.forEach((l) =>
+          l({
+            kind: 'page',
+            tileId: msg.tileId,
+            points: msg.points,
+            more: msg.more,
+            keepMinutes: msg.keepMinutes,
+            ...(msg.before !== undefined ? { before: msg.before } : {}),
+          }),
+        )
+        return
+      }
       case 'tileState': {
-        const { type: _, tileId, ...override } = msg
+        const { type: _, tileId, sample, ...override } = msg
+        if (sample) {
+          const list = [...(this.state.series[tileId] ?? []), sample].slice(-SERIES_POINTS)
+          this.set({ series: { ...this.state.series, [tileId]: list } })
+          this.historyListeners.forEach((l) => l({ kind: 'live', tileId, point: sample }))
+          if (Object.keys(override).length === 0) return
+        }
         // A look and a slider position arrive separately; keep both.
         const merged = { ...this.state.overrides[tileId], ...override }
         this.set({ overrides: { ...this.state.overrides, [tileId]: merged } })

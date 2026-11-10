@@ -6,6 +6,7 @@ import {
 } from '@tessel/core'
 import { exec } from 'node:child_process'
 import { homedir } from 'node:os'
+import { createStats } from './stats.ts'
 
 /** Shell commands are off unless the user allows them, and can ask every time. */
 export type ShellPolicy = 'off' | 'confirm' | 'on'
@@ -78,6 +79,8 @@ export function createCommon(deps: CommonDeps) {
   const doRun = deps.runCommand ?? runCommand
 
   return {
+    systemStats: createStats(),
+
     openUrl: (url: string) => deps.openExternal(url),
 
     async openFile(path: string) {

@@ -471,8 +471,79 @@ export const setSlider = defineBlock({
   },
 })
 
+export const systemStats = defineBlock({
+  id: 'data.systemStats',
+  category: 'data',
+  name: 'System stats',
+  description:
+    'How busy the computer is: CPU, memory and disk in %, network in KB/s. Wire one into Show a value to draw it as a ring or chart.',
+  inputs: [flowIn],
+  outputs: [
+    flowOut,
+    num('cpu', 'CPU %'),
+    num('memory', 'memory %'),
+    num('disk', 'disk %'),
+    num('down', 'download KB/s'),
+    num('up', 'upload KB/s'),
+    num('memoryUsedGb', 'memory used GB'),
+    num('memoryTotalGb', 'memory GB'),
+    num('diskFreeGb', 'disk free GB'),
+    num('uptimeHours', 'hours on'),
+  ],
+  paramsSchema: z.object({}),
+  fields: [],
+  defaults: {},
+  run: async (ctx) => {
+    if (!ctx.platform.systemStats)
+      throw new UnsupportedError('Reading system stats', ctx.platform.os)
+    const s = await ctx.platform.systemStats()
+    const r1 = (n: number) => Math.round(n * 10) / 10
+    return {
+      values: {
+        cpu: r1(s.cpu),
+        memory: r1(s.memory),
+        disk: r1(s.disk),
+        down: r1(s.downKbps),
+        up: r1(s.upKbps),
+        memoryUsedGb: r1(s.memoryUsedGb),
+        memoryTotalGb: r1(s.memoryTotalGb),
+        diskFreeGb: r1(s.diskFreeGb),
+        uptimeHours: r1(s.uptimeHours),
+      },
+    }
+  },
+})
+
+export const showValue = defineBlock({
+  id: 'action.showValue',
+  category: 'action',
+  name: 'Show a value',
+  description:
+    'Keeps a number on the tile as {{state.reading}}, for its display (ring, bar or chart, under Tile › Display) to draw. Charts remember each value.',
+  inputs: [flowIn, { id: 'value', kind: 'value', type: 'number' }],
+  outputs: [flowOut],
+  paramsSchema: z.object({
+    value: z.coerce.number().default(0),
+    key: z
+      .string()
+      .regex(/^[A-Za-z_][A-Za-z0-9_]{0,31}$/, 'Letters, digits and _ only')
+      .default('reading'),
+  }),
+  fields: [
+    { key: 'value', label: 'Value', widget: 'number' },
+    { key: 'key', label: 'Keep as', widget: 'text', placeholder: 'reading' },
+  ],
+  defaults: { value: 0, key: 'reading' },
+  run: (ctx, p) => {
+    if (!Number.isFinite(p.value)) throw new UserFacingError("That value isn't a number.")
+    ctx.tileState.set(p.key, p.value)
+  },
+})
+
 export const liveBlocks = [
   getVolume,
+  systemStats,
+  showValue,
   setSlider,
   countdown,
   nowPlaying,

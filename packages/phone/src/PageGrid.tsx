@@ -1,6 +1,6 @@
 import { ICON_SCALE, KeyFace, keyRadius, keyVars } from '@tessel/brand/key'
 import type { PhonePage, PhoneProfile, PhoneSettings, PhoneTile } from '@tessel/core'
-import type { TileOverride } from './connection.ts'
+import type { Point, TileOverride } from './connection.ts'
 import { cellsFor, GAP, orient, reflow } from './layout.ts'
 
 interface Props {
@@ -9,6 +9,8 @@ interface Props {
   width: number
   height: number
   overrides: Record<string, TileOverride>
+  /** Chart tiles: their latest points. */
+  series?: Record<string, Point[]>
   pressedId: string | undefined
   disabled: boolean
   settings: PhoneSettings
@@ -36,6 +38,7 @@ export function PageGrid({
   width,
   height,
   overrides,
+  series = {},
   pressedId,
   disabled,
   settings,
@@ -124,6 +127,8 @@ export function PageGrid({
               iconScale={ICON_SCALE[settings.iconSize]}
               lights={settings.lights}
               shape={settings.keyShape}
+              display={t.display}
+              points={series[t.id]?.map((p) => p[1])}
               {...(count !== undefined && { count })}
             />
           </div>

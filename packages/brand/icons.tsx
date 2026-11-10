@@ -105,6 +105,9 @@ import {
   AudioWaveform,
   MessageSquareText,
   Languages,
+  Activity,
+  HardDrive,
+  MemoryStick,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -200,6 +203,9 @@ export const TILE_ICONS: Record<string, LucideIcon> = {
   'sliders-horizontal': SlidersHorizontal,
   gauge: Gauge,
   cpu: Cpu,
+  activity: Activity,
+  'memory-stick': MemoryStick,
+  'hard-drive': HardDrive,
   'map-pin': MapPin,
   bot: Bot,
   'audio-lines': AudioLines,

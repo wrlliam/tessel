@@ -1,12 +1,14 @@
 import { z } from 'zod'
-import type { Profile } from './model.ts'
+import { TileDisplay, type Profile } from './model.ts'
 
-export const PROTOCOL_VERSION = 1
+export const PROTOCOL_VERSION = 2
 /** Largest message the server accepts from a phone, in bytes. */
 export const MAX_CLIENT_MESSAGE_BYTES = 4096
 
 const TileId = z.string().min(1).max(64)
 const HexColour = z.string().regex(/^#[0-9a-fA-F]{6}$/)
+/** One chart point: [time in ms, value]. */
+const Sample = z.tuple([z.number(), z.number()])
 
 /** What the phone is allowed to know about a tile. Graphs never leave the desktop. */
 export const PhoneTile = z.object({
@@ -23,6 +25,10 @@ export const PhoneTile = z.object({
   image: z.string().optional(),
   /** Folder tiles: the folder page they open. */
   targetPageId: z.string().optional(),
+  /** Draws a ring, bar or chart; values arrive in tileState as `meter`. */
+  display: TileDisplay.optional(),
+  /** Charts with nothing to do on a tap open their history instead. */
+  opensHistory: z.boolean().optional(),
 })
 export type PhoneTile = z.infer<typeof PhoneTile>
 
@@ -66,6 +72,12 @@ export function toPhoneProfile(profile: Profile): PhoneProfile {
         if (t.style) tile.style = t.style
         if (t.image) tile.image = t.image
         if (t.kind === 'folder' && t.targetPageId) tile.targetPageId = t.targetPageId
+        if (t.display) {
+          tile.display = t.display
+          const chart = t.display.kind === 'line' || t.display.kind === 'columns'
+          if (chart && !t.graph.nodes.some((n) => n.type === 'trigger.press'))
+            tile.opensHistory = true
+        }
         return tile
       }),
     })),
@@ -148,6 +160,12 @@ export const EditTileMessage = z.object({
   swapWith: TileId.optional(),
 })
 export const PingMessage = z.object({ type: z.literal('ping'), t: z.number() })
+/** Asks for a chart's points from before `before` (or the latest), to scroll back through. */
+export const HistoryRequestMessage = z.object({
+  type: z.literal('historyRequest'),
+  tileId: TileId,
+  before: z.number().optional(),
+})
 
 export const ClientMessage = z.discriminatedUnion('type', [
   HelloMessage,
@@ -157,6 +175,7 @@ export const ClientMessage = z.discriminatedUnion('type', [
   LocationMessage,
   EditTileMessage,
   PingMessage,
+  HistoryRequestMessage,
 ])
 export type EditTileMessage = z.infer<typeof EditTileMessage>
 export type ClientMessage = z.infer<typeof ClientMessage>
@@ -176,6 +195,24 @@ export const TileStateMessage = z.object({
   value: z.number().min(0).max(100).optional(),
   /** Lights the key's indicator, e.g. while the app an Open app tile opens is running. */
   active: z.boolean().optional(),
+  /** Display tiles: the number now and its zone colour. */
+  meter: z
+    .object({ value: z.number().nullable(), colour: HexColour, text: z.string().max(40) })
+    .optional(),
+  /** Chart tiles: one new point, [time in ms, value]. */
+  sample: Sample.optional(),
+})
+/** Chart points, oldest first. Sent on connect (recent ones) and when a phone scrolls back. */
+export const HistoryMessage = z.object({
+  type: z.literal('history'),
+  tileId: TileId,
+  points: z.array(Sample).max(5000),
+  /** True when older points exist before the first one. */
+  more: z.boolean(),
+  /** Set when this answers a request for points before this time. */
+  before: z.number().optional(),
+  /** How far back history is kept, in minutes. */
+  keepMinutes: z.number(),
 })
 export const PongMessage = z.object({ type: z.literal('pong'), t: z.number() })
 export const PhoneSettingsMessage = z.object({
@@ -193,6 +230,7 @@ export const ErrorMessage = z.object({
 export const ServerMessage = z.discriminatedUnion('type', [
   ProfileMessage,
   TileStateMessage,
+  HistoryMessage,
   PageChangeMessage,
   PongMessage,
   ErrorMessage,

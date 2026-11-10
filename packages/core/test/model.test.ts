@@ -71,3 +71,34 @@ describe('Profile', () => {
     expect(result.success).toBe(false)
   })
 })
+
+describe('tile displays', () => {
+  it('works out the number, its zone colour and text', async () => {
+    const { resolveMeter, toPhoneProfile, Tile, Profile } = await import('../src/index.ts')
+    const tile = Tile.parse({
+      id: 't',
+      position: { col: 0, row: 0 },
+      colour: '#212833',
+      display: {
+        kind: 'columns',
+        unit: ' dB',
+        decimals: 1,
+        zones: [{ from: 50, colour: '#F5B63D' }],
+      },
+    })
+    expect(resolveMeter(tile, { state: { reading: 62.34 } }, tile.colour)).toEqual({
+      value: 62.34,
+      colour: '#F5B63D',
+      text: '62.3 dB',
+    })
+    expect(resolveMeter(tile, { state: {} }, tile.colour)).toMatchObject({ value: null, text: '–' })
+    const phone = toPhoneProfile(
+      Profile.parse({ id: 'p', name: 'P', pages: [{ id: 'pg', name: 'Pg', tiles: [tile] }] }),
+    )
+    // A chart with no On press opens its history when tapped.
+    expect(phone.pages[0]!.tiles[0]).toMatchObject({
+      opensHistory: true,
+      display: { kind: 'columns' },
+    })
+  })
+})

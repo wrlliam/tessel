@@ -102,6 +102,7 @@ export function App() {
           profiles={state.profiles}
           activeProfileId={state.activeProfileId}
           liveAppearance={state.liveAppearance}
+          liveSeries={state.liveSeries}
           theme={state.settings.theme}
           blocksVersion={state.blocksVersion}
           keyStyle={state.phoneSettings.keyStyle}

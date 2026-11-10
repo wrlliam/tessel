@@ -57,6 +57,8 @@ export interface DesktopState {
   activeProfileId: string
   /** Tiles in the active profile that currently look different from their settings. */
   liveAppearance: Record<string, Appearance>
+  /** Chart tiles: their latest values, oldest first, for the editor's preview. */
+  liveSeries: Record<string, number[]>
   settings: AppSettings
   plugins: PluginInfo[]
   phoneSettings: PhoneSettings
@@ -89,6 +91,8 @@ export interface AppSettings {
   https: boolean
   /** Check GitHub for new versions every few hours. */
   autoUpdate: boolean
+  /** How far back chart tiles remember, in minutes. */
+  historyMinutes: number
 }
 
 export interface ProfileEngineEvent {
