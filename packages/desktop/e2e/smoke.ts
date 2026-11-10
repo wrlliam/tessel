@@ -117,18 +117,18 @@ try {
   step('add a page and switch to it')
   await page.getByRole('button', { name: 'Page', exact: true }).click()
   await page.getByRole('button', { name: /^Blank page/ }).click()
-  await page.getByText('Tiles on “Page 2”').waitFor()
+  await page.getByRole('region', { name: 'Tiles on Page 2' }).waitFor()
 
   step('a ready-made page arrives filled')
   await page.getByRole('button', { name: 'Page', exact: true }).click()
   await page.getByRole('button', { name: /^Music/ }).click()
-  await page.getByText('Tiles on “Music”').waitFor()
+  await page.getByRole('region', { name: 'Tiles on Music' }).waitFor()
   await page.getByRole('button', { name: /Tile Volume/ }).waitFor()
   step('System stats page draws gauges and charts from live readings')
   await page.getByRole('button', { name: 'Page', exact: true }).click()
   // The list of ready-made pages is long; this one may sit below the fold.
   await page.getByRole('button', { name: /^System stats/ }).dispatchEvent('click')
-  await page.getByText('Tiles on “System stats”').waitFor()
+  await page.getByRole('region', { name: 'Tiles on System stats' }).waitFor()
   for (const name of [/Tile CPU/, /Tile Memory/]) {
     for (const tile of await page.getByRole('button', { name }).all()) {
       await tile.click()
@@ -138,8 +138,17 @@ try {
   }
   await page.locator('[aria-label^="Tile CPU"]').first().getByText(/\d+%/).waitFor()
   if (shots) await page.screenshot({ path: join(shots, 'e2e-stats.png') })
+
+  step('see the page as the phone draws it, then sideways')
+  await page.getByRole('button', { name: 'See it as the phone shows it' }).click()
+  await page.locator('.phone-preview [data-tile-id]').first().waitFor()
+  if (shots) await page.screenshot({ path: join(shots, 'e2e-phone.png') })
+  await page.getByRole('button', { name: 'Turn the phone sideways' }).click()
+  await page.getByText(/Sideways, keys are/).waitFor()
+  if (shots) await page.screenshot({ path: join(shots, 'e2e-sideways.png') })
+  await page.getByRole('button', { name: 'Back to moving tiles' }).click()
   await page.getByRole('button', { name: /^Page 2$/ }).click()
-  await page.getByText('Tiles on “Page 2”').waitFor()
+  await page.getByRole('region', { name: 'Tiles on Page 2' }).waitFor()
 
   step('add a folder; its page gets a Back slot')
   await page.getByRole('button', { name: 'Add something in row 1, column 2' }).click()
@@ -179,10 +188,11 @@ try {
     .getByRole('complementary', { name: 'Blocks' })
     .getByRole('button', { name: 'Set setting' })
     .click()
-  await page.getByLabel('Turn').waitFor()
+  await page.getByLabel('Turn', { exact: true }).waitFor()
   await page.getByLabel('Setting', { exact: true }).selectOption('volume')
   await page.getByLabel('Level (0 to 100)').waitFor()
-  if (await page.getByLabel('Turn').count()) throw new Error('On/off field should hide for volume')
+  if (await page.getByLabel('Turn', { exact: true }).count())
+    throw new Error('On/off field should hide for volume')
 
   step('Settings: shell commands can be set to ask every time')
   await page.getByRole('tab', { name: 'Settings' }).click()

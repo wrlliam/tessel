@@ -106,6 +106,7 @@ export function App() {
           theme={state.settings.theme}
           blocksVersion={state.blocksVersion}
           keyStyle={state.phoneSettings.keyStyle}
+          phoneSettings={state.phoneSettings}
         />
       </Tabs.Content>
       <Tabs.Content value="phones" className="flex min-h-0 flex-1 flex-col">

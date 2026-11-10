@@ -8,6 +8,7 @@ import {
   type PhoneProfile,
   type ServerMessage,
 } from '@tessel/core'
+import type { Point, TileOverride } from '@tessel/brand/page-grid'
 
 export type Status =
   | { kind: 'connecting'; attempt: number }
@@ -15,19 +16,7 @@ export type Status =
   | { kind: 'unpaired'; reason?: string }
   | { kind: 'mismatch'; message: string }
 
-export interface TileOverride {
-  label?: string
-  colour?: string
-  icon?: string
-  /** Slider position, 0 to 100. */
-  value?: number
-  /** Indicator lit by the computer, e.g. the app is open. */
-  active?: boolean
-  /** Display tiles: the number now and its zone colour. */
-  meter?: { value: number | null; colour: string; text: string }
-}
-
-export type Point = [time: number, value: number]
+export type { Point, TileOverride }
 
 export type HistoryEvent =
   | {

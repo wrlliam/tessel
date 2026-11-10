@@ -1,6 +1,6 @@
 import type { KeyStyle } from '@tessel/brand/key'
-import type { Appearance, OS, TileTemplate } from '@tessel/core'
-import { MousePointerClick, LayoutTemplate } from 'lucide-react'
+import type { Appearance, OS, PhoneSettings, TileTemplate } from '@tessel/core'
+import { LayoutTemplate, MousePointerClick, RotateCw, Smartphone } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { openTel } from './share.ts'
 import { Button } from '../ui/button.tsx'
@@ -8,6 +8,7 @@ import { Canvas } from './Canvas.tsx'
 import { Inspector } from './Inspector.tsx'
 import type { Cell } from './layout.ts'
 import { PagesPanel } from './PagesPanel.tsx'
+import { PhonePreview } from './PhonePreview.tsx'
 import { ProfilePanel } from './ProfilePanel.tsx'
 import { RunLog } from './RunLog.tsx'
 import { findPage, useEditor, useSelectedPage, useSelectedTile } from './store.ts'
@@ -83,6 +84,14 @@ function useShortcuts(os: OS) {
   }, [os])
 }
 
+/** How Phone settings › Landscape lays keys out sideways, for the preview's caption. */
+const LANDSCAPE: Record<PhoneSettings['landscape'], string> = {
+  reflow: 'laid out again in rows to fill the screen',
+  fill: 'stretched to fill the screen',
+  fit: 'kept square and centred',
+  rotate: 'turned so columns become rows',
+}
+
 interface Props {
   os: OS
   profiles: Array<{ id: string; name: string }>
@@ -92,6 +101,7 @@ interface Props {
   theme: 'system' | 'dark' | 'light'
   blocksVersion: number
   keyStyle: KeyStyle
+  phoneSettings: PhoneSettings
 }
 
 export function Editor({
@@ -103,6 +113,7 @@ export function Editor({
   theme,
   blocksVersion,
   keyStyle,
+  phoneSettings,
 }: Props) {
   useEditorSync(activeProfileId)
   useTelFiles()
@@ -113,6 +124,10 @@ export function Editor({
   const tile = useSelectedTile()
   const page = useSelectedPage()
   const [trying, setTrying] = useState(false)
+  // 'grid' edits tiles; 'phone' shows the page exactly as the phone draws it, upright or sideways.
+  const [view, setView] = useState<'grid' | 'phone'>('grid')
+  const [sideways, setSideways] = useState(false)
+  const selectedTileId = useEditor((s) => s.selectedTileId)
   const [gallery, setGallery] = useState<{ cell?: Cell } | null>(null)
   if (!profile) return null
   const live = profile.id === activeProfileId ? liveAppearance : {}
@@ -140,8 +155,36 @@ export function Editor({
           {page && (
             <section aria-label={`Tiles on ${page.name}`} className="space-y-2">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs text-muted">Tiles on “{page.name}”</h3>
-                <div className="flex items-center gap-1">
+                <h3
+                  className="min-w-0 truncate text-xs text-muted"
+                  title={`Tiles on “${page.name}”`}
+                >
+                  Tiles
+                </h3>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button
+                    size="icon"
+                    variant={view === 'phone' ? 'primary' : 'ghost'}
+                    aria-pressed={view === 'phone'}
+                    aria-label="See it as the phone shows it"
+                    title="See it as the phone shows it"
+                    onClick={() => setView(view === 'phone' ? 'grid' : 'phone')}
+                  >
+                    <Smartphone />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant={sideways ? 'primary' : 'ghost'}
+                    aria-pressed={sideways}
+                    aria-label="Turn the phone sideways"
+                    title="Turn the phone sideways"
+                    onClick={() => {
+                      setSideways(!sideways)
+                      if (!sideways) setView('phone')
+                    }}
+                  >
+                    <RotateCw />
+                  </Button>
                   <Button
                     size="sm"
                     variant={trying ? 'primary' : 'ghost'}
@@ -156,23 +199,56 @@ export function Editor({
                   </Button>
                 </div>
               </div>
-              <TileGrid
-                page={page}
-                live={live}
-                series={profile.id === activeProfileId ? liveSeries : {}}
-                keyStyle={keyStyle}
-                onTemplates={(cell) => setGallery({ cell })}
-                trying={trying}
-              />
+              {view === 'phone' ? (
+                <>
+                  <PhonePreview
+                    profile={profile}
+                    pageId={page.id}
+                    live={live}
+                    series={profile.id === activeProfileId ? liveSeries : {}}
+                    settings={phoneSettings}
+                    sideways={sideways}
+                    selectedId={selectedTileId}
+                    onSelect={(id) => useEditor.getState().selectTile(id)}
+                  />
+                  <p className="text-xs text-muted">
+                    {sideways
+                      ? `Sideways, keys are ${LANDSCAPE[phoneSettings.landscape]} (Phones › Phone settings › Landscape).`
+                      : 'As the phone draws it, with its key style, shape and spacing.'}{' '}
+                    Click a key to edit it.{' '}
+                    <button
+                      type="button"
+                      className="text-glaze hover:underline"
+                      onClick={() => {
+                        setView('grid')
+                        setSideways(false)
+                      }}
+                    >
+                      Back to moving tiles
+                    </button>
+                  </p>
+                </>
+              ) : (
+                <TileGrid
+                  page={page}
+                  live={live}
+                  series={profile.id === activeProfileId ? liveSeries : {}}
+                  keyStyle={keyStyle}
+                  onTemplates={(cell) => setGallery({ cell })}
+                  trying={trying}
+                />
+              )}
               {trying && (
                 <p className="text-xs text-muted">
                   Click a tile to press it. Sliders take the spot you click; folders open.
                 </p>
               )}
               <Notice />
-              <p className="text-xs text-muted">
-                Drag tiles to move them. Drag the corner of the selected tile to resize.
-              </p>
+              {view === 'grid' && (
+                <p className="text-xs text-muted">
+                  Drag tiles to move them. Drag the corner of the selected tile to resize.
+                </p>
+              )}
             </section>
           )}
         </aside>
