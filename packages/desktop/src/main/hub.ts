@@ -46,7 +46,7 @@ import { Scheduler } from './scheduler.ts'
 import { Settings, settingsStore } from './settings.ts'
 import { blocksUsed, packProfile, unpackProfile } from './transfer.ts'
 
-const LOG_LIMIT = 200
+const LOG_LIMIT = 1000
 const NETWORK_POLL_MS = 10_000
 const LONG_PRESS_MS = 500
 const LEVELS = { info: 0, warn: 1, error: 2 } as const
