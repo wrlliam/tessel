@@ -141,6 +141,22 @@ try {
   await page.locator('[aria-label^="Tile CPU"]').first().getByText(/\d+%/).waitFor()
   if (shots) await page.screenshot({ path: join(shots, 'e2e-stats.png') })
 
+  step('drag the sidebar wider, then double-click to reset it')
+  const sidebarWidth = () =>
+    page.locator('#editor-sidebar').evaluate((el) => el.getBoundingClientRect().width)
+  const before = await sidebarWidth()
+  const grip = await page.getByRole('separator', { name: 'Sidebar width' }).boundingBox()
+  if (!grip) throw new Error('No sidebar handle')
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + 200)
+  await page.mouse.down()
+  await page.mouse.move(grip.x + grip.width / 2 + 120, grip.y + 200, { steps: 6 })
+  await page.mouse.up()
+  const wider = await sidebarWidth()
+  if (wider < before + 100) throw new Error(`Sidebar went from ${before} to ${wider}`)
+  if (shots) await page.screenshot({ path: join(shots, 'e2e-sidebar.png') })
+  await page.getByRole('separator', { name: 'Sidebar width' }).dblclick()
+  if (Math.abs((await sidebarWidth()) - before) > 1) throw new Error('Sidebar did not reset')
+
   step('see the page as the phone draws it, then sideways')
   await page.getByRole('button', { name: 'See it as the phone shows it' }).click()
   await page.locator('.phone-preview [data-tile-id]').first().waitFor()

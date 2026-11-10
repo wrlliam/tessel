@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process'
 import { readdir, readFile, statfs } from 'node:fs/promises'
 import { cpus, freemem, homedir, totalmem, uptime } from 'node:os'
 import { parse } from 'node:path'
+import { windowsGpuReader } from './windows-gpu.ts'
 
 type Bytes = { rx: number; tx: number }
 
@@ -87,25 +88,33 @@ const NVIDIA_QUERY = [
   '--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu',
   '--format=csv,noheader,nounits',
 ]
-// Windows without NVIDIA: the 3D engines' share, as Task Manager shows it.
-const WIN_COUNTER =
-  "(Get-Counter '\\GPU Engine(*engtype_3D)\\Utilization Percentage' -ErrorAction SilentlyContinue).CounterSamples | Measure-Object -Property CookedValue -Sum | ForEach-Object { $_.Sum }"
+let windowsGpu: (() => Promise<GpuReading | undefined>) | undefined
+
+/** Fills the gaps in one reading from another, e.g. nvidia-smi's numbers with the driver's temperature. */
+export function mergeGpu(
+  primary: GpuReading | undefined,
+  extra: GpuReading | undefined,
+): GpuReading | undefined {
+  if (!primary) return extra
+  if (!extra) return primary
+  const out: GpuReading = { ...extra }
+  for (const [k, v] of Object.entries(primary) as Array<[keyof GpuReading, number | undefined]>)
+    if (v !== undefined) out[k] = v
+  return out
+}
 
 /** One reading from whatever this computer offers; undefined when there's no way to tell. */
 export async function readGpu(os: NodeJS.Platform): Promise<GpuReading | undefined> {
   if (os === 'darwin')
     return parseIoregGpu(await run('ioreg', ['-r', '-d', '1', '-w', '0', '-c', 'IOAccelerator']))
   const nvidia = parseNvidiaSmi(await run('nvidia-smi', NVIDIA_QUERY))
-  if (nvidia) return nvidia
-  if (os === 'linux') return sysfsGpu()
+  if (os === 'linux') return nvidia ?? (await sysfsGpu())
   if (os === 'win32') {
-    const out = (
-      await run('powershell', ['-NoProfile', '-NonInteractive', '-Command', WIN_COUNTER], 8000)
-    ).trim()
-    const sum = Number(out)
-    return out && Number.isFinite(sum) ? { gpu: Math.min(100, Math.max(0, sum)) } : undefined
+    // Any card (AMD, Intel, NVIDIA): use, memory and temperature from Windows itself.
+    windowsGpu ??= windowsGpuReader()
+    return mergeGpu(nvidia, await windowsGpu())
   }
-  return undefined
+  return nvidia
 }
 
 /**

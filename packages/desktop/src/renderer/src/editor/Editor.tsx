@@ -1,7 +1,8 @@
 import type { KeyStyle } from '@tessel/brand/key'
 import type { Appearance, OS, PhoneSettings, TileTemplate } from '@tessel/core'
 import { LayoutTemplate, MousePointerClick, RotateCw, Smartphone } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { cn } from '../lib/cn.ts'
 import { openTel } from './share.ts'
 import { Button } from '../ui/button.tsx'
 import { Canvas } from './Canvas.tsx'
@@ -129,6 +130,7 @@ export function Editor({
   const [sideways, setSideways] = useState(false)
   const selectedTileId = useEditor((s) => s.selectedTileId)
   const [gallery, setGallery] = useState<{ cell?: Cell } | null>(null)
+  const sidebar = useSidebarWidth()
   if (!profile) return null
   const live = profile.id === activeProfileId ? liveAppearance : {}
 
@@ -143,8 +145,10 @@ export function Editor({
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-0 flex-1">
         <aside
+          id="editor-sidebar"
           aria-label="Profile, pages and tiles"
-          className="w-[352px] shrink-0 space-y-6 overflow-y-auto border-r border-line p-4"
+          style={{ width: sidebar.width }}
+          className="shrink-0 space-y-6 overflow-y-auto border-r border-line p-4"
         >
           <div className="flex items-baseline justify-between">
             <h2 className="font-display text-base font-medium">Profile</h2>
@@ -253,6 +257,7 @@ export function Editor({
           )}
           <PageSettings />
         </aside>
+        <SidebarHandle {...sidebar} />
         {tile && tile.kind === 'folder' ? (
           <FolderPanel folderId={tile.targetPageId} />
         ) : tile ? (
@@ -273,6 +278,100 @@ export function Editor({
         onPick={pickTemplate}
         keyStyle={keyStyle}
       />
+    </div>
+  )
+}
+
+const SIDEBAR = { initial: 352, min: 280, max: 720, key: 'tessel.editor.sidebarWidth' }
+
+/** Room for the canvas and inspector, so the sidebar can't squeeze them away. */
+const widest = () => Math.max(SIDEBAR.min, Math.min(SIDEBAR.max, window.innerWidth - 640))
+const clampWidth = (w: number) => Math.round(Math.max(SIDEBAR.min, Math.min(widest(), w)))
+
+/** The sidebar's width, remembered on this computer. */
+function useSidebarWidth() {
+  const [width, setWidth] = useState(() => {
+    try {
+      const saved = Number(localStorage.getItem(SIDEBAR.key))
+      return Number.isFinite(saved) && saved > 0 ? clampWidth(saved) : SIDEBAR.initial
+    } catch {
+      return SIDEBAR.initial
+    }
+  })
+  const set = (w: number, keep = true) => {
+    const next = clampWidth(w)
+    setWidth(next)
+    if (keep)
+      try {
+        localStorage.setItem(SIDEBAR.key, String(next))
+      } catch {
+        // Storage blocked; the width still applies until the app closes.
+      }
+  }
+  // A smaller window shrinks a wide sidebar back into range.
+  useEffect(() => {
+    const fit = () => setWidth((w) => clampWidth(w))
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
+  }, [])
+  return { width, set }
+}
+
+/** Drag, or focus and use the arrow keys, to make the sidebar wider. Double-click resets it. */
+function SidebarHandle({ width, set }: ReturnType<typeof useSidebarWidth>) {
+  const drag = useRef<{ x: number; width: number } | null>(null)
+  const [dragging, setDragging] = useState(false)
+  return (
+    <div className="relative z-10 w-0 shrink-0">
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-controls="editor-sidebar"
+        aria-label="Sidebar width"
+        aria-valuemin={SIDEBAR.min}
+        aria-valuemax={SIDEBAR.max}
+        aria-valuenow={width}
+        tabIndex={0}
+        title="Drag to resize. Double-click to reset."
+        onPointerDown={(e) => {
+          e.preventDefault()
+          e.currentTarget.setPointerCapture(e.pointerId)
+          drag.current = { x: e.clientX, width }
+          setDragging(true)
+        }}
+        onPointerMove={(e) => {
+          const d = drag.current
+          if (d) set(d.width + e.clientX - d.x, false)
+        }}
+        onPointerUp={(e) => {
+          const d = drag.current
+          drag.current = null
+          setDragging(false)
+          if (d) set(d.width + e.clientX - d.x)
+        }}
+        onPointerCancel={() => {
+          drag.current = null
+          setDragging(false)
+        }}
+        onDoubleClick={() => set(SIDEBAR.initial)}
+        onKeyDown={(e) => {
+          const step = e.shiftKey ? 64 : 16
+          if (e.key === 'ArrowLeft') set(width - step)
+          else if (e.key === 'ArrowRight') set(width + step)
+          else if (e.key === 'Home') set(SIDEBAR.min)
+          else if (e.key === 'End') set(widest())
+          else return
+          e.preventDefault()
+        }}
+        className="group absolute inset-y-0 -left-1.5 flex w-3 cursor-col-resize justify-center outline-none"
+      >
+        <span
+          className={cn(
+            'h-full w-0.5 transition-colors group-hover:bg-line group-focus-visible:bg-glaze',
+            dragging && 'bg-glaze group-hover:bg-glaze',
+          )}
+        />
+      </div>
     </div>
   )
 }

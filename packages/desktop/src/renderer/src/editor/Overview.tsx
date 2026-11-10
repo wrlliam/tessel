@@ -1,4 +1,11 @@
-import { MiniMap, Panel, useReactFlow, useViewport, type MiniMapNodeProps } from '@xyflow/react'
+import {
+  MiniMap,
+  Panel,
+  useReactFlow,
+  useStore,
+  useViewport,
+  type MiniMapNodeProps,
+} from '@xyflow/react'
 import { Map as MapIcon, Maximize, Minus, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '../lib/cn.ts'
@@ -60,7 +67,9 @@ export function Overview({
       // Storage blocked; the choice lasts until the editor reloads.
     }
   }
-  const showMap = map && count > 1
+  // A narrow canvas (wide sidebar) has no room for both; the zoom bar wins.
+  const roomy = useStore((st) => st.width >= 560)
+  const showMap = map && count > 1 && roomy
 
   return (
     <>

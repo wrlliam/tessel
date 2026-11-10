@@ -60,7 +60,7 @@ function geometry(cell: number) {
 const Geometry = createContext(geometry(64))
 
 function fitCell(room: number, cols: number) {
-  return Math.max(40, Math.min(76, Math.floor((room - FRAME - GAP * (cols - 1)) / cols)))
+  return Math.max(40, Math.min(112, Math.floor((room - FRAME - GAP * (cols - 1)) / cols)))
 }
 
 interface Props {
