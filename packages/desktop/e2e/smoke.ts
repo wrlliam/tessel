@@ -124,11 +124,13 @@ try {
   await page.getByRole('button', { name: /^Music/ }).click()
   await page.getByRole('region', { name: 'Tiles on Music' }).waitFor()
   await page.getByRole('button', { name: /Tile Volume/ }).waitFor()
-  step('System stats page draws gauges and charts from live readings')
+  step('search the ready-made pages; System usage draws gauges and charts from live readings')
   await page.getByRole('button', { name: 'Page', exact: true }).click()
-  // The list of ready-made pages is long; this one may sit below the fold.
-  await page.getByRole('button', { name: /^System stats/ }).dispatchEvent('click')
-  await page.getByRole('region', { name: 'Tiles on System stats' }).waitFor()
+  await page.getByLabel('Search ready-made pages').fill('upload')
+  await page.getByRole('button', { name: /^System usage/ }).waitFor()
+  if (shots) await page.screenshot({ path: join(shots, 'e2e-page-search.png') })
+  await page.keyboard.press('Enter')
+  await page.getByRole('region', { name: 'Tiles on System usage' }).waitFor()
   for (const name of [/Tile CPU/, /Tile Memory/]) {
     for (const tile of await page.getByRole('button', { name }).all()) {
       await tile.click()
@@ -289,6 +291,10 @@ try {
   await page.getByRole('tab', { name: 'Plugins' }).click()
   await page.getByRole('button', { name: 'Create my blocks folder' }).click()
   await page.getByText(/blocks, under Plugins › My blocks/).waitFor({ timeout: 30_000 })
+  // Let any edit the editor still holds save first, so it can't overwrite the tile written below.
+  await page.reload()
+  await page.getByRole('tab', { name: 'Editor' }).click()
+  await page.getByRole('status').getByText('Saved', { exact: true }).waitFor()
   const custom = await page.evaluate(async () => {
     const profile = await window.tessel.getProfile('default')
     if (!profile) throw new Error('no profile')

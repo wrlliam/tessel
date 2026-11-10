@@ -7,6 +7,7 @@ import {
   Folder,
   LayoutGrid,
   Plus,
+  Search,
   Share,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -159,18 +160,35 @@ function PageSettings() {
 /** Blank page or a ready-made one. */
 function NewPageMenu({ onPick }: { onPick: (template?: (typeof pageTemplates)[number]) => void }) {
   const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
   const pick = (t?: (typeof pageTemplates)[number]) => {
     onPick(t)
     setOpen(false)
   }
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  const matches = pageTemplates.filter((t) => {
+    const text = `${t.name} ${t.description}`.toLowerCase()
+    return words.every((w) => text.includes(w))
+  })
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o)
+        if (o) setQuery('')
+      }}
+    >
       <PopoverTrigger asChild>
         <Button size="sm" variant="ghost">
           <Plus /> Page
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 p-1" aria-label="New page">
+      <PopoverContent
+        align="end"
+        collisionPadding={12}
+        className="flex max-h-[var(--radix-popover-content-available-height)] w-80 flex-col p-1"
+        aria-label="New page"
+      >
         <button
           type="button"
           onClick={() => pick()}
@@ -196,21 +214,40 @@ function NewPageMenu({ onPick }: { onPick: (template?: (typeof pageTemplates)[nu
             <span className="block text-xs text-muted">Tiles or a page someone shared</span>
           </span>
         </button>
-        <p className="px-2 pt-2 pb-1 text-xs text-muted">Ready-made</p>
-        {pageTemplates.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => pick(t)}
-            className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-line"
-          >
-            <LayoutGrid className="mt-0.5 size-4 shrink-0 text-muted" />
-            <span>
-              {t.name}
-              <span className="block text-xs text-muted">{t.description}</span>
-            </span>
-          </button>
-        ))}
+        <div className="mx-1 mt-2 mb-1 flex h-8 shrink-0 items-center gap-2 rounded-md px-2 shadow-[inset_0_0_0_1px_var(--line)] focus-within:shadow-[inset_0_0_0_1px_var(--glaze)]">
+          <Search className="size-4 shrink-0 text-muted" />
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && matches[0]) pick(matches[0])
+            }}
+            placeholder="Search ready-made pages"
+            aria-label="Search ready-made pages"
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
+          />
+          <span className="font-mono text-xs text-muted tabular-nums">{matches.length}</span>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {matches.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => pick(t)}
+              className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-line focus-visible:bg-line focus-visible:outline-none"
+            >
+              <LayoutGrid className="mt-0.5 size-4 shrink-0 text-muted" />
+              <span>
+                {t.name}
+                <span className="block text-xs text-muted">{t.description}</span>
+              </span>
+            </button>
+          ))}
+          {matches.length === 0 && (
+            <p className="px-2 py-3 text-sm text-muted">No page matches “{query}”</p>
+          )}
+        </div>
       </PopoverContent>
     </Popover>
   )

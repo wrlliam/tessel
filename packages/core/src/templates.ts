@@ -206,6 +206,7 @@ const STAT_NAMES: Record<string, string> = {
   memory: 'memory in use',
   disk: 'how full the main disk is',
   down: 'download speed',
+  up: 'upload speed',
 }
 
 /**
@@ -215,11 +216,11 @@ const STAT_NAMES: Record<string, string> = {
 function statTile(
   id: string,
   label: string,
-  stat: 'cpu' | 'memory' | 'disk' | 'down',
+  stat: 'cpu' | 'memory' | 'disk' | 'down' | 'up',
   kind: 'ring' | 'bar' | 'line' | 'columns',
   icon: string,
 ): TileTemplate[] {
-  const network = stat === 'down'
+  const network = stat === 'down' || stat === 'up'
   const chart = kind === 'line' || kind === 'columns'
   return [
     {
@@ -1361,6 +1362,8 @@ export const templates: TileTemplate[] = [
   ...statTile('stat-cpu-chart', 'CPU', 'cpu', 'line', 'activity'),
   ...statTile('stat-memory-chart', 'Memory', 'memory', 'line', 'activity'),
   ...statTile('stat-network-chart', 'Download', 'down', 'columns', 'download'),
+  ...statTile('stat-upload-chart', 'Upload', 'up', 'columns', 'upload'),
+  ...statTile('stat-disk-ring', 'Disk', 'disk', 'ring', 'hard-drive'),
 
   // Soundpad
   {
@@ -2917,6 +2920,23 @@ export const pageTemplates: PageTemplate[] = [
       { template: 'stat-cpu-chart', col: 0, row: 1, w: 3 },
       { template: 'stat-memory-chart', col: 0, row: 2, w: 3 },
       { template: 'stat-network-chart', col: 0, row: 3, w: 3, h: 2 },
+    ],
+  },
+  {
+    id: 'page-system-usage',
+    name: 'System usage',
+    description:
+      'Every reading at once, gauge beside its chart: CPU, memory, disk, and download and upload speed. Built for a phone held sideways.',
+    cols: 4,
+    rows: 4,
+    tiles: [
+      { template: 'stat-cpu', col: 0, row: 0 },
+      { template: 'stat-cpu-chart', col: 1, row: 0, w: 3 },
+      { template: 'stat-memory', col: 0, row: 1 },
+      { template: 'stat-memory-chart', col: 1, row: 1, w: 3 },
+      { template: 'stat-disk-ring', col: 0, row: 2, h: 2 },
+      { template: 'stat-network-chart', col: 1, row: 2, w: 3 },
+      { template: 'stat-upload-chart', col: 1, row: 3, w: 3 },
     ],
   },
   {
