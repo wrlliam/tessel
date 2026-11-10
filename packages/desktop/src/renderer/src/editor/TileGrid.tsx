@@ -30,7 +30,7 @@ import {
 } from 'react'
 import { cn } from '../lib/cn.ts'
 import { Popover, PopoverAnchor, PopoverContent } from '../ui/popover.tsx'
-import { fits, freeCells, type Cell } from './layout.ts'
+import { fits, freeCells, pushAside, type Cell } from './layout.ts'
 import { useEditor } from './store.ts'
 import { KeyFace, keyVars, type KeyStyle } from '@tessel/brand/key'
 
@@ -81,6 +81,8 @@ export function TileGrid({ page, live, keyStyle, onTemplates, trying = false }: 
     ok: boolean
   }>()
   const [menu, setMenu] = useState<Cell>()
+  // While a corner is dragged: where the tiles it pushes would go.
+  const [pushed, setPushed] = useState<Map<string, Cell>>()
   const grid = useRef<HTMLDivElement>(null)
   // Anchors the slot menu to the clicked cell.
   const anchor = useRef({
@@ -165,7 +167,6 @@ export function TileGrid({ page, live, keyStyle, onTemplates, trying = false }: 
           {page.tiles.map((t) => (
             <GridTile
               key={t.id}
-              page={page}
               tile={t}
               look={previewLook(t, live[t.id])}
               problem={problems[t.id]}
@@ -173,7 +174,16 @@ export function TileGrid({ page, live, keyStyle, onTemplates, trying = false }: 
               selected={t.id === selected}
               running={running[t.id] === true}
               keyStyle={keyStyle}
-              onResize={(span) => resizeTile(t.id, span)}
+              at={pushed?.get(t.id)}
+              onResizing={(span) => {
+                const moved = pushAside(page, t.id, span)
+                if (moved) setPushed(moved)
+                return moved !== undefined
+              }}
+              onResize={(span) => {
+                setPushed(undefined)
+                resizeTile(t.id, span)
+              }}
               onMenu={(x, y) => {
                 tileMenuRef.current = { x, y }
                 setTileMenu({ tileId: t.id, x, y })
@@ -311,12 +321,15 @@ function MenuItem({ onClick, children }: { onClick: () => void; children: ReactN
 }
 
 interface TileProps {
-  page: Page
   tile: Tile
   look: Appearance
   selected: boolean
   running: boolean
   keyStyle: KeyStyle
+  /** Where the tile shows while another tile's resize pushes it. */
+  at?: Cell | undefined
+  /** A resize in progress; false when that size can't fit, even by pushing tiles aside. */
+  onResizing: (span: { w: number; h: number }) => boolean
   onResize: (span: { w: number; h: number }) => void
   onMenu: (x: number, y: number) => void
   onDelete: () => void
@@ -326,12 +339,13 @@ interface TileProps {
 }
 
 function GridTile({
-  page,
   tile,
   look,
   selected,
   running,
   keyStyle,
+  at,
+  onResizing,
   onResize,
   onMenu,
   onDelete,
@@ -346,6 +360,8 @@ function GridTile({
     span: { w: number; h: number }
   } | null>(null)
   const shown = resize ? resize.span : tile.span
+  const pos = at ?? tile.position
+  const [blocked, setBlocked] = useState(false)
 
   function startResize(e: ReactPointerEvent) {
     e.stopPropagation()
@@ -357,26 +373,30 @@ function GridTile({
     if (!resize) return
     const w = Math.max(1, tile.span.w + Math.round((e.clientX - resize.x) / STEP))
     const h = Math.max(1, tile.span.h + Math.round((e.clientY - resize.y) / STEP))
-    if (
-      (w !== resize.span.w || h !== resize.span.h) &&
-      fits(page, tile.position, { w, h }, tile.id)
-    ) {
-      setResize({ ...resize, span: { w, h } })
-    }
+    if (w === resize.span.w && h === resize.span.h) return
+    // Too big even after pushing tiles aside: keep the last size that fit and show a no-entry cursor.
+    const ok = onResizing({ w, h })
+    setBlocked(!ok)
+    if (ok) setResize({ ...resize, span: { w, h } })
   }
 
   function endResize() {
     if (!resize) return
     setResize(null)
+    setBlocked(false)
     onResize(resize.span)
   }
 
   return (
     <div
       ref={setNodeRef}
-      className={cn('absolute', isDragging && 'z-10 opacity-80')}
+      className={cn(
+        'absolute',
+        isDragging && 'z-10 opacity-80',
+        at && 'transition-[left,top] duration-150',
+      )}
       style={{
-        ...place(tile.position.col, tile.position.row, shown.w, shown.h),
+        ...place(pos.col, pos.row, shown.w, shown.h),
         transform: transform ? `translate(${transform.x}px, ${transform.y}px)` : undefined,
       }}
     >
@@ -427,7 +447,10 @@ function GridTile({
           onPointerMove={moveResize}
           onPointerUp={endResize}
           onPointerCancel={endResize}
-          className="absolute -right-1.5 -bottom-1.5 size-3.5 cursor-nwse-resize rounded-sm border-2 border-bg bg-glaze"
+          className={cn(
+            'absolute -right-1.5 -bottom-1.5 size-3.5 rounded-sm border-2 border-bg',
+            blocked ? 'cursor-not-allowed bg-signal' : 'cursor-nwse-resize bg-glaze',
+          )}
         />
       )}
     </div>

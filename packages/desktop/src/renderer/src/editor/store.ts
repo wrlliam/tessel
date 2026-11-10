@@ -13,7 +13,7 @@ import { buildPage, type PageTemplate } from '@tessel/core'
 import { create } from 'zustand'
 import type { PhoneEdit, ProfileEngineEvent } from '../../../shared/api.ts'
 import { copyNodes, pasteNodes, uid, type Clip, type PortRef } from './graph-utils.ts'
-import { fits, foldersUnder, freeCells, type Cell } from './layout.ts'
+import { fits, foldersUnder, freeCells, pushAside, type Cell } from './layout.ts'
 
 const HISTORY_LIMIT = 100
 /** Edits with the same key inside this window (typing, dragging) undo as one step. */
@@ -354,11 +354,29 @@ export const useEditor = create<Editor>()((set, get) => {
       const page = p && pageOfTile(p, tileId)
       const tile = findTile(p, tileId)
       if (!p || !page || !tile || (span.w === tile.span.w && span.h === tile.span.h)) return
-      if (!fits(page, tile.position, span, tileId)) {
+      const moved = pushAside(page, tileId, span)
+      if (!moved) {
         set({ notice: 'Not enough room to make it that size.' })
         return
       }
-      commit(mapTile(p, tileId, (t) => ({ ...t, span })))
+      // Tiles in the way move over, in the same undo step.
+      commit({
+        ...p,
+        pages: p.pages.map((pg) =>
+          pg.id !== page.id
+            ? pg
+            : {
+                ...pg,
+                tiles: pg.tiles.map((t) =>
+                  t.id === tileId
+                    ? { ...t, span }
+                    : moved.has(t.id)
+                      ? { ...t, position: moved.get(t.id) as Cell }
+                      : t,
+                ),
+              },
+        ),
+      })
     },
 
     updateGraph: (tileId, change, key) => {

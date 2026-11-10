@@ -17,7 +17,7 @@ import {
   removeNodes,
   summarise,
 } from '../src/renderer/src/editor/graph-utils.ts'
-import { fits, foldersUnder, freeCells } from '../src/renderer/src/editor/layout.ts'
+import { fits, foldersUnder, freeCells, pushAside } from '../src/renderer/src/editor/layout.ts'
 import { findPage, findTile, useEditor } from '../src/renderer/src/editor/store.ts'
 
 const descriptors = builtinBlocks.map(describeBlock)
@@ -249,6 +249,14 @@ describe('editor store', () => {
     expect(s().notice).toMatch(/isn't free/)
     s().resizeTile('lock', { w: 1, h: 2 })
     expect(findTile(s().profile, 'lock')?.span).toEqual({ w: 1, h: 2 })
+    // Growing into a neighbour moves it over, in one undo step.
+    const lock = findTile(s().profile, 'lock')!
+    const page = s().profile!.pages[0]!
+    const moved = pushAside(page, 'lock', { w: lock.span.w + 1, h: 2 })
+    s().resizeTile('lock', { w: lock.span.w + 1, h: 2 })
+    if (moved)
+      for (const [id, cell] of moved) expect(findTile(s().profile, id)?.position).toEqual(cell)
+    else expect(s().notice).toMatch(/Not enough room/)
   })
 
   it('adds a folder with its own page and deletes both together', () => {
@@ -335,6 +343,28 @@ describe('layout', () => {
     expect(fits(page, { col: 2, row: 4 }, { w: 2, h: 1 })).toBe(false)
     expect(fits(page, { col: 0, row: 0 }, { w: 1, h: 1 })).toBe(false)
     expect(fits(page, { col: 0, row: 0 }, { w: 1, h: 1 }, 'discord')).toBe(true)
+  })
+
+  it('pushes tiles aside when one grows, and refuses when they would leave the grid', () => {
+    const at = (id: string, col: number, row: number) => ({
+      ...page.tiles[0]!,
+      id,
+      position: { col, row },
+      span: { w: 1, h: 1 },
+    })
+    const small = {
+      ...page,
+      cols: 3,
+      rows: 2,
+      tiles: [at('a', 0, 0), at('b', 1, 0), at('c', 0, 1)],
+    }
+    // Wider: b moves right.
+    expect(pushAside(small, 'a', { w: 2, h: 1 })).toEqual(new Map([['b', { col: 2, row: 0 }]]))
+    // Taller: c moves down, but row 2 is off the grid, so it goes right instead.
+    expect(pushAside(small, 'a', { w: 1, h: 2 })).toEqual(new Map([['c', { col: 1, row: 1 }]]))
+    const full = { ...small, cols: 2, rows: 1, tiles: [at('a', 0, 0), at('b', 1, 0)] }
+    expect(pushAside(full, 'a', { w: 2, h: 1 })).toBeUndefined()
+    expect(pushAside(full, 'b', { w: 2, h: 1 })).toBeUndefined()
   })
 
   it('keeps the Back slot free in folders', () => {
