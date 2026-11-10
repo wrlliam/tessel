@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const PROFILE_SCHEMA_VERSION = 2
+export const PROFILE_SCHEMA_VERSION = 3
 
 const Id = z.string().min(1).max(64)
 const HexColour = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Expected a colour like #22D3C5')
@@ -187,6 +187,51 @@ export const profileMigrations: Record<number, (data: unknown) => unknown> = {
           combo['type'] = 'action.appCommand'
           combo['params'] = { command: 'discord.mute', focus: true }
         }
+      }
+    }
+    return data
+  },
+  // Voicemeeter gain sliders made before hold-to-reset get it: hold sets 0 dB and moves the bar.
+  2: (data) => {
+    if (!isObj(data) || !Array.isArray(data['pages'])) return data
+    for (const page of data['pages'] as unknown[]) {
+      if (!isObj(page) || !Array.isArray(page['tiles'])) continue
+      for (const tile of page['tiles'] as unknown[]) {
+        if (!isObj(tile) || tile['kind'] !== 'slider' || !isObj(tile['graph'])) continue
+        const nodes = tile['graph']['nodes']
+        const edges = tile['graph']['edges']
+        if (!Array.isArray(nodes) || !Array.isArray(edges)) continue
+        const has = (type: string) => nodes.some((n) => isObj(n) && n['type'] === type)
+        const gain = nodes.find(
+          (n): n is Json => isObj(n) && n['type'] === 'voicemeeter.setGain' && isObj(n['params']),
+        )
+        if (!gain || !has('trigger.slide') || has('trigger.longPress')) continue
+        const params = gain['params'] as Json
+        const ids = new Set(nodes.map((n) => (isObj(n) ? n['id'] : undefined)))
+        const fresh = (base: string) => {
+          let id = base
+          for (let i = 2; ids.has(id); i++) id = `${base}${i}`
+          ids.add(id)
+          return id
+        }
+        const [hold, reset, bar] = [fresh('hold'), fresh('reset'), fresh('bar')]
+        const at = (x: number) => ({ x, y: 160 })
+        nodes.push(
+          { id: hold, type: 'trigger.longPress', params: {}, position: at(0) },
+          {
+            id: reset,
+            type: 'voicemeeter.setGain',
+            params: { target: params['target'], index: params['index'], gain: 0 },
+            position: at(288),
+          },
+          { id: bar, type: 'action.setSlider', params: { value: 0, tile: '' }, position: at(576) },
+        )
+        const wire = (from: string, to: string) => ({
+          id: `${from}-${to}`,
+          from: { nodeId: from, port: 'out' },
+          to: { nodeId: to, port: 'in' },
+        })
+        edges.push(wire(hold, reset), wire(reset, bar))
       }
     }
     return data

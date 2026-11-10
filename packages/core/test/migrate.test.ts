@@ -64,4 +64,58 @@ describe('profile migrations', () => {
     })
     expect(other!.graph.nodes[1]!.type).toBe('action.keyCombo')
   })
+
+  it('gives old Voicemeeter gain sliders hold to reset', () => {
+    const at = { x: 0, y: 0 }
+    const v2 = {
+      id: 'p',
+      name: 'P',
+      pages: [
+        {
+          id: 'pg',
+          name: 'Page',
+          tiles: [
+            {
+              id: 'mic',
+              kind: 'slider',
+              position: { col: 0, row: 0 },
+              graph: {
+                nodes: [
+                  { id: 'slide', type: 'trigger.slide', params: {}, position: at },
+                  {
+                    id: 'action',
+                    type: 'voicemeeter.setGain',
+                    params: { target: 'strip', index: 2, gain: 0 },
+                    position: at,
+                  },
+                ],
+                edges: [
+                  {
+                    id: 'e',
+                    from: { nodeId: 'slide', port: 'out' },
+                    to: { nodeId: 'action', port: 'in' },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    }
+    const tile = Profile.parse(migrateProfile(2, v2)).pages[0]!.tiles[0]!
+    expect(tile.graph.nodes.map((n) => n.type)).toEqual([
+      'trigger.slide',
+      'voicemeeter.setGain',
+      'trigger.longPress',
+      'voicemeeter.setGain',
+      'action.setSlider',
+    ])
+    expect(tile.graph.nodes[3]!.params).toEqual({ target: 'strip', index: 2, gain: 0 })
+    expect(tile.graph.edges).toHaveLength(3)
+    // Running it again changes nothing.
+    const again = Profile.parse(
+      migrateProfile(2, { ...v2, pages: [{ ...v2.pages[0]!, tiles: [tile] }] }),
+    )
+    expect(again.pages[0]!.tiles[0]!.graph.nodes).toHaveLength(5)
+  })
 })
