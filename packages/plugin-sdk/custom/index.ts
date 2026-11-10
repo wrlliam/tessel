@@ -1,6 +1,7 @@
 // Write your own Tessel blocks in TypeScript. Each file in blocks/ default-exports block({...}).
 // Tessel copies this folder in and refreshes it on updates, so keep your own code in blocks/.
 import { readdir } from 'node:fs/promises'
+import type { BlockCalls, MyCalls } from './generated.ts'
 import { std } from './std.ts'
 
 export { std }
@@ -55,6 +56,20 @@ export interface BlockContext {
   signal: AbortSignal
   /** Sets {{state.key}} on the tile, for its live appearance. */
   setTileState(key: string, value: Json): void
+  /** Runs one of Tessel's blocks for this tile. std.blocks wraps this with names and types. */
+  runBlock(
+    type: string,
+    params?: Record<string, unknown>,
+    input?: Record<string, unknown>,
+  ): Promise<{ next?: string; values: Record<string, unknown> }>
+}
+
+/** std, plus Tessel's blocks and this folder's blocks as functions, for one run. */
+export type RunStd = typeof std & {
+  /** Tessel's blocks and installed plugins', e.g. await std.blocks.popup({ title: 'Hi' }). */
+  blocks: BlockCalls
+  /** The other blocks in this folder, e.g. await std.my.pickOne({ choices: 'a\\nb' }). */
+  my: MyCalls
 }
 
 /** What a value output carries, by its declared type. */
@@ -104,7 +119,7 @@ export interface BlockSpec<
     params: { [K in keyof P]: ParamValue<P[K]> }
     inputs: { [K in keyof I]: InputValue<I[K]> }
     ctx: BlockContext
-    std: typeof std
+    std: RunStd
   }): BlockResult<V> | Promise<BlockResult<V>>
 }
 
@@ -226,7 +241,7 @@ export function block<
         params: p as never,
         inputs: input as never,
         ctx,
-        std,
+        std: bindStd(ctx),
       })
       if (typeof result === 'string') {
         if (!flows.includes(result))
@@ -274,6 +289,60 @@ export function normalise(
   }
 }
 
+/** What std.blocks and std.my calls give back: the values by name, and `next` (the way out). */
+const flatten = (r: { next?: string; values?: Record<string, unknown> } | undefined) => ({
+  ...r?.values,
+  ...(r?.next && { next: r.next }),
+})
+
+/** "pick-one" -> "pickOne". */
+const camel = (id: string) => id.replace(/[-_ ]+([a-zA-Z0-9])/g, (_, c: string) => c.toUpperCase())
+
+/**
+ * std.blocks: any name works and is looked up by Tessel when called, so new plugins and blocks
+ * need no reload. std.blocks.popup(...) runs a built-in block; std.blocks.obs.scene(...) a plugin's.
+ */
+function blockCalls(ctx: BlockContext, path: string[] = []): unknown {
+  const call = async (params: Record<string, unknown> = {}, inputs: Record<string, unknown> = {}) =>
+    flatten(await ctx.runBlock(`@${path.join('.')}`, params, inputs))
+  return new Proxy(call, {
+    get: (target, prop) =>
+      typeof prop === 'string' && prop !== 'then'
+        ? blockCalls(ctx, [...path, prop])
+        : Reflect.get(target, prop),
+  })
+}
+
+/** This folder's blocks, by id, filled in by loadBlocks; calls to them stay in this process. */
+const local = new Map<string, Omit<PluginBlock, 'id'>>()
+
+function myCalls(ctx: BlockContext): unknown {
+  return new Proxy(
+    {},
+    {
+      get: (_t, prop) => {
+        if (typeof prop !== 'string' || prop === 'then') return undefined
+        return async (
+          params: Record<string, unknown> = {},
+          inputs: Record<string, unknown> = {},
+        ) => {
+          const id = [...local.keys()].find((k) => camel(k) === prop)
+          const b = id ? local.get(id) : undefined
+          if (!b) throw new Error(`There's no block "${prop}" in this folder`)
+          const parsed = b.paramsSchema.safeParse({ ...b.defaults, ...params })
+          if (!parsed.success)
+            throw new Error(`${b.name}: ${parsed.error.issues[0]?.message ?? 'bad settings'}`)
+          return flatten((await b.run(ctx, parsed.data, inputs)) as never)
+        }
+      },
+    },
+  )
+}
+
+function bindStd(ctx: BlockContext): RunStd {
+  return { ...std, blocks: blockCalls(ctx) as BlockCalls, my: myCalls(ctx) as MyCalls }
+}
+
 const isBlock = (v: unknown): v is Omit<PluginBlock, 'id'> =>
   typeof v === 'object' && v !== null && (v as Record<symbol, unknown>)[BLOCK] === true
 
@@ -296,7 +365,11 @@ export async function loadBlocks(folder: URL) {
       const found = Array.isArray(mod.default) ? mod.default : [mod.default]
       const valid = found.filter(isBlock)
       if (valid.length !== found.length) throw new Error('it must export default block({...})')
-      valid.forEach((b, i) => blocks.push({ ...b, id: found.length > 1 ? `${id}-${i + 1}` : id }))
+      valid.forEach((b, i) => {
+        const blockId = found.length > 1 ? `${id}-${i + 1}` : id
+        local.set(blockId, b)
+        blocks.push({ ...b, id: blockId })
+      })
     } catch (err) {
       problems.push(
         `blocks/${file}: ${err instanceof Error ? err.message.split('\n')[0] : String(err)}`,

@@ -69,6 +69,16 @@ export interface BlockRunContext extends PluginContext {
   signal: AbortSignal
   /** Sets a value the tile can show, e.g. {{state.muted}} in live appearance. */
   setTileState(key: string, value: Json): void
+  /**
+   * Runs one of Tessel's blocks (or another plugin's) for this tile, e.g.
+   * runBlock('action.toast', { title: 'Hi', body: 'There' }). Needs the "shell" permission,
+   * since Tessel's blocks can do anything.
+   */
+  runBlock(
+    type: string,
+    params?: Record<string, unknown>,
+    input?: Record<string, unknown>,
+  ): Promise<{ next?: string; values: Record<string, unknown> }>
 }
 
 export interface PluginBlock<P = unknown> {

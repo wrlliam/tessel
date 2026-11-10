@@ -39,7 +39,9 @@ export async function confirmPermissions(manifest: PluginManifest): Promise<bool
 export function watchFolder(dir: string, onChange: () => void): () => void {
   const watcher = watch(dir, { recursive: true }, (_event, file) => {
     const path = String(file ?? '')
-    if (!/(^|[\\/])(node_modules|\.git)([\\/]|$)/.test(path)) onChange()
+    // generated.ts is rewritten by Tessel itself, which then reloads My blocks once.
+    if (!/(^|[\\/])(node_modules|\.git)([\\/]|$)/.test(path) && !/generated\.ts$/.test(path))
+      onChange()
   })
   return () => watcher.close()
 }

@@ -6,7 +6,7 @@
   "description": "Blocks you write in TypeScript, in this folder. Tessel reloads them when you save.",
   "author": "You",
   "main": "index.ts",
-  "permissions": ["network", "filesystem", "shell"],
+  "permissions": ["network", "filesystem", "shell", "input"],
   "icon": "code",
   "settingsSchema": {
     "type": "object",

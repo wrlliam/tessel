@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **std.blocks and std.my in My blocks:** call any of Tessel's blocks (pop-up, toggle, set tile appearance, plugin blocks…) and your other custom blocks as typed functions; the list is regenerated whenever the available blocks change.
 - **Medal plugin** (Windows): clip, screenshot and record from your phone with Medal's hotkeys, and pop up when a clip is saved.
 - **Gaming and Windows templates:** Xbox Game Bar, NVIDIA and AMD replay and recording keys that turn red while recording and pop up to confirm, Steam games and library, a gaming break reminder, and Windows snapping, virtual desktops, snip, clipboard history and more. New pages: Gaming, Medal and Windows.
 - **Plugins can press keys** (`ctx.pressKeys`) when they ask for the input permission.

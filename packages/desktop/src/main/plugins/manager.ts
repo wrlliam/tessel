@@ -499,7 +499,48 @@ export class PluginManager {
     }
   }
 
+  /**
+   * A plugin block runs another block (Tessel's or another plugin's) for the same tile, in the
+   * same run: it shares the tile, its state and its stop button. Only plugins trusted to start
+   * programs may, since Tessel's blocks can do anything.
+   */
+  private async runForPlugin(pluginId: string, params: unknown) {
+    const entry = this.entries.get(pluginId)
+    if (!entry?.manifest.permissions.includes('shell'))
+      throw new Error('This plugin may not run Tessel blocks: its manifest doesn’t ask for "shell"')
+    const p = (params ?? {}) as {
+      callId?: string
+      type?: unknown
+      params?: unknown
+      input?: unknown
+    }
+    const ctx = typeof p.callId === 'string' ? this.calls.get(p.callId) : undefined
+    if (!ctx) throw new Error('Blocks can only be run while a block is running')
+    if (typeof p.type !== 'string') throw new Error('Name the block to run')
+    const def = p.type.startsWith('@')
+      ? resolveShortName(this.opts.registry.list(), p.type.slice(1))
+      : this.opts.registry.get(p.type)
+    if (!def) throw new Error(`There's no block "${p.type}"`)
+    if (def.trigger) throw new Error(`"${def.name}" is a trigger; triggers can't be run`)
+    const depth = (this.depths.get(p.callId as string) ?? 0) + 1
+    if (depth > 8) throw new Error('Blocks are calling each other too deeply')
+    const parsed = def.paramsSchema.safeParse({ ...def.defaults, ...(p.params as object) })
+    if (!parsed.success)
+      throw new Error(`${def.name}: ${parsed.error.issues[0]?.message ?? 'bad settings'}`)
+    const input = p.input && typeof p.input === 'object' ? (p.input as Record<string, unknown>) : {}
+    this.depths.set(p.callId as string, depth)
+    try {
+      const result = (await def.run(ctx, parsed.data as never, input)) ?? {}
+      return { ...(result.next && { next: result.next }), values: jsonSafe(result.values ?? {}) }
+    } finally {
+      this.depths.set(p.callId as string, depth - 1)
+    }
+  }
+
+  private depths = new Map<string, number>()
+
   private async onRequest(pluginId: string, method: string, params: unknown): Promise<unknown> {
+    if (method === 'blocks.run') return this.runForPlugin(pluginId, params)
     if (method === 'input.press') {
       // Only plugins whose manifest asks for "input" (and that you allowed) may press keys.
       const entry = this.entries.get(pluginId)
@@ -657,3 +698,30 @@ const jsonSafe = (v: Record<string, unknown>) =>
     string,
     unknown
   >
+
+const camelCase = (id: string) =>
+  id.replace(/[-_ ]+([a-zA-Z0-9])/g, (_, c: string) => c.toUpperCase())
+const SHORT_ALIASES: Record<string, string> = { popup: 'action.toast', wait: 'logic.delay' }
+
+/**
+ * std.blocks names: "popup" or "toggle" for built-in blocks (the part of the id after the dot,
+ * in camelCase), "obs.scene" for a plugin's, "myBlocks.pickOne" for My blocks.
+ */
+export function resolveShortName<T extends { id: string; trigger?: unknown }>(
+  blocks: T[],
+  name: string,
+): T | undefined {
+  const usable = blocks.filter((b) => !b.trigger)
+  const alias = SHORT_ALIASES[name]
+  if (alias) return usable.find((b) => b.id === alias)
+  const [owner, block] = name.includes('.')
+    ? (name.split('.', 2) as [string, string])
+    : [undefined, name]
+  return usable.find((b) => {
+    const dot = b.id.indexOf('.')
+    const o = b.id.slice(0, dot)
+    const rest = camelCase(b.id.slice(dot + 1))
+    if (rest !== block) return false
+    return owner === undefined ? ['action', 'logic', 'data'].includes(o) : camelCase(o) === owner
+  })
+}

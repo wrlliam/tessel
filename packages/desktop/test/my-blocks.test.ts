@@ -1,4 +1,11 @@
-import { createRegistry, Engine, MemoryVariables, type Graph, type Platform } from '@tessel/core'
+import {
+  createRegistry,
+  describeBlock,
+  Engine,
+  MemoryVariables,
+  type Graph,
+  type Platform,
+} from '@tessel/core'
 import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -8,6 +15,7 @@ import { dirname } from 'node:path'
 import {
   ensureMyBlocks,
   ensurePackage,
+  generateBlockTypes,
   newBlockFile,
   type BlockFiles,
 } from '../src/main/custom-blocks.ts'
@@ -23,6 +31,7 @@ async function files(): Promise<BlockFiles> {
   const out: BlockFiles = {
     'tessel/index.ts': await readFile(join(sdk, 'custom/index.ts'), 'utf8'),
     'tessel/std.ts': await readFile(join(sdk, 'custom/std.ts'), 'utf8'),
+    'tessel/generated.ts': await readFile(join(sdk, 'custom/generated.ts'), 'utf8'),
   }
   for (const f of ['index.ts', 'manifest.json', 'package.json', 'tsconfig.json', 'README.md'])
     out[f] = await readFile(join(scaffold, f), 'utf8')
@@ -136,6 +145,39 @@ describe('My blocks', () => {
     expect(String(globals.get('branch')).length).toBeGreaterThan(0)
   })
 
+  it('calls Tessel’s blocks and the folder’s own blocks through std, typed from the live list', async () => {
+    const first = await start()
+    // What Tessel does when the block list changes: write the list, then reload My blocks.
+    const types = generateBlockTypes(first.registry.list().map(describeBlock))
+    expect(types).toContain('"popup": "action.toast"')
+    expect(types).toContain('"pickOne": "pick-one"')
+    await writeFile(join(first.dir, 'tessel', 'generated.ts'), types)
+    // The file must be valid TypeScript that Node can run as is.
+    const check = await import('typescript')
+    const out = check.transpileModule(types, {
+      reportDiagnostics: true,
+      compilerOptions: { verbatimModuleSyntax: false },
+    })
+    expect(out.diagnostics ?? []).toEqual([])
+    const manager = managers.at(-1)!
+    await manager.restart('my-blocks')
+    const toast = vi.fn(async () => {})
+    const state = new Map<string, unknown>()
+    const engine = new Engine({
+      registry: first.registry,
+      platform: { os: 'darwin', toast } as unknown as Platform,
+      globals: new MemoryVariables(),
+      tileState: { get: (_t, k) => state.get(k), set: (_t, k, v) => void state.set(k, v) },
+    })
+    const t = run('lunch-popup', { choices: 'Soup' })
+    const r = await engine.trigger(t, { type: 'press' })
+    expect(r?.error).toBeUndefined()
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Lunch idea', body: 'Soup', seconds: 4 }),
+    )
+    expect(state.get('askedToday')).toBe(true)
+  })
+
   it('checks params like the inspector shows them', async () => {
     const { engine } = await start()
     const r = await engine.trigger(run('after-december', { month: 13 }), { type: 'press' })
@@ -186,5 +228,25 @@ describe('My blocks', () => {
     await ensureMyBlocks(dir, f)
     expect(await readFile(join(dir, 'blocks', 'pick-one.ts'), 'utf8')).toBe('// mine')
     expect(await readFile(join(dir, 'tessel', 'std.ts'), 'utf8')).toBe(f['tessel/std.ts'])
+  })
+})
+
+describe('std.blocks names', () => {
+  it('finds built-in, aliased, plugin and My blocks', async () => {
+    const { resolveShortName } = await import('../src/main/plugins/manager.ts')
+    const blocks = [
+      { id: 'action.toast' },
+      { id: 'logic.toggle' },
+      { id: 'action.setTileAppearance' },
+      { id: 'home-assistant.toggle' },
+      { id: 'my-blocks.pick-one' },
+      { id: 'trigger.press', trigger: 'press' },
+    ]
+    expect(resolveShortName(blocks, 'popup')?.id).toBe('action.toast')
+    expect(resolveShortName(blocks, 'toggle')?.id).toBe('logic.toggle')
+    expect(resolveShortName(blocks, 'setTileAppearance')?.id).toBe('action.setTileAppearance')
+    expect(resolveShortName(blocks, 'homeAssistant.toggle')?.id).toBe('home-assistant.toggle')
+    expect(resolveShortName(blocks, 'myBlocks.pickOne')?.id).toBe('my-blocks.pick-one')
+    expect(resolveShortName(blocks, 'press')).toBeUndefined()
   })
 })

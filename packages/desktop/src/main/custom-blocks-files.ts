@@ -1,12 +1,14 @@
 // The My blocks folder's starting files, bundled into the app as text.
 import tesselIndex from '@tessel/plugin-sdk/custom/index.ts?raw'
 import tesselStd from '@tessel/plugin-sdk/custom/std.ts?raw'
+import tesselGenerated from '@tessel/plugin-sdk/custom/generated.ts?raw'
 import afterDecember from '@tessel/plugin-sdk/custom/scaffold/blocks/after-december.ts?raw'
 import countdownTo from '@tessel/plugin-sdk/custom/scaffold/blocks/countdown-to.ts?raw'
 import homeAssistantToggle from '@tessel/plugin-sdk/custom/scaffold/blocks/home-assistant-toggle.ts?raw'
 import pickOne from '@tessel/plugin-sdk/custom/scaffold/blocks/pick-one.ts?raw'
 import webJson from '@tessel/plugin-sdk/custom/scaffold/blocks/web-json.ts?raw'
 import gitBranch from '@tessel/plugin-sdk/custom/scaffold/blocks/git-branch.ts?raw'
+import lunchPopup from '@tessel/plugin-sdk/custom/scaffold/blocks/lunch-popup.ts?raw'
 import starter from '@tessel/plugin-sdk/custom/scaffold/blocks/_starter.ts?raw'
 import entry from '@tessel/plugin-sdk/custom/scaffold/index.ts?raw'
 import manifest from '@tessel/plugin-sdk/custom/scaffold/manifest.json?raw'
@@ -20,6 +22,7 @@ export const STARTER = starter
 export const MY_BLOCKS_FILES: BlockFiles = {
   'tessel/index.ts': tesselIndex,
   'tessel/std.ts': tesselStd,
+  'tessel/generated.ts': tesselGenerated,
   'index.ts': entry,
   'manifest.json': manifest,
   'package.json': pkg,
@@ -32,4 +35,5 @@ export const MY_BLOCKS_FILES: BlockFiles = {
   'blocks/web-json.ts': webJson,
   'blocks/home-assistant-toggle.ts': homeAssistantToggle,
   'blocks/git-branch.ts': gitBranch,
+  'blocks/lunch-popup.ts': lunchPopup,
 }

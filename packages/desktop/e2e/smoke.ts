@@ -134,7 +134,7 @@ try {
 
   step('insert a template into the folder')
   await page.getByRole('button', { name: 'Templates' }).click()
-  await page.getByRole('button', { name: /Counter/ }).click()
+  await page.getByRole('button', { name: /^Counter Counts/ }).click()
   await page.getByRole('button', { name: 'Tile Count' }).waitFor()
 
   step('drag a tile to another slot')
@@ -329,7 +329,11 @@ try {
     const profile = await window.tessel.getProfile('default')
     const tile = profile?.pages[0]?.tiles.find((t) => t.id === 'lunch')
     if (!profile || !tile) throw new Error('no lunch tile')
-    const out = await window.tessel.exportTel({ profileId: 'default', name: 'Lunch', tiles: [tile] })
+    const out = await window.tessel.exportTel({
+      profileId: 'default',
+      name: 'Lunch',
+      tiles: [tile],
+    })
     if (!out.ok) throw new Error(JSON.stringify(out))
     const back = await window.tessel.importTel(path)
     return back.ok ? back.tiles.map((t) => t.graph.nodes.map((n) => n.type).join(',')) : back

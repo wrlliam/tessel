@@ -149,6 +149,11 @@ export function runPlugin(
               signal: controller.signal,
               setTileState: (key, value) =>
                 notify({ method: 'tileState', params: { callId: p.callId, key, value } }),
+              runBlock: async (type, params = {}, input = {}) =>
+                (await call('blocks.run', { callId: p.callId, type, params, input })) as {
+                  next?: string
+                  values: Record<string, unknown>
+                },
             },
             parsed.data,
             p.input,

@@ -14,7 +14,8 @@ import { Updater } from './updater.ts'
 import { loadTileImage } from './images.ts'
 import { newer, PluginCatalog } from './catalog.ts'
 import QRCode from 'qrcode'
-import { ensureMyBlocks, ensurePackage, newBlockFile } from './custom-blocks.ts'
+import { ensureMyBlocks, ensurePackage, generateBlockTypes, newBlockFile } from './custom-blocks.ts'
+import { readFile, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname } from 'node:path'
 import { MY_BLOCKS_FILES, STARTER } from './custom-blocks-files.ts'
@@ -188,6 +189,24 @@ async function start() {
     await ensurePackage(myBlocksDir, 'zx', zxDir)
   }
   if (myBlocksReady()) void setUpMyBlocks().catch(() => {})
+  // std.blocks / std.my types in My blocks follow the blocks Tessel has; rewrite them when they
+  // change.
+  let blocksSeen = -1
+  hub.onChange(() => {
+    const version = hub.state().blocksVersion
+    if (version === blocksSeen || !myBlocksReady()) return
+    blocksSeen = version
+    const file = join(myBlocksDir, 'tessel', 'generated.ts')
+    const next = generateBlockTypes(hub.blocks())
+    void readFile(file, 'utf8')
+      .catch(() => '')
+      .then(async (now) => {
+        if (now === next) return
+        // Only types for your editor: names are looked up when called, so no reload is needed.
+        await writeFile(file, next)
+      })
+      .catch(() => {})
+  })
   ipcMain.handle(Channel.createMyBlocks, async () => {
     try {
       await setUpMyBlocks()

@@ -92,6 +92,28 @@ Throw an `Error` to fail the run; its message shows in the run log and on the ph
 | `ctx.log`                | `info`, `warn`, `error`: written to Tessel's activity log.                      |
 | `ctx.tileId`, `ctx.os`   | Which tile is running, and `darwin`, `win32` or `linux`.                        |
 
+## Tessel's blocks as functions: std.blocks and std.my
+
+Every block you could put on a tile is also a function in `run`:
+
+```ts
+async run({ std }) {
+  const { level, muted } = await std.blocks.getVolume()
+  const { next } = await std.blocks.toggle({ key: 'party' })
+  await std.blocks.popup({ title: next === 'on' ? 'Party mode' : 'Back to work', body: `Volume ${level}%` })
+  await std.blocks.voicemeeter.setGain({ target: 'strip', index: 1, gain: 0 })
+  const { choice } = await std.my.pickOne({ choices: 'Tea\nCoffee' })
+  return { choice }
+}
+```
+
+- `std.blocks.<name>(settings, inputs)` runs one of Tessel's blocks for the same tile, e.g. `popup` (Show a pop-up), `toggle`, `setTileAppearance`, `keyCombo`, `openApp`, `weather`, `nowPlaying`, `getVolume`, `setSlider`. Installed plugins' blocks sit under their name: `std.blocks.obs.scene(…)`, `std.blocks.hue.light(…)`.
+- `std.my.<name>(settings, inputs)` runs another block from this folder (`pick-one.ts` is `std.my.pickOne`).
+- Each gives back the block's values by name, plus `next`, the way out it chose.
+- Names are camelCase, from the block's id: `action.setTileAppearance` is `setTileAppearance`, `my-blocks.pick-one` is `pickOne`.
+
+The list lives in `tessel/generated.ts`. Tessel rewrites it whenever the blocks it has change (a plugin added, a block saved here) and reloads My blocks, so your editor always suggests the current names and settings.
+
 ## std
 
 | Group               | Functions                                                                                                                                                                                        |
