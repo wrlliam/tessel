@@ -82,7 +82,8 @@ try {
   step('Test run lights up the nodes and logs the run')
   await page.getByRole('button', { name: 'Test run' }).click()
   await page
-    .getByText(/New tile.*ran in \d+ ms|ran in \d+ ms/)
+    .getByRole('region', { name: 'Run log' })
+    .getByText('ran', { exact: true })
     .first()
     .waitFor()
   await delay.getByText(/\d+ ms/).waitFor()

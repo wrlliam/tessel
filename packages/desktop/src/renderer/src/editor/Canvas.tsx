@@ -2,8 +2,6 @@ import type { Tile } from '@tessel/core'
 import {
   Background,
   BackgroundVariant,
-  Controls,
-  MiniMap,
   Panel,
   ReactFlow,
   ReactFlowProvider,
@@ -32,6 +30,7 @@ import { AddBlockMenu } from './AddBlockMenu.tsx'
 import { BLOCK_MIME } from './blocks-list.ts'
 import { BlockNode, type BlockNodeType } from './BlockNode.tsx'
 import { connectionProblem, removeNodes, summarise } from './graph-utils.ts'
+import { Overview } from './Overview.tsx'
 import { Palette } from './Palette.tsx'
 import { useEditor } from './store.ts'
 import { saveNow } from './sync.ts'
@@ -294,15 +293,22 @@ function CanvasInner({ tile, colorMode }: { tile: Tile; colorMode: ColorMode }) 
           }}
         >
           <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
-          <MiniMap
-            pannable
-            zoomable
-            nodeColor={(n) => {
-              const block = blocks.get((n.data as { type: string }).type)
+          <Overview
+            count={graph.nodes.length}
+            colourOf={(id) => {
+              const type = graph.nodes.find((n) => n.id === id)?.type
+              const block = type ? blocks.get(type) : undefined
               return block ? CATEGORY[block.category].colour : '#A9B4C2'
             }}
+            ringOf={(id) => {
+              const run = runs?.[id]
+              return run?.status === 'error'
+                ? 'var(--signal)'
+                : run?.status === 'running'
+                  ? 'var(--glaze)'
+                  : undefined
+            }}
           />
-          <Controls showInteractive={false} />
           <Panel position="top-right" className="flex items-center gap-1.5">
             <Button
               size="icon"
