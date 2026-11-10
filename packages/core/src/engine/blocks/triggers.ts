@@ -58,7 +58,7 @@ export const onSchedule = defineBlock({
   category: 'trigger',
   name: 'On schedule',
   description:
-    'Starts at set times, written as a cron pattern. Runs for the profile phones are using.',
+    'Starts at set times, written as a cron pattern, for the profile phones are using. By default only while a phone shows the tile’s page; set Run to Always for reminders and the like.',
   trigger: 'schedule',
   inputs: [],
   outputs: [flowOut],
@@ -67,6 +67,7 @@ export const onSchedule = defineBlock({
       const error = cronError(s)
       if (error) ctx.addIssue({ code: 'custom', message: error })
     }),
+    when: z.enum(['pageOpen', 'always']).default('pageOpen'),
   }),
   fields: [
     {
@@ -76,8 +77,18 @@ export const onSchedule = defineBlock({
       placeholder: '0 9 * * 1-5',
       help: 'minute hour day month weekday. 0 9 * * 1-5 is 9:00 on weekdays.',
     },
+    {
+      key: 'when',
+      label: 'Run',
+      widget: 'select',
+      options: [
+        { value: 'pageOpen', label: 'Only while a phone shows this page' },
+        { value: 'always', label: 'Always' },
+      ],
+      help: 'Live tiles only need to update while someone can see them.',
+    },
   ],
-  defaults: { cron: '0 9 * * 1-5' },
+  defaults: { cron: '0 9 * * 1-5', when: 'pageOpen' },
   run: () => {},
 })
 

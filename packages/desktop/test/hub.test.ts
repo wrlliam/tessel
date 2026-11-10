@@ -489,6 +489,43 @@ describe('Hub settings', () => {
 })
 
 describe('Hub phone settings and remembered looks', () => {
+  it('runs schedules only while a phone shows their page, unless set to Always', async () => {
+    const { hub, platform } = await makeHub()
+    const profile = structuredClone(hub.getProfile('default')!)
+    const tile = profile.pages[0]!.tiles.find((t) => t.id === 'lock')!
+    tile.graph = {
+      nodes: [
+        {
+          id: 's',
+          type: 'trigger.schedule',
+          params: { cron: '* * * * *' },
+          position: { x: 0, y: 0 },
+        },
+        { id: 'l', type: 'action.lockScreen', params: {}, position: { x: 0, y: 0 } },
+      ],
+      edges: [{ id: 'e', from: { nodeId: 's', port: 'out' }, to: { nodeId: 'l', port: 'in' } }],
+    }
+    await hub.saveProfile(profile)
+    const internals = hub as unknown as {
+      scheduler: { fire: (j: { tileId: string; nodeId: string }) => void }
+      visiblePages: Map<string, string>
+    }
+    const fire = async () => {
+      internals.scheduler.fire({ tileId: 'lock', nodeId: 's' })
+      await new Promise((r) => setTimeout(r, 20))
+    }
+    await fire()
+    expect(platform.lockScreen).not.toHaveBeenCalled()
+    internals.visiblePages.set('phone', 'home')
+    await fire()
+    expect(platform.lockScreen).toHaveBeenCalledTimes(1)
+    internals.visiblePages.clear()
+    tile.graph.nodes[0]!.params = { cron: '* * * * *', when: 'always' }
+    await hub.saveProfile(profile)
+    await fire()
+    expect(platform.lockScreen).toHaveBeenCalledTimes(2)
+  })
+
   it('fetches picture links through the image loader, keeping only the newest', async () => {
     const PIC = 'data:image/jpeg;base64,/9j/AA=='
     const resolvers: Array<(v: string) => void> = []

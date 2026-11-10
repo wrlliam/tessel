@@ -172,9 +172,20 @@ export class Hub {
   private holds = new Map<string, { timer: NodeJS.Timeout; long: boolean }>()
   private scheduler = new Scheduler(({ tileId, nodeId }) => {
     const tile = this.findTile(this.library.activeId, tileId)
-    if (tile && !this.paused)
-      void this.runtime(this.library.activeId).engine.trigger(tile, { type: 'schedule', nodeId })
+    if (!tile || this.paused) return
+    const when = tile.graph.nodes.find((n) => n.id === nodeId)?.params['when']
+    // By default a schedule only runs while a phone shows the tile's page; "always" opts out.
+    if (when !== 'always' && !this.pageVisible(tileId)) return
+    void this.runtime(this.library.activeId).engine.trigger(tile, { type: 'schedule', nodeId })
   })
+  /** The page each connected phone is showing. */
+  private visiblePages = new Map<string, string>()
+
+  /** Whether any connected phone is showing the page this tile sits on. */
+  pageVisible(tileId: string): boolean {
+    const page = this.library.active().pages.find((p) => p.tiles.some((t) => t.id === tileId))
+    return !!page && [...this.visiblePages.values()].includes(page.id)
+  }
   readonly logger: Logger = {
     info: (m) => this.addLog('info', m),
     warn: (m) => this.addLog('warn', m),
@@ -229,13 +240,18 @@ export class Hub {
       logger: this.logger,
       mdns: opts.mdns ?? true,
       onPress: (e) => void this.press(e),
-      onPageChange: (_deviceId, pageId) => void this.pageOpened(pageId),
+      onPageChange: (deviceId, pageId) => {
+        this.visiblePages.set(deviceId, pageId)
+        void this.pageOpened(pageId)
+      },
       onSlide: (e) => void this.slide(e.tileId, e.value),
       onEditTile: (deviceId, edit) => void this.editFromPhone(deviceId, edit),
       onRunKey: (key) => this.runShortcut(key),
       onLocation: (_deviceId, at) => void this.setLocation(at.lat, at.lon),
       onPhonesChanged: (phones) => {
         this.phones = phones
+        const online = new Set(phones.map((p) => p.deviceId))
+        for (const id of this.visiblePages.keys()) if (!online.has(id)) this.visiblePages.delete(id)
         this.emit()
       },
       welcomeMessages: () => [
